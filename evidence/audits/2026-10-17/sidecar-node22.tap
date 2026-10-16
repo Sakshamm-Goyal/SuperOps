@@ -1,0 +1,149 @@
+TAP version 13
+# (node:54554) ExperimentalWarning: Type Stripping is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: CONTRACT (fake openai_compatible embedder): memory sidecar
+    # Subtest: CONTRACT: every route requires the bearer token (401 AUTH_REQUIRED)
+    ok 1 - CONTRACT: every route requires the bearer token (401 AUTH_REQUIRED)
+      ---
+      duration_ms: 45.018458
+      type: 'test'
+      ...
+    # Subtest: CONTRACT: unknown fields, bad types and malformed bodies are rejected
+    ok 2 - CONTRACT: unknown fields, bad types and malformed bodies are rejected
+      ---
+      duration_ms: 18.23425
+      type: 'test'
+      ...
+    # Subtest: CONTRACT: remember sends documented openai_compatible request (no input_type/truncate)
+    ok 3 - CONTRACT: remember sends documented openai_compatible request (no input_type/truncate)
+      ---
+      duration_ms: 50.287084
+      type: 'test'
+      ...
+    # Subtest: CONTRACT: duplicate receipt is idempotent; same id with different hash is 409
+    ok 4 - CONTRACT: duplicate receipt is idempotent; same id with different hash is 409
+      ---
+      duration_ms: 44.689417
+      type: 'test'
+      ...
+    # Subtest: CONTRACT: foreign tenant/service records are never returned or auditable
+    ok 5 - CONTRACT: foreign tenant/service records are never returned or auditable
+      ---
+      duration_ms: 55.064667
+      type: 'test'
+      ...
+    # Subtest: CONTRACT: version change moves a memory to historical with reasons
+    ok 6 - CONTRACT: version change moves a memory to historical with reasons
+      ---
+      duration_ms: 47.81675
+      type: 'test'
+      ...
+    # Subtest: CONTRACT: correction requires review and sets lineage in both directions
+    ok 7 - CONTRACT: correction requires review and sets lineage in both directions
+      ---
+      duration_ms: 68.917375
+      type: 'test'
+      ...
+    # Subtest: CONTRACT: remember -> recall -> restart -> recall; audit history persists
+    ok 8 - CONTRACT: remember -> recall -> restart -> recall; audit history persists
+      ---
+      duration_ms: 227.13575
+      type: 'test'
+      ...
+    1..8
+ok 1 - CONTRACT (fake openai_compatible embedder): memory sidecar
+  ---
+  duration_ms: 934.748292
+  type: 'suite'
+  ...
+# (node:54555) ExperimentalWarning: Type Stripping is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: UNIT: vendored embed() uses the hash mock only when no embedder is registered
+ok 2 - UNIT: vendored embed() uses the hash mock only when no embedder is registered
+  ---
+  duration_ms: 1.697458
+  type: 'test'
+  ...
+# Subtest: UNIT: engine add/query without a prepared vector throw (fail closed)
+ok 3 - UNIT: engine add/query without a prepared vector throw (fail closed)
+  ---
+  duration_ms: 1.459625
+  type: 'test'
+  ...
+# Subtest: UNIT: patched query filter is applied before scoring
+ok 4 - UNIT: patched query filter is applied before scoring
+  ---
+  duration_ms: 0.914417
+  type: 'test'
+  ...
+# (node:54556) ExperimentalWarning: Type Stripping is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: CONTRACT: embedding provider down -> 503 MEMORY_EMBEDDING_UNAVAILABLE and nothing persisted
+ok 5 - CONTRACT: embedding provider down -> 503 MEMORY_EMBEDDING_UNAVAILABLE and nothing persisted
+  ---
+  duration_ms: 490.497792
+  type: 'test'
+  ...
+# Subtest: CONTRACT: malformed provider responses are rejected (finite, length, order, norm, dimension)
+ok 6 - CONTRACT: malformed provider responses are rejected (finite, length, order, norm, dimension)
+  ---
+  duration_ms: 238.515625
+  type: 'test'
+  ...
+# Subtest: CONTRACT: corrupt state.json -> health unavailable MEMORY_STATE_CORRUPT, files untouched
+ok 7 - CONTRACT: corrupt state.json -> health unavailable MEMORY_STATE_CORRUPT, files untouched
+  ---
+  duration_ms: 368.52025
+  type: 'test'
+  ...
+# Subtest: CONTRACT: corrupt ledger.jsonl and corrupt index are also detected without writes
+ok 8 - CONTRACT: corrupt ledger.jsonl and corrupt index are also detected without writes
+  ---
+  duration_ms: 842.306083
+  type: 'test'
+  ...
+# Subtest: CONTRACT: unscoped engine record is excluded before ranking and counted
+ok 9 - CONTRACT: unscoped engine record is excluded before ranking and counted
+  ---
+  duration_ms: 170.164167
+  type: 'test'
+  ...
+# Subtest: CONTRACT: crash orphan (engine written, index not) is adopted on retry; exactly one engine record
+ok 10 - CONTRACT: crash orphan (engine written, index not) is adopted on retry; exactly one engine record
+  ---
+  duration_ms: 170.654667
+  type: 'test'
+  ...
+# Subtest: CONTRACT: crash orphan with different content -> 409 ORPHAN_CONFLICT, nothing written
+ok 11 - CONTRACT: crash orphan with different content -> 409 ORPHAN_CONFLICT, nothing written
+  ---
+  duration_ms: 161.068292
+  type: 'test'
+  ...
+# Subtest: CONTRACT: embedding profile change -> degraded + MEMORY_NOT_READY until reindex
+ok 12 - CONTRACT: embedding profile change -> degraded + MEMORY_NOT_READY until reindex
+  ---
+  duration_ms: 468.103792
+  type: 'test'
+  ...
+# Subtest: CONFORMANCE: hash_conformance mode works deterministically and is labelled semantic:false
+ok 13 - CONFORMANCE: hash_conformance mode works deterministically and is labelled semantic:false
+  ---
+  duration_ms: 173.11775
+  type: 'test'
+  ...
+# Subtest: CONFIG: missing auth token, data dir or embedding mode exits 1
+ok 14 - CONFIG: missing auth token, data dir or embedding mode exits 1
+  ---
+  duration_ms: 641.11025
+  type: 'test'
+  ...
+1..14
+# tests 21
+# suites 1
+# pass 21
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 3922.313083

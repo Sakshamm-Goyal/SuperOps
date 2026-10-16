@@ -1,0 +1,83 @@
+{
+  "cancelled_queued_trial_runs": {
+    "cancel_status": 202,
+    "first_trial_after_cancel": "QUEUED",
+    "trial_kind": null
+  },
+  "baseline": {
+    "investigation": "271b6d85-8952-4d22-8e65-10ad6610b1e5",
+    "cloud": "AWAITING_APPROVAL",
+    "ai": "AWAITING_APPROVAL"
+  },
+  "crash_recovery_overwrites_external_write": {
+    "external_value": 6,
+    "approved_after": {
+      "max_concurrency": 4
+    },
+    "action_result": "RECOVERED",
+    "final_target": {
+      "max_concurrency": 8,
+      "version": 3,
+      "worker_id": "local/sandbox/support-worker-stg"
+    }
+  },
+  "expired_approval_dead_end": {
+    "execute": {
+      "error": {
+        "code": "APPROVAL_EXPIRED",
+        "details": {},
+        "message": "approval expired; a new approval is required",
+        "request_id": "117cd6d0-4df7-4546-b8b9-c8bc9595e048",
+        "retryable": false
+      }
+    },
+    "reapprove_status": 409,
+    "reapprove": {
+      "error": {
+        "code": "INVALID_STATE",
+        "details": {
+          "reason": null
+        },
+        "message": "plan is APPROVED, not AWAITING_APPROVAL",
+        "request_id": "ad904d64-5e2a-4c74-9e8d-ef696a219efa",
+        "retryable": false
+      }
+    },
+    "revoke_status": 409,
+    "plan_status": "APPROVED",
+    "allowed_actions": []
+  },
+  "revoked_authority_still_executes": {
+    "disabled_approver": true,
+    "worker_allowed_targets": [],
+    "action_status": "VERIFIED",
+    "before_version": 1,
+    "after_version": 2
+  },
+  "unresolved_reconcile_abandoned": {
+    "job_status": "SUCCEEDED",
+    "action_status": "EXECUTING",
+    "slot_holder": "ee3110d5-14ec-40f1-9403-609fbebaff22",
+    "next_step_after_target_restored": false
+  },
+  "naive_end_500": {
+    "status": 500,
+    "body": {
+      "error": {
+        "code": "INTERNAL_ERROR",
+        "message": "internal error; see server diagnostics with this request id",
+        "details": {},
+        "retryable": false,
+        "request_id": "d50082b1-ed3f-4f7c-a3d2-e0f75c6b5749"
+      }
+    }
+  },
+  "ai_version_preconditions_ignored": {
+    "versions_current": [
+      true,
+      null
+    ],
+    "plan_model": "old-model",
+    "current_model": "audit-different-model"
+  }
+}

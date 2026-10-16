@@ -4,6 +4,8 @@ An engineering workbench for investigating cloud and AI waste, testing a change,
 
 **Status, 16 October 2026: implemented end to end, before the event, at the user's explicit instruction.** All code is declared pre-existing in [PREEXISTING.md](PREEXISTING.md). Event-window work goes in [NEW_WORK.md](NEW_WORK.md).
 
+**Audit update, 17 October 2026:** the clean local suites pass, but targeted adversarial checks found release-blocking authority/recovery, verifier, pricing and evidence-integrity defects. Real sponsor validation remains blocked. Read the [implementation audit and repair order](docs/IMPLEMENTATION_AUDIT_2026-10-17.md) before treating the implementation as release-ready; this audit did not fix application behavior.
+
 - **Verified locally:** the investigation loop, deterministic screening, critic enforcement, matched local trials, plan-bound approval, single execution with read-back and recovery, memory persistence across restarts, and the learning effect. These were verified with labelled scripted roles, synthetic data and a hash embedder.
 - **BLOCKED:** real Zetaris federation, real NVIDIA model and embedding calls, semantic recall quality, and GCP execution. They need the team's credentials. No sponsor access, deployment, publication or measured saving is claimed.
 

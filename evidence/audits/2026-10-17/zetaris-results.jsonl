@@ -1,0 +1,3 @@
+{"case": "row_budget", "requested_max": 150, "returned": 200, "completeness": "partial"}
+{"case": "duplicate_pages", "rows": [{"probe_id": "1"}, {"probe_id": "1"}], "completeness": "complete"}
+{"case": "malformed_initial_record", "error": "ZetarisError", "closed": false}

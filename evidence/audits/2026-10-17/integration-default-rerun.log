@@ -1,0 +1,323 @@
+FF.FFFFFFFF..F.FF.....                                                   [100%]
+=================================== FAILURES ===================================
+_______ test_journey_reaches_awaiting_approval_with_retained_rejections ________
+
+env = (Runtime(settings=Settings(app_env='sandbox', runtime_mode=<RuntimeMode.CONNECTED_DEMO: 'connected_demo'>, database_ur...', 'id': '49fe0ac9-8fca-42bb-be00-b49033b0d871', 'status': 'AWAITING_APPROVAL', 'runtime_mode': 'connected_demo', ...})
+
+    def test_journey_reaches_awaiting_approval_with_retained_rejections(env):
+        rt, client, iid, inv = env
+        assert inv["status"] == "AWAITING_APPROVAL", inv["data"]["outcome"]
+        plans = inv["data"]["plans"]
+        sigs = {p["screening"]["signature"]: p["status"] for p in plans}
+        assert sigs["cloud:gcp/greenops-sbx-prod/worker-prod-01:e2-standard-2"] == "REJECTED"  # tempting resize rejected on peak
+>       assert sigs["cloud:gcp/greenops-sbx-staging/worker-stg-01:e2-standard-4"] == "AWAITING_APPROVAL"
+E       AssertionError: assert 'REJECTED' == 'AWAITING_APPROVAL'
+E         
+E         - AWAITING_APPROVAL
+E         + REJECTED
+
+tests/integration/test_authority.py:63: AssertionError
+_______________________ test_sec02_auth_scope_and_roles ________________________
+
+env = (Runtime(settings=Settings(app_env='sandbox', runtime_mode=<RuntimeMode.CONNECTED_DEMO: 'connected_demo'>, database_ur...', 'id': '49fe0ac9-8fca-42bb-be00-b49033b0d871', 'status': 'AWAITING_APPROVAL', 'runtime_mode': 'connected_demo', ...})
+
+    def test_sec02_auth_scope_and_roles(env):
+        rt, client, iid, inv = env
+>       plan = cloud_plan(client, inv)
+               ^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_authority.py:77: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+client = <starlette.testclient.TestClient object at 0x10d92adb0>
+inv = {'schema_version': '1', 'id': '49fe0ac9-8fca-42bb-be00-b49033b0d871', 'status': 'AWAITING_APPROVAL', 'runtime_mode': 'connected_demo', ...}
+
+    def cloud_plan(client, inv) -> dict:
+>       p = next(p for p in inv["data"]["plans"] if p["path"] == "cloud" and p["status"] == "AWAITING_APPROVAL")
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       StopIteration
+
+tests/integration/test_authority.py:38: StopIteration
+________________ test_act01_act14_act05_execute_once_and_verify ________________
+
+env = (Runtime(settings=Settings(app_env='sandbox', runtime_mode=<RuntimeMode.CONNECTED_DEMO: 'connected_demo'>, database_ur...', 'id': '49fe0ac9-8fca-42bb-be00-b49033b0d871', 'status': 'AWAITING_APPROVAL', 'runtime_mode': 'connected_demo', ...})
+
+    def test_act01_act14_act05_execute_once_and_verify(env):
+        rt, client, iid, inv = env
+>       plan = cloud_plan(client, inv)
+               ^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_authority.py:108: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+client = <starlette.testclient.TestClient object at 0x10d92adb0>
+inv = {'schema_version': '1', 'id': '49fe0ac9-8fca-42bb-be00-b49033b0d871', 'status': 'AWAITING_APPROVAL', 'runtime_mode': 'connected_demo', ...}
+
+    def cloud_plan(client, inv) -> dict:
+>       p = next(p for p in inv["data"]["plans"] if p["path"] == "cloud" and p["status"] == "AWAITING_APPROVAL")
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       StopIteration
+
+tests/integration/test_authority.py:38: StopIteration
+______________ test_act03_target_changed_after_approval_is_stale _______________
+
+env = (Runtime(settings=Settings(app_env='sandbox', runtime_mode=<RuntimeMode.CONNECTED_DEMO: 'connected_demo'>, database_ur...', 'id': '49fe0ac9-8fca-42bb-be00-b49033b0d871', 'status': 'AWAITING_APPROVAL', 'runtime_mode': 'connected_demo', ...})
+
+    def test_act03_target_changed_after_approval_is_stale(env):
+        rt, client, iid, inv = env
+>       plan = fresh_plan(rt, client)
+               ^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_authority.py:154: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_authority.py:54: in fresh_plan
+    return cloud_plan(client, inv)
+           ^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+client = <starlette.testclient.TestClient object at 0x10d92adb0>
+inv = {'schema_version': '1', 'id': '2f5129f8-acfc-4712-a473-2a82339e90f5', 'status': 'AWAITING_APPROVAL', 'runtime_mode': 'connected_demo', ...}
+
+    def cloud_plan(client, inv) -> dict:
+>       p = next(p for p in inv["data"]["plans"] if p["path"] == "cloud" and p["status"] == "AWAITING_APPROVAL")
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       StopIteration
+
+tests/integration/test_authority.py:38: StopIteration
+________ test_act02_act15_expiry_before_execute_and_before_first_write _________
+
+env = (Runtime(settings=Settings(app_env='sandbox', runtime_mode=<RuntimeMode.CONNECTED_DEMO: 'connected_demo'>, database_ur...', 'id': '49fe0ac9-8fca-42bb-be00-b49033b0d871', 'status': 'AWAITING_APPROVAL', 'runtime_mode': 'connected_demo', ...})
+
+    def test_act02_act15_expiry_before_execute_and_before_first_write(env):
+        rt, client, iid, inv = env
+>       plan = fresh_plan(rt, client)
+               ^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_authority.py:167: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_authority.py:54: in fresh_plan
+    return cloud_plan(client, inv)
+           ^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+client = <starlette.testclient.TestClient object at 0x10d92adb0>
+inv = {'schema_version': '1', 'id': 'c6a9c86f-53fb-4d61-8f64-5c9950af23bf', 'status': 'AWAITING_APPROVAL', 'runtime_mode': 'connected_demo', ...}
+
+    def cloud_plan(client, inv) -> dict:
+>       p = next(p for p in inv["data"]["plans"] if p["path"] == "cloud" and p["status"] == "AWAITING_APPROVAL")
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       StopIteration
+
+tests/integration/test_authority.py:38: StopIteration
+_________ test_act07_crash_after_write_reconciles_without_second_write _________
+
+env = (Runtime(settings=Settings(app_env='sandbox', runtime_mode=<RuntimeMode.CONNECTED_DEMO: 'connected_demo'>, database_ur...', 'id': '49fe0ac9-8fca-42bb-be00-b49033b0d871', 'status': 'AWAITING_APPROVAL', 'runtime_mode': 'connected_demo', ...})
+
+    def test_act07_crash_after_write_reconciles_without_second_write(env):
+        from greenops.services import execution
+        rt, client, iid, inv = env
+>       plan, aid = _queued_action(rt, client)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_authority.py:200: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_authority.py:188: in _queued_action
+    plan = fresh_plan(rt, client)
+           ^^^^^^^^^^^^^^^^^^^^^^
+tests/integration/test_authority.py:54: in fresh_plan
+    return cloud_plan(client, inv)
+           ^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+client = <starlette.testclient.TestClient object at 0x10d92adb0>
+inv = {'schema_version': '1', 'id': 'c892f3c6-fff6-4dfd-8779-6349c2bdf805', 'status': 'AWAITING_APPROVAL', 'runtime_mode': 'connected_demo', ...}
+
+    def cloud_plan(client, inv) -> dict:
+>       p = next(p for p in inv["data"]["plans"] if p["path"] == "cloud" and p["status"] == "AWAITING_APPROVAL")
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       StopIteration
+
+tests/integration/test_authority.py:38: StopIteration
+______________ test_act07b_crash_before_write_fails_without_retry ______________
+
+env = (Runtime(settings=Settings(app_env='sandbox', runtime_mode=<RuntimeMode.CONNECTED_DEMO: 'connected_demo'>, database_ur...', 'id': '49fe0ac9-8fca-42bb-be00-b49033b0d871', 'status': 'AWAITING_APPROVAL', 'runtime_mode': 'connected_demo', ...})
+
+    def test_act07b_crash_before_write_fails_without_retry(env):
+        from greenops.services import execution
+        rt, client, iid, inv = env
+>       plan, aid = _queued_action(rt, client)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_authority.py:216: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_authority.py:188: in _queued_action
+    plan = fresh_plan(rt, client)
+           ^^^^^^^^^^^^^^^^^^^^^^
+tests/integration/test_authority.py:54: in fresh_plan
+    return cloud_plan(client, inv)
+           ^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+client = <starlette.testclient.TestClient object at 0x10d92adb0>
+inv = {'schema_version': '1', 'id': '6e890561-0633-4b2a-a907-4463ba6e528e', 'status': 'AWAITING_APPROVAL', 'runtime_mode': 'connected_demo', ...}
+
+    def cloud_plan(client, inv) -> dict:
+>       p = next(p for p in inv["data"]["plans"] if p["path"] == "cloud" and p["status"] == "AWAITING_APPROVAL")
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       StopIteration
+
+tests/integration/test_authority.py:38: StopIteration
+_____________ test_act08_failed_health_restores_exact_prior_config _____________
+
+env = (Runtime(settings=Settings(app_env='sandbox', runtime_mode=<RuntimeMode.CONNECTED_DEMO: 'connected_demo'>, database_ur...', 'id': '49fe0ac9-8fca-42bb-be00-b49033b0d871', 'status': 'AWAITING_APPROVAL', 'runtime_mode': 'connected_demo', ...})
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10dc426c0>
+
+    def test_act08_failed_health_restores_exact_prior_config(env, monkeypatch):
+        from greenops.services import execution
+        rt, client, iid, inv = env
+>       plan, aid = _queued_action(rt, client)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_authority.py:227: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_authority.py:188: in _queued_action
+    plan = fresh_plan(rt, client)
+           ^^^^^^^^^^^^^^^^^^^^^^
+tests/integration/test_authority.py:54: in fresh_plan
+    return cloud_plan(client, inv)
+           ^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+client = <starlette.testclient.TestClient object at 0x10d92adb0>
+inv = {'schema_version': '1', 'id': '67932e91-b1a0-427d-ab34-63087d8d1fcd', 'status': 'AWAITING_APPROVAL', 'runtime_mode': 'connected_demo', ...}
+
+    def cloud_plan(client, inv) -> dict:
+>       p = next(p for p in inv["data"]["plans"] if p["path"] == "cloud" and p["status"] == "AWAITING_APPROVAL")
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       StopIteration
+
+tests/integration/test_authority.py:38: StopIteration
+________________ test_act09_intervening_change_blocks_recovery _________________
+
+env = (Runtime(settings=Settings(app_env='sandbox', runtime_mode=<RuntimeMode.CONNECTED_DEMO: 'connected_demo'>, database_ur...', 'id': '49fe0ac9-8fca-42bb-be00-b49033b0d871', 'status': 'AWAITING_APPROVAL', 'runtime_mode': 'connected_demo', ...})
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x10dced850>
+
+    def test_act09_intervening_change_blocks_recovery(env, monkeypatch):
+        from greenops.services import execution
+        rt, client, iid, inv = env
+>       plan, aid = _queued_action(rt, client)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_authority.py:243: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_authority.py:188: in _queued_action
+    plan = fresh_plan(rt, client)
+           ^^^^^^^^^^^^^^^^^^^^^^
+tests/integration/test_authority.py:54: in fresh_plan
+    return cloud_plan(client, inv)
+           ^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+client = <starlette.testclient.TestClient object at 0x10d92adb0>
+inv = {'schema_version': '1', 'id': '85678f6b-6a55-4ef5-8b7a-8cdccd5995ce', 'status': 'AWAITING_APPROVAL', 'runtime_mode': 'connected_demo', ...}
+
+    def cloud_plan(client, inv) -> dict:
+>       p = next(p for p in inv["data"]["plans"] if p["path"] == "cloud" and p["status"] == "AWAITING_APPROVAL")
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       StopIteration
+
+tests/integration/test_authority.py:38: StopIteration
+_______________ test_act13_sample_mode_cannot_approve_or_execute _______________
+
+db_url = 'postgresql://greenops@127.0.0.1:55432/greenops_itest'
+sandbox = PosixPath('/private/var/folders/1n/d211jy9s3h76q2_mzpc72llh0000gn/T/pytest-of-saksham/pytest-109/sandbox0')
+
+    def test_act13_sample_mode_cannot_approve_or_execute(db_url, sandbox):
+        rt = make_runtime(db_url, sandbox, mode="sample")
+        client = TestClient(create_app_for(rt))
+        iid = start_investigation(client, mode="sample", trials=True)
+        drain(rt)
+        inv = client.get(f"/v1/investigations/{iid}", headers=auth("lead", False)).json()
+>       p = next(p for p in inv["data"]["plans"] if p["status"] == "AWAITING_APPROVAL")
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       StopIteration
+
+tests/integration/test_authority.py:263: StopIteration
+_____________ test_hmem03_act04_policy_change_makes_approval_stale _____________
+
+env = (Runtime(settings=Settings(app_env='sandbox', runtime_mode=<RuntimeMode.CONNECTED_DEMO: 'connected_demo'>, database_ur...', 'id': '49fe0ac9-8fca-42bb-be00-b49033b0d871', 'status': 'AWAITING_APPROVAL', 'runtime_mode': 'connected_demo', ...})
+db_url = 'postgresql://greenops@127.0.0.1:55432/greenops_itest'
+sandbox = PosixPath('/private/var/folders/1n/d211jy9s3h76q2_mzpc72llh0000gn/T/pytest-of-saksham/pytest-109/sandbox0')
+
+    def test_hmem03_act04_policy_change_makes_approval_stale(env, db_url, sandbox):
+        rt, client, iid, inv = env
+>       plan = fresh_plan(rt, client)
+               ^^^^^^^^^^^^^^^^^^^^^^
+
+tests/integration/test_authority.py:308: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/integration/test_authority.py:54: in fresh_plan
+    return cloud_plan(client, inv)
+           ^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+client = <starlette.testclient.TestClient object at 0x10d92adb0>
+inv = {'schema_version': '1', 'id': 'c5933189-a6ee-44c3-be01-3e79078a9589', 'status': 'AWAITING_APPROVAL', 'runtime_mode': 'connected_demo', ...}
+
+    def cloud_plan(client, inv) -> dict:
+>       p = next(p for p in inv["data"]["plans"] if p["path"] == "cloud" and p["status"] == "AWAITING_APPROVAL")
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       StopIteration
+
+tests/integration/test_authority.py:38: StopIteration
+______________ test_hmem01_outbox_delivered_and_survives_restart _______________
+
+first_run = (Runtime(settings=Settings(app_env='sandbox', runtime_mode=<RuntimeMode.SAMPLE: 'sample'>, database_url='postgresql://...ion': '1', 'id': '744ee991-2e51-4b36-895e-39cc64dd06e1', 'status': 'AWAITING_APPROVAL', 'runtime_mode': 'sample', ...})
+sidecar = <tests.conftest.sidecar.<locals>.Handle object at 0x10debe3f0>
+
+    def test_hmem01_outbox_delivered_and_survives_restart(first_run, sidecar):
+        rt, client, inv = first_run
+        with connect(rt.db) as c:
+            rows = c.execute("SELECT * FROM memory_outbox WHERE tenant_id='sandbox-tenant'").fetchall()
+        kinds = {r["receipt_kind"] for r in rows}
+        assert {"screening_rejection", "rejected_trial", "validated_plan"} <= kinds
+        assert all(r["status"] == "SENT" and r["engine_memory_id"] for r in rows)
+        sidecar.restart()  # same durable data dir
+        rec = rt.memory_factory().recall("sandbox-tenant", "support-demo", "failed truncated policy context support workflow trial",
+                                         {"policy_version": "pol-v1", "workload_version": "support-workflow-v1",
+                                          "config_version": "1", "model_version": "scripted-sample-v1", "test_version": None}, top_k=10)
+        assert rec["items"] or rec["historical"]
+        audit = client.get(f"/v1/memories/{rows[0]['application_receipt_id']}", headers=auth("teammate", False)).json()
+>       assert audit["data"]["audit"]["history"], audit
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: 'NoneType' object is not subscriptable
+
+tests/integration/test_memory_learning.py:47: TypeError
+___________ test_hmem05_later_investigation_uses_applicable_failures ___________
+
+first_run = (Runtime(settings=Settings(app_env='sandbox', runtime_mode=<RuntimeMode.SAMPLE: 'sample'>, database_url='postgresql://...ion': '1', 'id': '744ee991-2e51-4b36-895e-39cc64dd06e1', 'status': 'AWAITING_APPROVAL', 'runtime_mode': 'sample', ...})
+db_url = 'postgresql://greenops@127.0.0.1:55432/greenops_itest'
+sandbox = PosixPath('/private/var/folders/1n/d211jy9s3h76q2_mzpc72llh0000gn/T/pytest-of-saksham/pytest-109/sandbox0')
+sidecar = <tests.conftest.sidecar.<locals>.Handle object at 0x10debe3f0>
+
+    def test_hmem05_later_investigation_uses_applicable_failures(first_run, db_url, sandbox, sidecar):
+        rt, client, inv1 = first_run
+        iid = start_investigation(client, memory="on", mode="sample", question="Repeat: what can we change this week?")
+        drain(rt)
+        inv2 = _inv(client, iid)
+        mem = inv2["data"]["memory"]
+        assert mem["status"] == "used" and mem["applicable"]
+        sigs2 = {p["screening"]["signature"] for p in inv2["data"]["plans"]}
+        failed1 = {p["screening"]["signature"] for p in inv1["data"]["plans"] if p["status"] == "REJECTED"}
+>       assert not (sigs2 & failed1), "previously failed candidates were repeated despite applicable memory"
+E       AssertionError: previously failed candidates were repeated despite applicable memory
+E       assert not ({'ai:dedupe_lookups=True,max_tool_calls=6,policy_char_limit=None,policy_context=relevant_sections', 'cloud:gcp/greenop...ud:gcp/greenops-sbx-staging/worker-mem-01:n2-standard-2', 'cloud:gcp/greenops-sbx-staging/worker-stg-01:e2-standard-4'} & {'ai:dedupe_lookups=True,max_tool_calls=6,policy_char_limit=3200,policy_context=truncated', 'cloud:gcp/greenops-sbx-pr...ud:gcp/greenops-sbx-staging/worker-stg-01:e2-standard-2', 'cloud:gcp/greenops-sbx-staging/worker-stg-01:e2-standard-4'})
+
+tests/integration/test_memory_learning.py:62: AssertionError
+=============================== warnings summary ===============================
+.venv/lib/python3.12/site-packages/fastapi/testclient.py:1
+  /Users/saksham/Codes/GreenOps Hackathon/.venv/lib/python3.12/site-packages/fastapi/testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+13 failed, 9 passed, 1 warning in 11.66s

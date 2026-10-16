@@ -1,0 +1,7 @@
+{
+  "case": "sandbox_ownership_not_checked",
+  "second_start_spawned": [],
+  "second_directory_value": 4,
+  "actual_worker_value": 8,
+  "expected": "reject another sandbox instance or start on isolated ports"
+}

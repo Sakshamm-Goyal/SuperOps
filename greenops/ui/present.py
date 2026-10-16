@@ -21,11 +21,23 @@ TONES = {
     "progress": ("…", ":material/hourglass_top:", "blue"),
     "neutral": ("○", ":material/radio_button_unchecked:", "gray"),
     "unknown": ("?", ":material/help:", "orange"),
+    "restored": ("↺", ":material/settings_backup_restore:", "blue"),
+}
+
+# Action outcomes that share a tone still need distinct icons (UX_SPEC: RECOVERY_REQUIRED / RECOVERED / FAILED and
+# EXECUTING / PENDING_VERIFICATION must be visibly different, not only by color).
+STATUS_ICON = {
+    "FAILED": ":material/cancel:",
+    "RECOVERY_REQUIRED": ":material/engineering:",
+    "RECOVERED": ":material/settings_backup_restore:",
+    "RECOVERING": ":material/restore:",
+    "PENDING_VERIFICATION": ":material/pending:",
+    "EXECUTING": ":material/hourglass_top:",
 }
 
 STATUS_TONE = {
     # checks / trials / readiness
-    "PASS": "ok", "PASSED": "ok", "ready": "ok", "complete": "ok", "VERIFIED": "ok", "RECOVERED": "ok",
+    "PASS": "ok", "PASSED": "ok", "ready": "ok", "complete": "ok", "VERIFIED": "ok", "RECOVERED": "restored",
     "VALIDATED": "ok", "COMPLETED": "ok", "SENT": "ok", "ACTIVE": "ok", "ELIGIBLE_FOR_TRIAL": "ok",
     "FAIL": "fail", "FAILED": "fail", "REJECTED": "fail", "REJECT": "fail", "unavailable": "fail",
     "UNKNOWN": "unknown", "unknown": "unknown", "INCOMPLETE": "attention", "partial": "attention",
@@ -53,7 +65,7 @@ STATUS_MEANING = {
     "VERIFIED": "Intended state and required health checks confirmed",
     "RECOVERY_REQUIRED": "Human intervention needed; see recovery details",
     "RECOVERING": "Restoring the exact prior configuration",
-    "RECOVERED": "Prior state restored and read back",
+    "RECOVERED": "Prior configuration restored and read back; the intended change is not in effect",
     "FAILED": "Operation failed; see the precise outcome",
     "NO_CHANGE": "Investigation completed without an acceptable change",
     "NEEDS_REVIEW": "Investigation finished; candidates need human review",
@@ -74,7 +86,7 @@ def glyph(status: Any) -> str:
 
 
 def icon(status: Any) -> str:
-    return TONES[tone(status)][1]
+    return STATUS_ICON.get(str(status)) or TONES[tone(status)][1]
 
 
 def badge_color(status: Any) -> str:
@@ -144,6 +156,18 @@ def cell(value: Any, limit: int = 160) -> str:
     else:
         s = str(value)
     return s if len(s) <= limit else s[: limit - 1] + "…"
+
+
+def inline(value: Any, limit: int = 240) -> str:
+    """Readable one-line form of a nested value for a table cell: 'key: value · key: value' instead of raw JSON."""
+    if isinstance(value, dict):
+        if not value:
+            return "—"
+        s = " · ".join(f"{k}: {inline(v, limit)}" for k, v in value.items())
+        return s if len(s) <= limit else s[: limit - 1] + "…"
+    if isinstance(value, list):
+        return ", ".join(inline(v, limit) for v in value) or "—"
+    return cell(value, limit)
 
 
 def short_id(value: Any) -> str:

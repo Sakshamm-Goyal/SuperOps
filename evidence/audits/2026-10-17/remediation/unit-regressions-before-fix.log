@@ -1,0 +1,3 @@
+________________ test_a10_failed_output_verdict_keeps_category _________________
+    def test_a10_failed_output_verdict_keeps_category():
+20 failed, 1 passed, 1 warning in 0.51s
