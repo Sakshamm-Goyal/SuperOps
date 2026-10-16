@@ -1,0 +1,15 @@
+.DS_Store
+.env
+.env.*
+!.env.example
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+node_modules/
+memory-sidecar/dist/
+var/
+.evaluator/
+evidence/runs/*/private/
