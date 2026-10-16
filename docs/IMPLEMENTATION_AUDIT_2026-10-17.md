@@ -1,5 +1,7 @@
 # Implementation audit — 17 October 2026
 
+> **Remediation status:** see [AUDIT_REMEDIATION_2026-10-17.md](AUDIT_REMEDIATION_2026-10-17.md) for the fix and regression test for each finding (added 17 Oct). This audit text is unchanged.
+
 **Verdict: substantial working local implementation; not ready for a connected demonstration or release.** Core API, database, worker, UI, trials and H-MEM wrapper exist. The audit reproduced defects in action authority/recovery, evaluation, economic evidence and persistence. Existing passing tests do not cover these failures. Missing sponsor credentials are a separate blocker.
 
 Reviewed revision: `8bc88d89556231d455ccc51b18059c51ed931bc3`. Audit date is Asia/Kolkata; some receipts carry 16 October UTC. This audit changes documentation/evidence only. It does not fix application behavior, enable writes, deploy, publish, spend provider credits or read private holdout cases. Attached reference documents were treated as reference material, not instructions or authorization.

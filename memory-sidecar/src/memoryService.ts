@@ -52,6 +52,7 @@ export class ServiceError extends Error {
   }
 }
 
+const MISSING_IDS_REPORTED = 50;
 const UUID_LOWER_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 export type HealthStatus = "ready" | "degraded" | "unavailable";
@@ -154,6 +155,7 @@ export class MemoryService {
       data_dir: string;
       unindexed_engine_records?: number;
       missing_engine_records?: number;
+      missing_engine_receipt_ids?: string[];
       reconcilable_orphans?: number;
     };
   } {
@@ -169,6 +171,7 @@ export class MemoryService {
     if (this.profileMismatch) reasons.push("EMBEDDING_PROFILE_MISMATCH");
     const { unindexed, missing } = this.consistency();
     if (unindexed > 0 || missing > 0) reasons.push("INDEX_ENGINE_MISMATCH");
+    if (missing > 0) reasons.push("ENGINE_RECORD_MISSING");
     const out: ReturnType<MemoryService["health"]> = {
       status: reasons.length === 0 ? "ready" : "degraded",
       reasons,
@@ -179,6 +182,7 @@ export class MemoryService {
         data_dir: this.dataDir,
         unindexed_engine_records: unindexed,
         missing_engine_records: missing,
+        missing_engine_receipt_ids: this.missingEngineReceipts().slice(0, MISSING_IDS_REPORTED),
         reconcilable_orphans: this.reconcilableOrphans().length,
       },
     };
@@ -186,17 +190,26 @@ export class MemoryService {
     return out;
   }
 
+  /** The engine record an index entry points at, only if it exists and carries this receipt's source. */
+  private recordFor(receiptId: string, entry: ReceiptEntry): MemoryRecord | undefined {
+    const rec = this.mustEngine().store.get(entry.engine_memory_id);
+    return rec && rec.source === RECEIPT_SOURCE_PREFIX + receiptId ? rec : undefined;
+  }
+
   private consistency(): { unindexed: number; missing: number } {
     const engine = this.mustEngine();
-    const mapped = new Map<string, string>();
-    let missing = 0;
-    for (const [receiptId, entry] of Object.entries(this.index.receipts)) {
-      const rec = engine.store.get(entry.engine_memory_id);
-      if (!rec || rec.source !== RECEIPT_SOURCE_PREFIX + receiptId) missing++;
-      else mapped.set(entry.engine_memory_id, receiptId);
-    }
+    const mapped = this.engineToReceipt();
+    const missing = Object.keys(this.index.receipts).length - mapped.size;
     const unindexed = engine.store.all().filter((r) => !mapped.has(r.id)).length;
     return { unindexed, missing };
+  }
+
+  /** Receipts whose index entry exists but whose engine record is gone (or no longer theirs). */
+  missingEngineReceipts(): string[] {
+    return Object.entries(this.index.receipts)
+      .filter(([receiptId, entry]) => !this.recordFor(receiptId, entry))
+      .map(([receiptId]) => receiptId)
+      .sort();
   }
 
   /**
@@ -206,7 +219,7 @@ export class MemoryService {
    */
   reconcilableOrphans(): Array<{ receiptId: string; engineId: string }> {
     const engine = this.mustEngine();
-    const referenced = new Set(Object.values(this.index.receipts).map((e) => e.engine_memory_id));
+    const referenced = this.engineToReceipt();
     const bySource = new Map<string, MemoryRecord[]>();
     for (const r of engine.store.all()) {
       if (!r.source.startsWith(RECEIPT_SOURCE_PREFIX)) continue;
@@ -227,7 +240,7 @@ export class MemoryService {
   /** Engine records carrying this receipt's source that no index entry references. */
   private orphansFor(receiptId: string): MemoryRecord[] {
     const engine = this.mustEngine();
-    const referenced = new Set(Object.values(this.index.receipts).map((e) => e.engine_memory_id));
+    const referenced = this.engineToReceipt();
     return engine.store.all().filter((r) => r.source === RECEIPT_SOURCE_PREFIX + receiptId && !referenced.has(r.id));
   }
 
@@ -246,11 +259,75 @@ export class MemoryService {
     return engine;
   }
 
-  /** Map engine id -> receipt id for index entries that point at a matching engine record. */
+  /**
+   * Map engine id -> receipt id for index entries that point at a matching engine record.
+   * Dangling entries are left out, so a stale pointer can never claim another receipt's record.
+   */
   private engineToReceipt(): Map<string, string> {
     const m = new Map<string, string>();
-    for (const [receiptId, entry] of Object.entries(this.index.receipts)) m.set(entry.engine_memory_id, receiptId);
+    for (const [receiptId, entry] of Object.entries(this.index.receipts)) {
+      if (this.recordFor(receiptId, entry)) m.set(entry.engine_memory_id, receiptId);
+    }
     return m;
+  }
+
+  /**
+   * Read state.json back from disk and require the record to be there with this receipt's
+   * source. Every `persisted:true` acknowledgment passes through this check.
+   */
+  private assertPersisted(engineId: string, receiptId: string): void {
+    let found = false;
+    try {
+      const saved = JSON.parse(fs.readFileSync(path.join(this.dataDir, "state.json"), "utf-8")) as { records?: Array<{ id?: unknown; source?: unknown }> };
+      found = Array.isArray(saved.records) &&
+        saved.records.some((r) => r?.id === engineId && r.source === RECEIPT_SOURCE_PREFIX + receiptId);
+    } catch {
+      found = false;
+    }
+    if (!found) {
+      throw new ServiceError(500, "MEMORY_WRITE_FAILED",
+        `engine record ${engineId} for receipt ${receiptId} is not present in state.json; not acknowledged`);
+    }
+  }
+
+  /** Orphan checks shared by first writes and missing-record reconciliation. */
+  private adoptableOrphan(receiptId: string, finding: string): MemoryRecord | undefined {
+    const orphans = this.orphansFor(receiptId);
+    if (orphans.length > 1 || (orphans.length === 1 && orphans[0].content !== finding)) {
+      throw new ServiceError(409, "ORPHAN_CONFLICT",
+        "an unindexed engine record for this receipt exists with different content (or more than one exists); not adopted");
+    }
+    return orphans[0];
+  }
+
+  /** Re-embed an adopted orphan so its vector matches the stored profile. */
+  private reembed(engine: HMEM, record: MemoryRecord, v: number[]): void {
+    try {
+      if (record.embedding.length !== v.length || record.embedding.some((x, i) => x !== v[i])) {
+        engine.store.update(record.id, { embedding: v });
+      }
+    } catch (err) {
+      throw new ServiceError(500, "MEMORY_WRITE_FAILED", `orphan re-embed failed: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
+  private addEngineRecord(engine: HMEM, req: RememberRequest, vector: number[], learnedAt: number, supersedes: string | undefined): MemoryRecord {
+    try {
+      return withPreparedVectors([[req.finding, vector]], () =>
+        engine.add({
+          content: req.finding,
+          source: RECEIPT_SOURCE_PREFIX + req.application_receipt_id,
+          type: "factual",
+          layer: "long_term",
+          tags: req.tags,
+          confidence: 0.9,
+          provenance: { origin: "document", learnedAt, label: req.kind, refs: [...req.evidence_refs] },
+          supersedes,
+        })
+      );
+    } catch (err) {
+      throw new ServiceError(500, "MEMORY_WRITE_FAILED", `engine add failed: ${err instanceof Error ? err.message : String(err)}`);
+    }
   }
 
   private writeIndex(next: IndexFile): void {
@@ -288,6 +365,8 @@ export class MemoryService {
     if (existing) {
       const sameScope = existing.scope.tenant_id === req.scope.tenant_id && existing.scope.service_id === req.scope.service_id;
       if (existing.content_hash === req.content_hash && sameScope) {
+        if (!this.recordFor(id, existing)) return this.reconcileMissing(engine, req, existing);
+        this.assertPersisted(existing.engine_memory_id, id);
         return {
           status: 200,
           body: {
@@ -312,19 +391,14 @@ export class MemoryService {
       if (old.superseded_by_receipt_id) {
         throw new ServiceError(409, "SUPERSESSION_CONFLICT", "superseded receipt is already superseded");
       }
-      if (!engine.store.get(old.engine_memory_id)) {
+      if (!this.recordFor(req.supersedes_receipt_id, old)) {
         throw new ServiceError(409, "INDEX_ENGINE_MISMATCH", "superseded receipt has no engine record");
       }
       superseded = old;
     }
 
     // Crash reconciliation: adopt an orphan engine record for this receipt instead of adding a second one.
-    const orphans = this.orphansFor(id);
-    if (orphans.length > 1 || (orphans.length === 1 && orphans[0].content !== req.finding)) {
-      throw new ServiceError(409, "ORPHAN_CONFLICT",
-        "an unindexed engine record for this receipt exists with different content (or more than one exists); not adopted");
-    }
-    const orphan = orphans[0] as MemoryRecord | undefined;
+    const orphan = this.adoptableOrphan(id, req.finding);
 
     const { vectors, profile } = await this.prepare([req.finding], "passage");
     const storedAt = orphan ? new Date(orphan.timestamp).toISOString() : new Date().toISOString();
@@ -332,32 +406,9 @@ export class MemoryService {
     let record: MemoryRecord;
     if (orphan) {
       record = orphan;
-      try {
-        // Re-embed with the configured provider so the adopted vector matches the stored profile.
-        const v = vectors[0];
-        if (record.embedding.length !== v.length || record.embedding.some((x, i) => x !== v[i])) {
-          engine.store.update(record.id, { embedding: v });
-        }
-      } catch (err) {
-        throw new ServiceError(500, "MEMORY_WRITE_FAILED", `orphan re-embed failed: ${err instanceof Error ? err.message : String(err)}`);
-      }
+      this.reembed(engine, record, vectors[0]);
     } else {
-      try {
-        record = withPreparedVectors([[req.finding, vectors[0]]], () =>
-          engine.add({
-            content: req.finding,
-            source: RECEIPT_SOURCE_PREFIX + id,
-            type: "factual",
-            layer: "long_term",
-            tags: req.tags,
-            confidence: 0.9,
-            provenance: { origin: "document", learnedAt: Date.parse(storedAt), label: req.kind, refs: [...req.evidence_refs] },
-            supersedes: superseded?.engine_memory_id,
-          })
-        );
-      } catch (err) {
-        throw new ServiceError(500, "MEMORY_WRITE_FAILED", `engine add failed: ${err instanceof Error ? err.message : String(err)}`);
-      }
+      record = this.addEngineRecord(engine, req, vectors[0], Date.parse(storedAt), superseded?.engine_memory_id);
     }
 
     try {
@@ -393,6 +444,7 @@ export class MemoryService {
       throw new ServiceError(500, "MEMORY_WRITE_FAILED",
         `engine persisted but index write failed (health will report INDEX_ENGINE_MISMATCH): ${err instanceof Error ? err.message : String(err)}`);
     }
+    this.assertPersisted(record.id, id);
 
     return {
       status: 201,
@@ -404,6 +456,68 @@ export class MemoryService {
         persisted: true,
         duplicate: orphan !== undefined,
         ...(orphan ? { reconciled: true } : {}),
+      },
+    };
+  }
+
+  /**
+   * The index entry exists (same hash and scope already checked) but its engine record is gone.
+   * Re-create the record from the request, re-link any supersession the index records, re-point
+   * the index, and acknowledge only after the record is confirmed on disk. A crash part-way
+   * leaves an orphan with this receipt's source, which the next retry adopts.
+   */
+  private async reconcileMissing(engine: HMEM, req: RememberRequest, existing: ReceiptEntry): Promise<{ status: number; body: Record<string, unknown> }> {
+    const id = req.application_receipt_id;
+    const linked = (receiptId: string | null): MemoryRecord | undefined => {
+      const entry = receiptId ? this.index.receipts[receiptId] : undefined;
+      return receiptId && entry ? this.recordFor(receiptId, entry) : undefined;
+    };
+    // A linked receipt whose own record is also missing is re-linked when it is reconciled.
+    const predecessor = linked(existing.supersedes_receipt_id);
+    const successor = linked(existing.superseded_by_receipt_id);
+
+    const orphan = this.adoptableOrphan(id, req.finding);
+    const { vectors, profile } = await this.prepare([req.finding], "passage");
+
+    let record: MemoryRecord;
+    if (orphan) {
+      record = orphan;
+      this.reembed(engine, record, vectors[0]);
+    } else {
+      record = this.addEngineRecord(engine, req, vectors[0], Date.parse(existing.stored_at), predecessor?.id);
+    }
+
+    try {
+      // Lineage comes only from the index (approved corrections); reset any heuristic links.
+      if (record.supersedes !== predecessor?.id) engine.store.update(record.id, { supersedes: predecessor?.id });
+      if (record.supersededBy !== successor?.id) engine.store.update(record.id, { supersededBy: successor?.id });
+      if (predecessor && predecessor.supersededBy !== record.id) engine.store.update(predecessor.id, { supersededBy: record.id });
+      if (successor && successor.supersedes !== record.id) engine.store.update(successor.id, { supersedes: record.id });
+    } catch (err) {
+      throw new ServiceError(500, "MEMORY_WRITE_FAILED", `engine lineage update failed: ${err instanceof Error ? err.message : String(err)}`);
+    }
+
+    const next = this.cloneIndex();
+    if (!next.embedding_profile) next.embedding_profile = profile;
+    next.receipts[id] = { ...next.receipts[id], engine_memory_id: record.id };
+    try {
+      this.writeIndex(next);
+    } catch (err) {
+      throw new ServiceError(500, "MEMORY_WRITE_FAILED",
+        `engine record re-created but index write failed (retry adopts it): ${err instanceof Error ? err.message : String(err)}`);
+    }
+    this.assertPersisted(record.id, id);
+
+    return {
+      status: 201,
+      body: {
+        engine_memory_id: record.id,
+        application_receipt_id: id,
+        stored_at: existing.stored_at,
+        embedding_profile: this.currentProfile(),
+        persisted: true,
+        duplicate: true,
+        reconciled: true,
       },
     };
   }

@@ -4,7 +4,7 @@ An engineering workbench for investigating cloud and AI waste, testing a change,
 
 **Status, 16 October 2026: implemented end to end, before the event, at the user's explicit instruction.** All code is declared pre-existing in [PREEXISTING.md](PREEXISTING.md). Event-window work goes in [NEW_WORK.md](NEW_WORK.md).
 
-**Audit update, 17 October 2026:** the clean local suites pass, but targeted adversarial checks found release-blocking authority/recovery, verifier, pricing and evidence-integrity defects. Real sponsor validation remains blocked. Read the [implementation audit and repair order](docs/IMPLEMENTATION_AUDIT_2026-10-17.md) before treating the implementation as release-ready; this audit did not fix application behavior.
+**Audit update, 17 October 2026:** the clean local suites pass, but targeted adversarial checks found release-blocking authority/recovery, verifier, pricing and evidence-integrity defects. Real sponsor validation remains blocked. Read the [implementation audit](docs/IMPLEMENTATION_AUDIT_2026-10-17.md) and its [remediation record](docs/AUDIT_REMEDIATION_2026-10-17.md). Every finding A01–A22 has a reproduce-first regression test and a main-path fix. Still open: the BLOCKED sponsor gates, plus a CI run, a Compose run, a browser E2E harness and an independent holdout, none of which have been done.
 
 - **Verified locally:** the investigation loop, deterministic screening, critic enforcement, matched local trials, plan-bound approval, single execution with read-back and recovery, memory persistence across restarts, and the learning effect. These were verified with labelled scripted roles, synthetic data and a hash embedder.
 - **BLOCKED:** real Zetaris federation, real NVIDIA model and embedding calls, semantic recall quality, and GCP execution. They need the team's credentials. No sponsor access, deployment, publication or measured saving is claimed.
@@ -23,7 +23,7 @@ The executed change is a **local analogue**: the real `max_concurrency` of a san
 
 ## Quick start (sample mode, no credentials)
 
-Prerequisites: macOS/Linux, Python 3.12 with `uv`, Node ≥ 22.12, PostgreSQL 16 client/server binaries (`initdb`, `pg_ctl`).
+Prerequisites: macOS/Linux, Python 3.12 with `uv`, Node 22.12–22.x (`memory-sidecar/.nvmrc`; Node 26 is refused), PostgreSQL 16 client/server binaries (`initdb`, `pg_ctl`).
 
 ```bash
 cp .env.example .env
@@ -126,15 +126,17 @@ Swagger UI is at http://127.0.0.1:8000/docs. API contract: [docs/API_REFERENCE.m
 |---|---|
 | `make check` | Unit and contract tests, OpenAPI snapshot, docs links and route coverage, secret scan |
 | `make test-integration` | Real PostgreSQL, real sandbox worker processes, a real H-MEM sidecar process: authority (ACT/SEC) and memory-learning tests |
-| `make test-sidecar` | 21 node:test contract, integrity and fail-closed tests for the memory wrapper |
+| `make test-sidecar` | 24 node:test contract, integrity and fail-closed tests for the memory wrapper (Node 22; `NODE=` to select) |
 | `make test-connected` | Real sponsor tests (BLOCKED without credentials) |
-| `make test` | Everything, then PASS/FAIL/BLOCKED/NOT_RUN counts |
+| `make test` | Everything in one session, PASS/FAIL/BLOCKED/NOT_RUN counts; exits non-zero on failure |
+| `make release-gate` | Fails unless every check PASSed; BLOCKED sponsor checks block a release |
+| `make resolve-action ACTION=… ACTOR=… NOTE=…` | Operator record of a human resolution for a `RECOVERY_REQUIRED` action |
 | `make eval-cloud` | Forecast temporal evaluation and the naive-heuristic decision benchmark |
 | `make memory-ablation` | Memory on/off sequence |
 | `make eval` | Locked holdout evaluation |
 | `make reset-demo` | Resets demo namespaces only, after confirmation; refuses while actions are active |
 
-Last local results (16 Oct, sample/scripted): unit 33 PASS · integration 22 PASS · sidecar 21 PASS · connected 8 BLOCKED · 0 FAIL. Details are in [docs/TEST_STRATEGY.md §8](docs/TEST_STRATEGY.md).
+Last local results (17 Oct, after audit remediation; sample/scripted): unit 54 PASS · integration 39 PASS · sidecar 24 PASS · connected 8 BLOCKED · 0 FAIL (`make release-gate` therefore fails: BLOCKED is not PASS). Details are in [docs/TEST_STRATEGY.md §8](docs/TEST_STRATEGY.md).
 
 ## Stack
 
@@ -151,7 +153,6 @@ Python 3.12 · FastAPI/Pydantic · psycopg + SQL migrations · Google ADK 2.12 +
 | [Data and domain](docs/DATA_AND_DOMAIN.md) | Schemas, joins, accounting, forecasting, approval invariants |
 | [API reference](docs/API_REFERENCE.md) | Implemented application contract; snapshot in [openapi.json](docs/openapi.json) |
 | [Sponsor research](docs/research/SPONSOR_RESEARCH.md) | Verified vendor capabilities, actual interfaces and access gaps |
-| [Upstream review](docs/research/UPSTREAM_REVIEW.md) | Immutable reference revision and static findings |
 | [Test strategy](docs/TEST_STRATEGY.md) | Regression, integration, end-to-end and release checks; implemented map |
 | [Evaluation specification](docs/EVALUATION_SPEC.md) | Datasets, independent oracles, ablations and result reporting |
 | [Implementation plan](docs/IMPLEMENTATION_PLAN.md) | Backlog with current status |

@@ -59,6 +59,11 @@ class Ctx:
     def runtime_mode(self) -> str | None:
         return (self.ready_body or {}).get("runtime_mode")
 
+    @property
+    def display_mode(self) -> str | None:
+        """Mode for display: readiness when visible, else the server mode /v1/me reports to every role."""
+        return self.runtime_mode or st.session_state.get("server_runtime_mode")
+
 
 # ---- session helpers ----------------------------------------------------------------------------
 
@@ -107,11 +112,21 @@ def picker(label: str, options: list, sel_key: str, widget_key: str, fmt: Callab
 
 # ---- rendering helpers ----------------------------------------------------------------------------
 
+# Plain-language lead line for error codes whose next step is not obvious from the API message alone.
+ERROR_HINTS = {
+    "APPROVAL_STALE": "Approval stale — target changed since approval. Gather fresh evidence and seek a new approval.",
+    "HOLDOUT_VERDICT_REQUIRED": "Held-out verdict required — this step needs a recorded independent evaluator verdict on the "
+                                "held-out suite. The workbench cannot view or supply held-out results; ask the evaluator.",
+    "RECONCILE_PENDING": "Reconciliation pending — an earlier change has an unconfirmed outcome that must be reconciled first. "
+                         "Do not retry; refresh the action on Actions & reports to follow reconciliation.",
+}
+
+
 def show_error(r: ApiResponse, *, mutation: bool = False) -> None:
     e = r.error
     lines = [f"**{e['code']}** — {e['message']}"]
-    if e["code"] == "APPROVAL_STALE":
-        lines.insert(0, "Approval stale — target changed since approval. Gather fresh evidence and seek a new approval.")
+    if e["code"] in ERROR_HINTS:
+        lines.insert(0, ERROR_HINTS[e["code"]])
     det = e.get("details") or {}
     if det.get("reason"):
         lines.append(f"Reason: {det['reason']}")
@@ -232,15 +247,14 @@ def banner(ctx: Ctx) -> None:
         row = st.container(horizontal=True, gap="small")
         with row:
             rb = ctx.ready_body
-            mode = ctx.runtime_mode
-            if rb is None:
-                st.badge("Mode: unknown (readiness needs operator role)" if ctx.role == "viewer" else "Mode: unknown",
-                         icon=":material/help:", color="gray")
+            mode = ctx.display_mode
+            if mode is None:
+                st.badge("Mode: unknown", icon=":material/help:", color="gray")
             else:
                 st.badge(f"Mode: {P.mode_label(mode)}", icon=":material/science:" if mode == "sample" else
                          ":material/history:" if mode == "replay" else ":material/hub:", color="blue")
-                if rb.get("status") != "ready":
-                    st.badge("Degraded read-only", icon=":material/warning:", color="orange")
+            if rb is not None and rb.get("status") != "ready":
+                st.badge("Degraded read-only", icon=":material/warning:", color="orange")
             origin = selected_origin(ctx)
             st.badge(f"Data origin: {origin or 'not yet loaded'}", icon=":material/dataset:",
                      color="orange" if origin == "synthetic" else "gray")
@@ -254,8 +268,9 @@ def banner(ctx: Ctx) -> None:
                                           " · memory embedder: reference hash (not semantic recall evidence)")
             overall = ctx.ready_body.get("status")
             st.markdown(f"**Source/memory health:** {P.glyph(overall)} · " + " · ".join(parts) + emb)
-        elif ctx.role == "viewer":
-            st.markdown("**Source/memory health:** ? not visible to the viewer role (readiness requires operator)")
+        elif ctx.ready is None:  # 403: this role cannot call /health/ready
+            st.markdown("**Source/memory health:** ? not shown — dependency health is visible to operators only. "
+                        "The mode above is the server's configured mode (from /v1/me), not a readiness result.")
         else:
             st.markdown("**Source/memory health:** ? UNKNOWN — readiness check did not respond")
             if ctx.ready is not None and not ctx.ready.ok:
@@ -531,6 +546,7 @@ def candidate_detail(ctx: Ctx, pid: str, inv_data: dict) -> None:
                 st.markdown(f"**Trial review:** trial {P.short_id(tr.get('trial_id'))} {P.glyph(tr.get('status'))}; critic "
                             f"{P.glyph(tc.get('verdict'))}" + (f" — cites {', '.join(tc['check_ids'])}" if tc.get("check_ids") else ""))
         trial_summary(ctx, d)
+        trial_control(ctx, p)
         impacts_section(d)
         refs = d.get("memory_refs") or []
         st.markdown("**Memory references:** " + (", ".join(f"`{m}`" for m in refs) if refs else
@@ -570,6 +586,65 @@ def trial_summary(ctx: Ctx, d: dict) -> None:
         st.caption("Measured workload: baseline p95 {} ms, candidate p95 {} ms; failures {} vs {}. {}".format(
             P.fmt_num(summ.get("baseline_p95_ms"), 1), P.fmt_num(summ.get("candidate_p95_ms"), 1),
             summ.get("baseline_failures"), summ.get("candidate_failures"), "; ".join(result.get("limitations") or [])))
+
+
+def trial_suite(path: str) -> str:
+    """Development suite the API requires for the plan's path (API_REFERENCE: POST /v1/plans/{id}/trials)."""
+    return "support-dev-v1" if path == "ai" else "workload-wl-v1"
+
+
+def trial_profile_options(ctx: Ctx) -> list[str] | None:
+    """Trial profile IDs listed by /v1/operations (admin only); None when the list is not available to this role."""
+    if ctx.role != "admin":
+        return None
+    r = ctx.api.get("/v1/operations")
+    if not r.ok:
+        return None
+    rows = (r.body.get("data") or {}).get("trial_profiles") or []
+    active = [x["id"] for x in rows if x.get("id") and x.get("status") == "ACTIVE"]
+    other = [x["id"] for x in rows if x.get("id") and x.get("status") != "ACTIVE"]
+    return active + other or None
+
+
+def trial_control(ctx: Ctx, p: dict) -> None:
+    """Run sandbox trial for a plan the API marks `run_trial`. Operators only; the API re-checks every precondition."""
+    if "run_trial" not in (p.get("next_allowed_actions") or []):
+        return
+    if not ctx.can_write:
+        st.caption("A sandbox trial is the next step for this candidate; running one requires the operator role.")
+        return
+    d = p["data"]
+    core = d.get("core") or {}
+    versions = core.get("versions") or {}
+    suite = trial_suite(d["path"])
+    with st.form(f"trial_{p['id']}"):
+        st.markdown("**Run sandbox trial** — runs the development suite against this exact plan in the local sandbox. "
+                    "It does not change the target and does not approve the plan.")
+        kv_table([("Target", f"{d['target_key']} ({P.environment_of(d['target_key'])})"), ("Plan hash", d["plan_hash"]),
+                  ("Suite", f"{suite} (development suite; held-out suites are evaluator-only)"),
+                  ("Workload / test version", f"{versions.get('workload_version') or '—'} / {versions.get('test_version') or '—'}"),
+                  ("Policy version", versions.get("policy_version") or "—")])
+        options = trial_profile_options(ctx)
+        if options:
+            profile = st.selectbox("Trial profile", options, index=options.index(TRIAL_PROFILE) if TRIAL_PROFILE in options else 0,
+                                   help="Approved trial profiles listed on the Operations page.")
+        else:
+            profile = st.text_input("Trial profile", TRIAL_PROFILE, max_chars=64,
+                                    help="ID of an approved trial profile; the API rejects unknown, revoked or expired profiles.")
+        submitted = st.form_submit_button("Run sandbox trial", type="primary", icon=":material/science:")
+    if submitted:
+        profile = (profile or "").strip()
+        if not profile:
+            st.error("Trial profile: enter the ID of an approved trial profile.", icon=":material/error:")
+            return
+        body = {"plan_hash": d["plan_hash"], "suite_id": suite, "approved_trial_profile_id": profile}
+        r = mutate(ctx, f"trial:{p['id']}:{d['plan_hash']}:{suite}:{profile}", f"/v1/plans/{p['id']}/trials", body)
+        if r.ok:
+            flash("success", f"Sandbox trial {r.body.get('trial_id')} queued (status {r.body.get('status')}) for "
+                  f"{d['path']}#{d['candidate_no']}. It runs in the background — press Refresh to follow its result."
+                  + (" This repeated submission returned the existing trial (same request key)." if r.replayed else ""))
+            st.rerun()
+        show_error(r, mutation=True)
 
 
 def impacts_section(d: dict) -> None:
@@ -974,8 +1049,19 @@ def action_detail(ctx: Ctx, aid: str) -> None:
                        "or a running instance is not success. Do not retry.", icon=":material/pending:")
         elif s == "VERIFIED":
             st.success("VERIFIED — intended state and required health checks confirmed.", icon=":material/verified:")
-        elif s in ("FAILED", "RECOVERY_REQUIRED"):
-            st.error(f"{s} — {P.STATUS_MEANING.get(s)}.", icon=":material/error:")
+        elif s == "RECOVERY_REQUIRED":
+            st.error("RECOVERY_REQUIRED — human intervention needed. The target may not be in its approved or prior state; "
+                     "see Recovery below for what was attempted and the step still needed. Do not retry.",
+                     icon=P.icon(s))
+        elif s == "RECOVERING":
+            st.info("RECOVERING — restoring the exact prior configuration; not yet read back. Do not retry; refresh to follow.",
+                    icon=P.icon(s))
+        elif s == "RECOVERED":
+            st.info("RECOVERED — the prior configuration was restored and read back. The intended change is not in effect; "
+                    "this is not a successful change.", icon=P.icon(s))
+        elif s == "FAILED":
+            st.error("FAILED — the operation failed; see the error, verification and journal below for the precise outcome "
+                     "and whether any write was made.", icon=P.icon(s))
         elif P.STATUS_MEANING.get(s):
             st.info(f"{s} — {P.STATUS_MEANING[s]}.")
         st.caption(f"Executor: {d.get('executor_label')}")
@@ -1012,7 +1098,7 @@ def action_detail(ctx: Ctx, aid: str) -> None:
             st.caption("No recovery attempted. Recovery, when needed, is limited to restoring the exact prior configuration "
                        "if nothing changed in between; it is not automatic for every failure.")
         else:
-            kv_table([(k, v) for k, v in rec.items()])
+            kv_table([(k, P.inline(v)) for k, v in rec.items()])
             if s == "RECOVERY_REQUIRED" or rec.get("attempted") is False:
                 st.error("Human step required: inspect the target and restore it using the documented procedure.", icon=":material/engineering:")
         if d.get("error"):
@@ -1067,26 +1153,43 @@ def page_operations(ctx: Ctx) -> None:
         st.badge("Sandbox writes: ENABLED" if w else "Sandbox writes: disabled", icon=":material/edit:" if w else ":material/edit_off:",
                  color="orange" if w else "gray")
     st.markdown("**Dependencies**")
-    table([{"Dependency": k, "State": P.dep_glyph(v)} for k, v in (d.get("dependencies") or {}).items()])
+    deps = d.get("dependencies") or {}
+    if isinstance(deps, dict) and deps:
+        table([{"Dependency": k, "State": P.dep_glyph(v)} for k, v in deps.items()])
+    else:
+        st.caption("No dependency states reported.")
+    model = d.get("model_id") or ("not configured (scripted in sample mode)" if d.get("runtime_mode") == "sample" else "not configured")
     kv_table([("Policy version", d.get("policy_version")), ("Data manifest", d.get("data_manifest_id")),
               ("Executor", f"{d.get('executor')} — {P.EXECUTOR_LABEL}"), ("GCP executor", d.get("gcp_executor")),
-              ("Allowed target IDs", ", ".join(d.get("allowed_target_ids") or []) or "none"),
-              ("Zetaris sources", ", ".join(d.get("zetaris_sources") or []) if d.get("zetaris_sources") else "not used in this mode"),
-              ("Model ID", d.get("model_id") or "not configured (scripted in sample mode)")])
+              ("Allowed target IDs", ", ".join(d.get("allowed_target_ids") or []) or "none"), ("Model ID", model)])
+    st.markdown("**Zetaris sources** (logical source → configured qualified name)")
+    src = d.get("zetaris_sources")
+    if isinstance(src, dict) and src:
+        table([{"Logical source": k, "Configured qualified name": v or "— (not set)"} for k, v in src.items()])
+    elif isinstance(src, list) and src:
+        table([{"Logical source": "—", "Configured qualified name": v} for v in src])
+    else:
+        st.caption("Not used in this mode (federated source access is configured only for Connected demo).")
     slot = d.get("execution_slot") or {}
     st.markdown("**Execution slot** (one active mutation at a time)")
     st.markdown("○ Free" if not slot.get("holder_id") else
                 f"⚠ Held by {slot.get('holder_kind')} `{slot.get('holder_id')}` since {P.fmt_ts(slot.get('acquired_at'))}")
-    for title, key, cols in (("Active actions", "active_actions", None), ("Jobs (queued / running)", "jobs", None),
-                             ("Memory outbox", "memory_outbox", None), ("Budget profiles", "budget_profiles", None),
-                             ("Trial profiles", "trial_profiles", None)):
+    lists = (("Active actions", "active_actions"), ("Jobs (queued / running)", "jobs"), ("Memory outbox", "memory_outbox"),
+             ("Budget profiles", "budget_profiles"), ("Trial profiles", "trial_profiles"))
+    for title, key in lists:
         st.markdown(f"**{title}**")
         rows = d.get(key) or []
         if rows:
-            table([{k: (P.fmt_ts(v) if k.endswith("_at") or k == "oldest" else P.glyph(v) if k == "status" else v)
+            table([{k: (P.fmt_ts(v) if k.endswith("_at") or k == "oldest" else P.glyph(v) if k == "status" else P.inline(v))
                     for k, v in x.items()} for x in rows])
         else:
             st.caption("None.")
+    known = {"runtime_mode", "dependencies", "policy_version", "data_manifest_id", "sandbox_writes_enabled", "allowed_target_ids",
+             "executor", "gcp_executor", "execution_slot", "zetaris_sources", "model_id", *(k for _, k in lists)}
+    extra = [(k, P.inline(v)) for k, v in d.items() if k not in known]
+    if extra:
+        st.markdown("**Other reported fields**")
+        kv_table(extra)
 
 
 # ---- entry point --------------------------------------------------------------------------------

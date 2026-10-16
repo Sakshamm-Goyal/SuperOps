@@ -15,6 +15,7 @@ import {
   startSidecar,
   tempDataDir,
 } from "./helpers.ts";
+import type { Sidecar } from "./helpers.ts";
 
 test("CONTRACT: embedding provider down -> 503 MEMORY_EMBEDDING_UNAVAILABLE and nothing persisted", async () => {
   const fake = await startFakeEmbedder(32);
@@ -303,5 +304,206 @@ test("CONFIG: missing auth token, data dir or embedding mode exits 1", async () 
     { HMEM_DATA_DIR: dir, EMBEDDING_MODE: "nvidia" },
   ]) {
     await assert.rejects(startSidecar(env), /sidecar exited 1/);
+  }
+});
+
+// A11 (audit 2026-10-17): an index entry whose engine record was removed from state.json must
+// never be acknowledged as persisted. A same-hash retry re-creates the record; a different
+// hash is refused with nothing written.
+function dropEngineRecords(dir: string, engineIds: string[]): void {
+  const sf = path.join(dir, "state.json");
+  const state = JSON.parse(fs.readFileSync(sf, "utf-8"));
+  state.records = state.records.filter((r: any) => !engineIds.includes(r.id));
+  fs.writeFileSync(sf, JSON.stringify(state));
+}
+
+function readState(dir: string): any {
+  return JSON.parse(fs.readFileSync(path.join(dir, "state.json"), "utf-8"));
+}
+
+function readIndex(dir: string): any {
+  return JSON.parse(fs.readFileSync(path.join(dir, "greenops-index.json"), "utf-8"));
+}
+
+test("CONTRACT A11: missing engine record behind an index entry is reconciled on same-hash retry, never falsely acknowledged", async () => {
+  const fake = await startFakeEmbedder(32);
+  const dir = tempDataDir();
+  const body = rememberBody({ finding: "Missing-record finding: queue worker downsizing for checkout failed the backlog trial" });
+  let sc: Sidecar | null = null;
+  try {
+    sc = await startSidecar(contractEnv(dir, fake));
+    const first = await sc.req("POST", "/memory/remember", body);
+    assert.equal(first.status, 201);
+    await sc.stop();
+
+    dropEngineRecords(dir, [first.body.engine_memory_id]);
+    assert.equal(readIndex(dir).receipts[body.application_receipt_id].engine_memory_id, first.body.engine_memory_id);
+
+    sc = await startSidecar(contractEnv(dir, fake));
+    const health = await sc.req("GET", "/health");
+    assert.equal(health.status, 503);
+    assert.equal(health.body.status, "degraded");
+    assert.deepEqual(health.body.reasons, ["INDEX_ENGINE_MISMATCH", "ENGINE_RECORD_MISSING"]);
+    assert.equal(health.body.store.missing_engine_records, 1);
+    assert.deepEqual(health.body.store.missing_engine_receipt_ids, [body.application_receipt_id]);
+    assert.match(sc.stdout(), /"event":"memory_missing_engine_records"/);
+
+    // Different hash for the same receipt: refused, nothing written.
+    const before = snapshotFiles(dir);
+    const conflicting = await sc.req("POST", "/memory/remember", { ...body, content_hash: `sha256:${"0".repeat(64)}` });
+    assert.equal(conflicting.status, 409);
+    assert.equal(conflicting.body.error.code, "IDEMPOTENCY_CONFLICT");
+    assert.notEqual(conflicting.body.persisted, true);
+    assert.deepEqual(snapshotFiles(dir), before, "conflicting retry writes nothing");
+
+    // Same hash: the engine record is re-created and the index re-pointed.
+    const retry = await sc.req("POST", "/memory/remember", body);
+    assert.equal(retry.status, 201);
+    assert.equal(retry.body.persisted, true);
+    assert.equal(retry.body.duplicate, true);
+    assert.equal(retry.body.reconciled, true);
+    assert.notEqual(retry.body.engine_memory_id, first.body.engine_memory_id);
+    assert.equal(retry.body.stored_at, first.body.stored_at, "original receipt time is kept");
+
+    const state = readState(dir);
+    const matching = state.records.filter((r: any) => r.source === `greenops:receipt:${body.application_receipt_id}`);
+    assert.equal(matching.length, 1, "exactly one engine record on disk for the receipt");
+    assert.equal(matching[0].id, retry.body.engine_memory_id);
+    assert.equal(matching[0].content, body.finding);
+    assert.equal(matching[0].embedding.length, 32);
+    assert.equal(readIndex(dir).receipts[body.application_receipt_id].engine_memory_id, retry.body.engine_memory_id);
+
+    const recall = await sc.req("POST", "/memory/recall", recallBody({ query: "queue worker downsizing checkout backlog" }));
+    assert.equal(recall.status, 200);
+    assert.deepEqual(recall.body.items.map((i: any) => i.engine_memory_id), [retry.body.engine_memory_id]);
+    assert.equal(recall.body.excluded_unscoped, 0);
+
+    const healed = await sc.req("GET", "/health");
+    assert.equal(healed.body.status, "ready");
+    assert.equal(healed.body.store.missing_engine_records, 0);
+    assert.deepEqual(healed.body.store.missing_engine_receipt_ids, []);
+
+    const again = await sc.req("POST", "/memory/remember", body);
+    assert.equal(again.status, 200);
+    assert.equal(again.body.engine_memory_id, retry.body.engine_memory_id);
+    assert.equal("reconciled" in again.body, false);
+    await sc.stop();
+
+    // Durable across restart.
+    sc = await startSidecar(contractEnv(dir, fake));
+    assert.equal((await sc.req("GET", "/health")).body.status, "ready");
+    const reload = await sc.req("POST", "/memory/recall", recallBody({ query: "queue worker downsizing checkout backlog" }));
+    assert.deepEqual(reload.body.items.map((i: any) => i.engine_memory_id), [retry.body.engine_memory_id]);
+  } finally {
+    await sc?.stop();
+    await fake.close();
+  }
+});
+
+test("CONTRACT A11: reconciling missing records re-links supersession in both directions", async () => {
+  const fake = await startFakeEmbedder(32);
+  const dir = tempDataDir();
+  const scope = { tenant_id: "tenant-a", service_id: "search", target_id: "db-1" };
+  const old = rememberBody({ scope, finding: "Search database storage tier downgrade was validated at 40 percent IOPS headroom" });
+  const fix = rememberBody({ scope, kind: "correction", supersedes_receipt_id: old.application_receipt_id, correction_review_id: "review-42",
+    finding: "Correction: search database storage tier downgrade headroom was 4 percent, not 40 percent" });
+  const assertLinked = (oldEngineId: string, newEngineId: string) => {
+    const state = readState(dir);
+    const oldRec = state.records.find((r: any) => r.id === oldEngineId);
+    const newRec = state.records.find((r: any) => r.id === newEngineId);
+    assert.equal(oldRec.supersededBy, newRec.id);
+    assert.equal(newRec.supersedes, oldRec.id);
+    const index = readIndex(dir);
+    assert.equal(index.receipts[old.application_receipt_id].engine_memory_id, oldEngineId);
+    assert.equal(index.receipts[fix.application_receipt_id].engine_memory_id, newEngineId);
+    assert.equal(index.receipts[old.application_receipt_id].superseded_by_receipt_id, fix.application_receipt_id);
+    assert.equal(index.receipts[fix.application_receipt_id].supersedes_receipt_id, old.application_receipt_id);
+  };
+  let sc: Sidecar | null = null;
+  try {
+    sc = await startSidecar(contractEnv(dir, fake));
+    const oldRes = await sc.req("POST", "/memory/remember", old);
+    const fixRes = await sc.req("POST", "/memory/remember", fix);
+    assert.equal(oldRes.status, 201);
+    assert.equal(fixRes.status, 201);
+    await sc.stop();
+
+    // Order 1: the superseded record first (its successor is still missing), then the correction.
+    dropEngineRecords(dir, [oldRes.body.engine_memory_id, fixRes.body.engine_memory_id]);
+    sc = await startSidecar(contractEnv(dir, fake));
+    assert.equal((await sc.req("GET", "/health")).body.store.missing_engine_records, 2);
+    const oldRetry = await sc.req("POST", "/memory/remember", old);
+    assert.equal(oldRetry.status, 201);
+    assert.equal(oldRetry.body.reconciled, true);
+    const fixRetry = await sc.req("POST", "/memory/remember", fix);
+    assert.equal(fixRetry.status, 201);
+    assert.equal(fixRetry.body.reconciled, true);
+    assertLinked(oldRetry.body.engine_memory_id, fixRetry.body.engine_memory_id);
+
+    const rec = await sc.req("POST", "/memory/recall", recallBody({
+      scope: { tenant_id: "tenant-a", service_id: "search" }, query: "search database storage tier downgrade headroom",
+    }));
+    assert.deepEqual(rec.body.items.map((i: any) => i.application_receipt_id), [fix.application_receipt_id]);
+    assert.deepEqual(rec.body.historical.map((i: any) => i.application_receipt_id), [old.application_receipt_id]);
+    assert.deepEqual(rec.body.historical[0].inapplicable_reasons, ["SUPERSEDED"]);
+    assert.equal((await sc.req("GET", "/health")).body.status, "ready");
+    await sc.stop();
+
+    // Order 2: the correction first, then the record it supersedes.
+    dropEngineRecords(dir, [oldRetry.body.engine_memory_id, fixRetry.body.engine_memory_id]);
+    sc = await startSidecar(contractEnv(dir, fake));
+    const fix2 = await sc.req("POST", "/memory/remember", fix);
+    const old2 = await sc.req("POST", "/memory/remember", old);
+    assert.equal(fix2.status, 201);
+    assert.equal(old2.status, 201);
+    assertLinked(old2.body.engine_memory_id, fix2.body.engine_memory_id);
+    assert.equal((await sc.req("GET", "/health")).body.status, "ready");
+  } finally {
+    await sc?.stop();
+    await fake.close();
+  }
+});
+
+test("CONTRACT A11: crash during reconciliation leaves an orphan that the next retry adopts (no second record)", async () => {
+  const fake = await startFakeEmbedder(32);
+  const dir = tempDataDir();
+  const body = rememberBody({ finding: "Reconcile-crash finding: batch window shift for checkout passed the throughput trial" });
+  let sc: Sidecar | null = null;
+  try {
+    sc = await startSidecar(contractEnv(dir, fake));
+    const first = await sc.req("POST", "/memory/remember", body);
+    assert.equal(first.status, 201);
+    await sc.stop();
+
+    // Engine record lost, then a re-created record written without the index being re-pointed.
+    dropEngineRecords(dir, [first.body.engine_memory_id]);
+    const direct = new HMEM({ persistDir: dir });
+    const recreated = direct.add({ content: body.finding, source: `greenops:receipt:${body.application_receipt_id}`, layer: "long_term" });
+    const conflicting = rememberBody({ finding: "Other content" });
+    direct.add({ content: "Different content for another receipt", source: `greenops:receipt:${conflicting.application_receipt_id}` });
+
+    sc = await startSidecar(contractEnv(dir, fake));
+    const health = await sc.req("GET", "/health");
+    assert.deepEqual(health.body.reasons, ["INDEX_ENGINE_MISMATCH", "ENGINE_RECORD_MISSING"]);
+    assert.deepEqual(health.body.store.missing_engine_receipt_ids, [body.application_receipt_id]);
+
+    const retry = await sc.req("POST", "/memory/remember", body);
+    assert.equal(retry.status, 201);
+    assert.equal(retry.body.reconciled, true);
+    assert.equal(retry.body.engine_memory_id, recreated.id, "orphan adopted, not duplicated");
+    const matching = readState(dir).records.filter((r: any) => r.source === `greenops:receipt:${body.application_receipt_id}`);
+    assert.equal(matching.length, 1);
+    assert.equal(matching[0].embedding.length, 32, "adopted record re-embedded with the configured provider");
+    assert.equal(readIndex(dir).receipts[body.application_receipt_id].engine_memory_id, recreated.id);
+
+    // An orphan whose content differs from the retried finding is never adopted.
+    const before = snapshotFiles(dir);
+    const refused = await sc.req("POST", "/memory/remember", conflicting);
+    assert.equal(refused.status, 409);
+    assert.equal(refused.body.error.code, "ORPHAN_CONFLICT");
+    assert.deepEqual(snapshotFiles(dir), before);
+  } finally {
+    await sc?.stop();
+    await fake.close();
   }
 });

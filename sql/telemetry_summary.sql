@@ -1,5 +1,6 @@
 -- id: telemetry_summary
 -- version: 1
+-- key: provider,project_id,resource_id
 -- sources: cloud
 -- params: start:timestamp, end:timestamp
 SELECT provider, project_id, resource_id,

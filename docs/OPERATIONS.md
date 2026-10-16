@@ -45,23 +45,26 @@ Public documentation proves an interface, not the team's entitlement. Check Hack
 
 ## Configuration contract
 
-Variable names below are application proposals except where an adapter explicitly maps a documented provider variable. Actual `.env.example` is created during implementation with safe blanks and field descriptions; no real value belongs in Git.
+The implemented variables are in [.env.example](../.env.example), the canonical list with safe blanks. The main ones:
 
 | Setting | Purpose / safe initial policy |
 |---|---|
-| APP_ENV, RUNTIME_MODE | sandbox and sample initially |
-| DATABASE_URL | Private PostgreSQL connection |
-| ZETARIS_WORKSPACE_URL, ZETARIS_ORG_ID, ZETARIS_CREDENTIAL_REF | Confirmed workspace and secret lookup |
-| MEMORY_BASE_URL, MEMORY_AUTH_TOKEN, HMEM_DATA_DIR | Private wrapper, auth and durable storage |
-| EMBEDDING_BASE_URL, EMBEDDING_MODEL_ID, EMBEDDING_CREDENTIAL_REF | Real provider and profile; reject mismatched dimensions |
-| MODEL_BASE_URL, MODEL_ID, MODEL_CREDENTIAL_REF | Tested NVIDIA adapter configuration |
-| CLOUD_WRITES_ENABLED | false until operator has configured and authorized the sandbox |
-| EXECUTOR_MODE, ALLOWED_TARGET_IDS | local_sandbox or gcp_sandbox; exact target allowlist |
-| GOOGLE_CLOUD_PROJECT | Team-owned project only, if selected |
-| POLICY_VERSION, DATA_MANIFEST_ID | Immutable run inputs; edits invalidate applicable plans/approvals |
-| MAX_RUN_COST_USD, MAX_DAILY_COST_USD, MAX_TRIAL_SECONDS | Team-set numeric caps; absent cap blocks charged runs |
-| OPERATOR_CREDENTIAL_REF, VIEWER_CREDENTIAL_REF | Distinct server-side role mapping |
-| CARBON_METHOD_VERSION | Bounded approved estimator or unavailable |
+| APP_ENV, RUNTIME_MODE | `sandbox` and `sample` initially; `connected_demo` only with real sponsors configured |
+| DATABASE_URL, SAMPLE_SOURCE_URL, POSTGRES_PASSWORD | Authority DB; labelled single-DB sample sources; Compose DB password |
+| ZETARIS_API_BASE_URL, ZETARIS_ORG_ID, ZETARIS_AUTH_MODE, ZETARIS_API_KEY / ZETARIS_USERNAME+PASSWORD, ZETARIS_SOURCE_{CLOUD,REF,AI} | One explicit auth profile; two distinct physical datasources |
+| MODEL_BASE_URL, MODEL_ID, MODEL_API_KEY, MODEL_STRUCTURED_OUTPUT, MODEL_MAX_OUTPUT_TOKENS | NVIDIA OpenAI-compatible endpoint via ADK/LiteLLM; generation ceiling bounds per-request spend |
+| MEMORY_BASE_URL, MEMORY_AUTH_TOKEN, HMEM_DATA_DIR, EMBEDDING_MODE, EMBEDDING_* | Private H-MEM wrapper; `connected_demo` refuses a non-semantic embedder |
+| SANDBOX_WRITES_ENABLED, ALLOWED_TARGET_IDS, SANDBOX_DIR | Writes off by default; exact allowlist, re-checked by the worker before the first write |
+| POLICY_VERSION, DATA_MANIFEST_ID | Immutable run inputs; changes make plans/approvals stale and memories historical |
+| MAX_RUN_COST_USD, MAX_DAILY_COST_USD, MAX_MODEL_CALLS_PER_RUN, MAX_TRIAL_SECONDS | Durable reservations per request (budget_reservations); absent run cap blocks connected runs |
+| EVALUATOR_DIR, EVALUATOR_MODEL_API_KEY, EVALUATOR_DATABASE_URL, EVAL_MAX_COST_USD, EVAL_MAX_MODEL_CALLS | Evaluator-only holdout storage, credential, verdict store and budget |
+
+## Operator procedures
+
+- `make trial-profile-approve PROFILE=… ACTOR=…`: authenticated, fixture-separation checked; editing the file invalidates the profile.
+- `make resolve-action ACTION=<id> ACTOR=… NOTE="…"`: after a human has inspected and settled a `RECOVERY_REQUIRED` target, record the decision with a target read-back. This sets `RESOLVED_MANUALLY` and releases the target. Automation never takes this step.
+- `make eval-freeze PLAN=<ai plan>` then `make eval`: the persisted `evaluation_verdicts` row (ROLLOUT_ELIGIBLE / NO_CHANGE) is the only thing that permits approving an AI promotion.
+- Action jobs whose outcome cannot be resolved yet (target unreadable, handler crash) are rescheduled with bounded backoff. The global slot is kept until the outcome is known. They are never marked successful.
 
 Budgets are not hardcoded invented sponsor allowances. Before each charged operation reserve its conservative maximum estimate transactionally; reconcile actual usage after completion. Include retries, embedding/mining, optimizer, trials, hosting and cloud downtime/recovery. Missing rate/usage data means uncertain cost; either use an explicitly approved conservative bound or block new spend. A spend cap cannot reverse charges already incurred.
 

@@ -1,5 +1,6 @@
 -- id: service_cost_rollup
 -- version: 1
+-- key: service_id
 -- sources: cloud, ai
 -- params: service_id:service_id, start:timestamp, end:timestamp
 -- Cross-source federation: each fact is aggregated at its own grain BEFORE the join (F-JOIN).

@@ -80,13 +80,23 @@ def run() -> None:
     else:
         from experiments.support.workflow import scripted_support
         gw = ScriptedGateway({"support": scripted_support})
+    from greenops.domain.quantities import canonical_hash
+    from greenops.services.budget import DurableBudget
+    run_id = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ") + "-" + uuid.uuid4().hex[:6]
+    cap = os.environ.get("EVAL_MAX_COST_USD") or (str(s.max_run_cost_usd) if s.max_run_cost_usd is not None else None)
+    if s.runtime_mode.value == "connected_demo" and cap is None:
+        raise SystemExit("BLOCKED: set EVAL_MAX_COST_USD (or MAX_RUN_COST_USD) before a paid holdout evaluation")
+    eval_db = os.environ.get("EVALUATOR_DATABASE_URL", s.database_url)
+    budget = DurableBudget(eval_db, eval_run=run_id, daily_cap_usd=s.max_daily_cost_usd,  # audit A08: evaluator calls are reserved too
+                           limits={"max_calls": int(os.environ.get("EVAL_MAX_MODEL_CALLS", "400")), "max_cost_usd": cap or "1",
+                                   "per_call_usd": os.environ.get("EVAL_PER_CALL_USD", "0.002")})
     seed = int(os.environ.get("EVAL_ORDER_SEED", "20261025"))
     order = [(c, lab) for c in cases for lab in ("baseline", "candidate")]
     random.Random(seed).shuffle(order)
     cfgs = {"baseline": AiWorkflowConfig(**fz["baseline_config"]), "candidate": AiWorkflowConfig(**fz["candidate_config"])}
     out = {"baseline": {}, "candidate": {}}
     for case, lab in order:
-        r = run_case(gw, case, records, cfgs[lab], None)
+        r = run_case(gw, case, records, cfgs[lab], budget)
         v = verify(case, records, SupportDecision(**r["output"]) if r["output"] else None)
         out[lab][case["case_id"]] = {**r, "verdict": v}
     rates = acc.TokenRates(Decimal("0.60"), Decimal("1.20"))  # synthetic catalogue-equivalent (ref/model_prices.csv)
@@ -109,7 +119,6 @@ def run() -> None:
     gate = {"accepted_ge_38": c["accepted"] >= 38, "zero_critical": c["critical_failures"] == 0, "no_regression": not (bp - cp),
             "cost_per_accepted_lower": b["cost_per_accepted_usd"] is not None and c["cost_per_accepted_usd"] is not None
             and Decimal(c["cost_per_accepted_usd"]) < Decimal(b["cost_per_accepted_usd"])}
-    run_id = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ") + "-" + uuid.uuid4().hex[:6]
     public = {"run_id": run_id, "suite": man["suite_id"], "cases": len(cases), "runtime_mode": s.runtime_mode.value, "data_origin": "synthetic",
               "model_id": gw.model_id, "freeze": {k: fz[k] for k in ("plan_hash", "trial_hash", "candidate_config_hash", "verifier_version", "frozen_at")},
               "order_seed": seed, "metrics": metrics, "paired_discordance": {"both_pass": len(bp & cp), "baseline_only": len(bp - cp),
@@ -124,6 +133,12 @@ def run() -> None:
     priv = s.evaluator_dir / "results" / run_id
     priv.mkdir(parents=True, exist_ok=True)
     (priv / "cases.jsonl").write_text("".join(json.dumps({"label": lab, **x}, default=str) + "\n" for lab, res in out.items() for x in res.values()))
+    from greenops.db import J, connect
+    with connect(eval_db) as c:  # the persisted verdict is what gates AI promotion (audit A15)
+        c.execute("INSERT INTO evaluation_verdicts (id, tenant_id, service_id, candidate_config_hash, model_id, freeze_hash, decision, run_id, metrics) "
+                  "VALUES (%s,%s,'support-demo',%s,%s,%s,%s,%s,%s)",
+                  (uuid.uuid4(), s.tenant_id, fz["candidate_config_hash"], gw.model_id, canonical_hash(fz), public["decision"], run_id,
+                   J({"metrics": metrics, "selection_gate": gate, "paired_discordance": public["paired_discordance"]})))
     print(json.dumps({k: public[k] for k in ("run_id", "decision", "selection_gate")}, indent=1))
     print(f"public aggregates: {pub.relative_to(ROOT)}/metrics.json; per-case results evaluator-only")
 

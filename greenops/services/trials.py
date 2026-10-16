@@ -15,16 +15,20 @@ from statistics import median
 
 from greenops.adapters.model import BudgetExceeded
 from greenops.adapters.sandbox import LocalWorker, VersionConflict, load_workload, run_workload
+from experiments.support.workflow import CancelledRun
 from greenops.agents.roles import CriticReview
 from greenops.config import ROOT
 from greenops.db import J, connect
 from greenops.domain import accounting as acc
 from greenops.domain.models import AiWorkflowConfig, ServicePolicy
 from greenops.domain.quantities import canonical_hash
-from greenops.services import investigation as I, memory_service
+from greenops.services import investigation as I, memory_service, plans as P
 from greenops.services.common import AppError, Runtime, acquire_slot, append_event, enqueue, event, now, release_slot
 
 DEV_SUITES = {"support-dev-v1": ROOT / "experiments" / "support" / "dev"}
+MAX_SCHEDULE_LAG_MS = 10  # p95 send lag: ~2× the manifest's 5 ms jitter bound
+MAX_BURST_LAG_MS = 25  # max send lag; beyond this, delayed requests bunch into bursts the manifest does not contain
+MAX_PAIR_REMEASURES = 4
 
 
 def load_profile(conn, profile_id: str, tenant_id: str) -> dict:
@@ -57,6 +61,24 @@ def create_trial(conn, rt: Runtime, plan: dict, profile_id: str, actor_id: str, 
     return tid
 
 
+def cancelled(rt: Runtime, trial: dict) -> bool:
+    with connect(rt.db) as c:
+        r = c.execute("SELECT i.cancel_requested, i.status FROM plans p JOIN investigations i ON i.id=p.investigation_id WHERE p.id=%s",
+                      (trial["plan_id"],)).fetchone()
+    return bool(r["cancel_requested"]) or r["status"] == "CANCELLED"
+
+
+def optimizer_overhead(conn, inv: dict) -> tuple[Decimal | None, str | None]:
+    """Role-model cost of this investigation at the evidenced model rate, counted once; unknown if any usage is missing."""
+    rows = conn.execute("SELECT input_tokens, output_tokens FROM model_calls WHERE investigation_id=%s", (inv["id"],)).fetchall()
+    if any(r["input_tokens"] is None or r["output_tokens"] is None for r in rows):
+        return None, "role-model usage not reported (scripted sample or provider omitted usage)"
+    mp = conn.execute("SELECT data FROM evidence WHERE id::text=%s", (inv["summary"]["evidence"]["model_prices"],)).fetchone()["data"]["rows"][0]
+    total, _ = acc.ai_run_cost([{"input_tokens": r["input_tokens"], "output_tokens": r["output_tokens"]} for r in rows],
+                               acc.TokenRates(Decimal(mp["input_per_million"]), Decimal(mp["output_per_million"]), mp["currency"]))
+    return total, None
+
+
 def wilson(k: int, n: int, z: float = 1.959964) -> tuple[float, float] | None:
     if n == 0:
         return None
@@ -67,13 +89,13 @@ def wilson(k: int, n: int, z: float = 1.959964) -> tuple[float, float] | None:
     return round(c - h, 4), round(c + h, 4)
 
 
-def _set_fixture(rt, fixture_id: str, mc: int, allowed: dict) -> dict:
+def _set_fixture(rt, fixture_id: str, mc: int, allowed: dict, writer: str = "trial") -> dict:
     if not allowed["min"] <= mc <= allowed["max"]:
         raise AppError("FORBIDDEN", 403, f"max_concurrency {mc} outside the trial profile range")
     w = LocalWorker(rt.settings.sandbox_dir, fixture_id)
     cur = w.store.read()
     if cur["max_concurrency"] != mc:
-        w.store.compare_and_set(cur["version"], {"max_concurrency": mc})
+        w.store.compare_and_set(cur["version"], {"max_concurrency": mc}, writer=writer)
     st = w.reload()
     if st["loaded_config"]["max_concurrency"] != mc:
         raise AppError("TRIAL_NOT_ACCEPTED", 422, "fixture did not load the trial configuration")
@@ -87,45 +109,89 @@ def _cloud_trial(rt: Runtime, trial: dict, plan: dict, doc: dict, policy: Servic
     allowed = lp["allowed_operations"][0]
     workload, wl_hash = load_workload()
     started = time.time()
-    a_st = _set_fixture(rt, a_id, act["before"]["max_concurrency"], allowed)
-    b_st = _set_fixture(rt, b_id, act["after"]["max_concurrency"], allowed)
+    tw = f"trial:{trial['id']}"
+    a_st = _set_fixture(rt, a_id, act["before"]["max_concurrency"], allowed, tw)
+    b_st = _set_fixture(rt, b_id, act["after"]["max_concurrency"], allowed, tw)
     A, B = LocalWorker(rt.settings.sandbox_dir, a_id), LocalWorker(rt.settings.sandbox_dir, b_id)
-    runs = []
+    runs, discarded = [], []
+    pair_complete = True
     try:
         run_workload(A, lp["warmup_s"], "warmup-a")
         run_workload(B, lp["warmup_s"], "warmup-b")
         for i, order in enumerate(["AB", "BA", "AB"][: lp["pairs"]]):
-            for side in order:
-                if time.time() - started > min(lp["max_seconds"], rt.settings.max_trial_seconds):
-                    raise TimeoutError("trial wall-clock cap reached")
-                w = A if side == "A" else B
-                r = run_workload(w, lp["measure_s"], f"pair{i}-{side}")
-                runs.append({"pair": i, "side": "baseline" if side == "A" else "candidate", **r})
+            for attempt in range(1 + MAX_PAIR_REMEASURES):
+                pair = []
+                for side in order:
+                    if time.time() - started > min(lp["max_seconds"], rt.settings.max_trial_seconds):
+                        raise TimeoutError("trial wall-clock cap reached")
+                    if cancelled(rt, trial):
+                        raise CancelledRun("investigation cancelled at a safe boundary")
+                    r = run_workload(A if side == "A" else B, lp["measure_s"], f"pair{i}-{side}-{attempt}")
+                    pair.append({"pair": i, "attempt": attempt, "side": "baseline" if side == "A" else "candidate", **r})
+                # Offered-load fidelity: a window whose load generator fell behind schedule did not deliver the manifest's
+                # workload, so the pair is non-comparable and re-measured (bounded, recorded) — never judged.
+                if all((w["schedule_lag_p95_ms"] or 0) <= MAX_SCHEDULE_LAG_MS and (w["schedule_lag_max_ms"] or 0) <= MAX_BURST_LAG_MS for w in pair):
+                    runs.extend(pair)
+                    break
+                discarded.extend({k: v for k, v in w.items() if k not in ("latencies_ms", "server_latencies_ms")} for w in pair)
+            else:
+                pair_complete = False
     finally:
         for f in (a_id, b_id):
             try:
-                _set_fixture(rt, f, lp["reset"]["max_concurrency"], allowed)
+                _set_fixture(rt, f, lp["reset"]["max_concurrency"], allowed, f"{tw}:reset")
             except Exception:
                 pass  # reset failure is visible via fixture status; the trial result below remains authoritative
     base = [r for r in runs if r["side"] == "baseline"]
     cand = [r for r in runs if r["side"] == "candidate"]
-    bp95 = median(r["p95_ms"] for r in base if r["p95_ms"] is not None)
-    cp95 = median(r["p95_ms"] for r in cand if r["p95_ms"] is not None) if any(r["p95_ms"] for r in cand) else None
+    if not base or not cand:  # no comparable pair at all: the instrument failed; never judge the candidate
+        return {"kind": "local_worker_pair", "executor": "local_analogue", "result_kind": "measured", "data_origin": "synthetic",
+                "outcome": "INCOMPLETE", "summary": {"discarded_windows": discarded},
+                "checks": [{"check_id": "TRIAL-COMPARABLE", "status": "FAIL", "detail": "no window delivered the manifest's offered load"}],
+                "experiment_cost": {"amount": "0", "currency": "USD", "basis": "local compute, not billed"}}
+    # Pooled p95 over every completed request per side, plus per-pair consistency (protocol amendment 17 Oct 2026):
+    # one noisy short window can neither pass nor fail the gate on its own.
+    # Gate metric: server-side latency (queue wait + delivered service) — what a concurrency limit changes. Client-observed
+    # latency includes the in-process load generator's own scheduling noise; it is reported but does not decide.
+    pooled = lambda rs: sorted(x for r in rs for x in r["server_latencies_ms"])
+    pooled_client = lambda rs: sorted(x for r in rs for x in r["latencies_ms"])
+    pb, pc = pooled(base), pooled(cand)
+    q = lambda xs: xs[min(len(xs) - 1, int(round(0.95 * (len(xs) - 1))))] if xs else None
+    bp95, cp95 = q(pb), q(pc)
     bfail, cfail = sum(r["failures"] for r in base), sum(r["failures"] for r in cand)
-    comparable = len({r["offered"] for r in runs}) == 1 and all(r["config_hashes_seen"] == [b_st["loaded_config_hash"]] for r in cand)
+    comparable = (pair_complete and len({r["offered"] for r in runs}) == 1
+                  and all(r["config_hashes_seen"] == [b_st["loaded_config_hash"]] for r in cand))
     limit = Decimal(str(bp95)) * (1 + policy.workload.p95_regression_max)
+    pair_ratios = []
+    for i in sorted({r["pair"] for r in runs}):
+        bpp = next(r["server_p95_ms"] for r in base if r["pair"] == i)
+        cpp = next(r["server_p95_ms"] for r in cand if r["pair"] == i)
+        pair_ratios.append(None if not bpp or cpp is None else round(cpp / bpp, 4))
+    pairs_over = sum(1 for x in pair_ratios if x is None or Decimal(str(x)) > 1 + policy.workload.p95_regression_max)
+    regression = cp95 is None or (Decimal(str(cp95)) > limit and pairs_over * 2 > len(pair_ratios))
+    client_b, client_c = q(pooled_client(base)), q(pooled_client(cand))
+    for r in runs:
+        r.pop("latencies_ms", None)
+        r.pop("server_latencies_ms", None)
     checks = [
-        {"check_id": "TRIAL-COMPARABLE", "status": "PASS" if comparable else "FAIL", "detail": "identical offered load; candidate fixture served the candidate config hash"},
+        {"check_id": "TRIAL-COMPARABLE", "status": "PASS" if comparable else "FAIL",
+         "detail": f"identical offered load (schedule lag p95 ≤ {MAX_SCHEDULE_LAG_MS} ms in every judged window; {len(discarded)} non-comparable "
+                   f"windows re-measured); candidate fixture served the candidate config hash"},
         {"check_id": "TRIAL-NO-NEW-FAILURES", "status": "PASS" if cfail <= bfail else "FAIL", "detail": f"candidate failures {cfail} vs baseline {bfail}"},
-        {"check_id": "TRIAL-P95-REGRESSION", "status": "PASS" if cp95 is not None and Decimal(str(cp95)) <= limit else "FAIL",
-         "detail": f"candidate p95 {cp95 and round(cp95, 1)} ms vs limit {round(limit, 1)} ms (baseline {round(bp95, 1)} ms +{policy.workload.p95_regression_max:%})"},
-        {"check_id": "TRIAL-P95-SLO", "status": "PASS" if cp95 is not None and cp95 <= policy.workload.slo_p95_ms else "FAIL",
-         "detail": f"candidate p95 {cp95 and round(cp95, 1)} ms vs SLO {policy.workload.slo_p95_ms} ms"}]
+        {"check_id": "TRIAL-P95-REGRESSION", "status": "FAIL" if regression else "PASS",
+         "detail": f"pooled server-side candidate p95 {cp95 and round(cp95, 1)} ms vs limit {round(limit, 1)} ms (baseline {round(bp95, 1)} ms "
+                   f"+{policy.workload.p95_regression_max:%}, n={len(pc)}/{len(pb)}); pairs over limit {pairs_over}/{len(pair_ratios)}, ratios {pair_ratios}"},
+        {"check_id": "TRIAL-P95-SLO", "status": "PASS" if client_c is not None and client_c <= policy.workload.slo_p95_ms else "FAIL",
+         "detail": f"client-observed candidate p95 {client_c and round(client_c, 1)} ms vs SLO {policy.workload.slo_p95_ms} ms (SLO judged end-to-end)"}]
     outcome = "PASSED" if all(c["status"] == "PASS" for c in checks) else ("INCOMPLETE" if not comparable else "FAILED")
     return {"kind": "local_worker_pair", "executor": "local_analogue", "result_kind": "measured", "data_origin": "synthetic",
             "workload": {"id": workload["workload_id"], "version": workload["version"], "hash": wl_hash},
             "fixtures": {"baseline": {"id": a_id, "config_hash": a_st["loaded_config_hash"]}, "candidate": {"id": b_id, "config_hash": b_st["loaded_config_hash"]}},
-            "runs": runs, "summary": {"baseline_p95_ms": bp95, "candidate_p95_ms": cp95, "baseline_failures": bfail, "candidate_failures": cfail},
+            "runs": runs, "summary": {"baseline_p95_ms": bp95, "candidate_p95_ms": cp95, "baseline_failures": bfail, "candidate_failures": cfail,
+                        "pooled_samples": {"baseline": len(pb), "candidate": len(pc)}, "pair_p95_ratios": pair_ratios,
+                        "client_p95_ms": {"baseline": client_b, "candidate": client_c},
+                        "method": "pooled p95 + majority of paired windows; windows with load-generator lag re-measured (amendment 2026-10-17)",
+                        "discarded_windows": discarded},
             "checks": checks, "outcome": outcome, "limitations": ["local analogue: proves a local concurrency change, not a GCP VM resize",
             "short matched trial; not a long-term SLA"], "experiment_cost": {"amount": "0", "currency": "USD", "basis": "local compute, not billed"}}
 
@@ -141,9 +207,15 @@ def _ai_cost(results: list[dict], rates: acc.TokenRates) -> tuple[Decimal | None
 def _ai_trial(rt: Runtime, trial: dict, plan: dict, doc: dict, policy: ServicePolicy, inv: dict) -> dict:
     from experiments.support.verifier import VERIFIER_VERSION, SupportDecision, verify
     from experiments.support.workflow import config_hash, load_suite, run_suite
+    from greenops.services.budget import DurableBudget, investigation_limits
     cases, records = load_suite(DEV_SUITES[trial["suite_id"]])
     gateway = rt.model_factory()
-    budget = I.budget_for(rt, inv)
+    ai = doc["ai_dev_suite"]
+    inv_lim = investigation_limits(inv)
+    # Profile limits bind this trial; the investigation cap and daily cap still apply (audit A08).
+    budget = DurableBudget(rt.db, investigation_id=inv["id"], trial_id=trial["id"], parent_limits=inv_lim, daily_cap_usd=rt.settings.max_daily_cost_usd,
+                           limits={"max_calls": ai["max_model_calls"], "max_cost_usd": ai["max_cost_usd"], "per_call_usd": inv_lim["per_call_usd"]},
+                           deadline=now() + timedelta(seconds=min(int(ai["max_seconds"]), rt.settings.max_trial_seconds)))
     with connect(rt.db) as c:
         mp = c.execute("SELECT data FROM evidence WHERE id::text=%s", (inv["summary"]["evidence"]["model_prices"],)).fetchone()["data"]["rows"][0]
     rates = acc.TokenRates(Decimal(mp["input_per_million"]), Decimal(mp["output_per_million"]), mp["currency"])
@@ -156,7 +228,15 @@ def _ai_trial(rt: Runtime, trial: dict, plan: dict, doc: dict, policy: ServicePo
             out[label] = cached
             continue
         t0 = time.perf_counter()
-        results = run_suite(gateway, cases, records, cfg, budget)
+
+        def persist_case(r, label=label):  # usage persisted as each case completes, even if a later case breaks the budget
+            with connect(rt.db) as c:
+                c.execute("INSERT INTO model_calls (id, investigation_id, trial_id, role, model_id, runtime_mode, status, input_tokens, output_tokens, "
+                          "tool_calls, requests, duration_ms, error_code) VALUES (%s,NULL,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+                          (uuid.uuid4(), trial["id"], f"support:{label}", gateway.model_id, rt.settings.runtime_mode.value,
+                           "ok" if r["error"] is None else "error", r["input_tokens"], r["output_tokens"], r["tool_calls"],
+                           max(1, r["model_requests"]), r["latency_ms"], r["error"]))
+        results = run_suite(gateway, cases, records, cfg, budget, on_case=persist_case, should_stop=lambda: cancelled(rt, trial))
         verdicts = [verify(cs, records, SupportDecision(**r["output"]) if r["output"] else None) for cs, r in zip(cases, results)]
         total, completeness, basis = _ai_cost(results, rates)
         accepted = sum(v["accepted"] for v in verdicts)
@@ -173,11 +253,6 @@ def _ai_trial(rt: Runtime, trial: dict, plan: dict, doc: dict, policy: ServicePo
                       "per_case": [{"case_id": v["case_id"], "category": v["category"], "accepted": v["accepted"], "critical": v["critical_failure"],
                                     "checks": v["checks"], "expected": v["expected"], "observed": v.get("observed")} for v in verdicts],
                       "wall_ms": int((time.perf_counter() - t0) * 1000)}
-        with connect(rt.db) as c:
-            c.execute("INSERT INTO model_calls (id, investigation_id, trial_id, role, model_id, runtime_mode, status, input_tokens, output_tokens, "
-                      "tool_calls, requests, duration_ms) VALUES (%s,NULL,%s,%s,%s,%s,'ok',%s,%s,%s,%s,%s)",
-                      (uuid.uuid4(), trial["id"], f"support:{label}", gateway.model_id, rt.settings.runtime_mode.value, out[label]["input_tokens"],
-                       out[label]["output_tokens"], out[label]["tool_calls"], max(1, out[label]["model_requests"]), out[label]["wall_ms"]))
         if label == "baseline":
             inv["summary"].setdefault("ai_baseline_cache", {})[out[label]["config_hash"] + "|" + gateway.model_id] = out[label]
             I.save_summary(rt, inv["id"], inv["summary"])
@@ -221,6 +296,12 @@ def run(rt: Runtime, trial_id) -> str:
         if trial["plan_hash"] != plan["plan_hash"]:
             c.execute("UPDATE trials SET status='CANCELLED', result=%s, finished_at=now() WHERE id=%s", (J({"reason": "PLAN_CHANGED"}), trial_id))
             return "CANCELLED"
+        if inv["cancel_requested"] or inv["status"] == "CANCELLED":  # audit A13: no fixture or model work after cancellation
+            c.execute("UPDATE trials SET status='CANCELLED', result=%s, finished_at=now() WHERE id=%s",
+                      (J({"reason": "INVESTIGATION_CANCELLED", "work_started": False}), trial_id))
+            append_event(c, inv["id"], "trial.cancelled", "application", {"trial_id": str(trial_id), "reason": "investigation cancelled"})
+            enqueue(c, "investigation", inv["id"])
+            return "CANCELLED"
         mutating = plan["path"] == "cloud"
         if mutating and not acquire_slot(c, "trial", trial_id):
             return "WAITING_FOR_SLOT"
@@ -230,6 +311,8 @@ def run(rt: Runtime, trial_id) -> str:
         result = _cloud_trial(rt, trial, plan, prof["document"], policy) if mutating else _ai_trial(rt, trial, plan, prof["document"], policy, inv)
     except BudgetExceeded as e:
         result = {"outcome": "INCOMPLETE", "checks": [{"check_id": "BUDGET", "status": "FAIL", "detail": str(e)}]}
+    except CancelledRun as e:
+        result = {"outcome": "CANCELLED", "checks": [{"check_id": "CANCELLED", "status": "FAIL", "detail": str(e)}]}
     except Exception as e:  # any execution failure is a recorded INCOMPLETE trial, never a silent RUNNING row
         result = {"outcome": "INCOMPLETE", "checks": [{"check_id": "TRIAL-EXECUTION", "status": "FAIL", "detail": f"{type(e).__name__}: {e}"[:300]}]}
     finally:
@@ -245,7 +328,8 @@ def run(rt: Runtime, trial_id) -> str:
     with connect(rt.db) as c:
         c.execute("UPDATE trials SET status=%s, trial_hash=%s, result=%s, finished_at=%s WHERE id=%s", (status, th, J(result), finished, trial_id))
         append_event(c, inv["id"], "trial.finished", "application", {"trial_id": str(trial_id), "plan_id": str(plan["id"]), "status": status, "trial_hash": th})
-    _post_trial(rt, inv, plan, trial_id, status, result, th)
+    if status != "CANCELLED":
+        _post_trial(rt, inv, plan, trial_id, status, result, th)
     with connect(rt.db) as c:
         c.execute("UPDATE investigations SET stage='TRIALS', updated_at=now() WHERE id=%s AND status NOT IN ('COMPLETED','FAILED','CANCELLED')", (inv["id"],))
         enqueue(c, "investigation", inv["id"])
@@ -283,6 +367,10 @@ def _post_trial(rt, inv, plan, trial_id, status, result, trial_hash) -> None:
                 "note": "development-suite batch; not a monthly saving; holdout evaluation is separate",
                 "carbon": {"basis": "Unknown", "result_kind": "unknown",
                            "reason": "external model carbon cannot be derived from tokens alone; no provider-reported factor"}}), plan["id"]))
+        if plan["path"] == "cloud" and result.get("kind") == "local_worker_pair":
+            overhead, why = optimizer_overhead(c, inv)
+            c.execute("UPDATE plans SET impacts=%s WHERE id=%s", (J(P.finalize_cloud_net(plan["impacts"], experiment_cost=Decimal(result["experiment_cost"]["amount"]),
+                      transition_cost=Decimal(0), optimizer_overhead=overhead, overhead_reason=why)), plan["id"]))
         if validated:
             c.execute("UPDATE plans SET status='VALIDATED', updated_at=now() WHERE id=%s", (plan["id"],))
             append_event(c, inv["id"], "plan.validated", "application", {"plan_id": str(plan["id"]), "trial_id": str(trial_id)})

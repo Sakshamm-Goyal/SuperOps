@@ -41,7 +41,8 @@ class State:
 
     def status(self) -> dict:
         with self.lock:
-            return {"worker_id": self.worker_id, "loaded_config": self.config, "loaded_config_hash": self.config_hash,
+            return {"worker_id": self.worker_id, "config_path": os.path.realpath(self.config_path),
+                    "loaded_config": self.config, "loaded_config_hash": self.config_hash,
                     "loaded_version": self.config["version"], "pid": os.getpid(), "started_at": self.started_at}
 
 
@@ -74,13 +75,17 @@ def make_handler(state: State):
                 return self._send(200, state.status())
             if self.path == "/work":
                 sem, h = state.sem, state.config_hash
+                q0 = time.perf_counter()
                 if not sem.acquire(timeout=1.0):
                     return self._send(503, {"error": "concurrency limit; request timed out waiting"})
+                s0 = time.perf_counter()
                 try:
                     time.sleep(max(0, min(2000, int(body.get("service_ms", 60)))) / 1000)
                 finally:
                     sem.release()
-                return self._send(200, {"request_id": body.get("request_id"), "config_hash": h})
+                # Report measured queue wait and delivered service time so the trial can verify fixture fidelity.
+                return self._send(200, {"request_id": body.get("request_id"), "config_hash": h,
+                                        "queue_ms": round((s0 - q0) * 1000, 3), "service_ms": round((time.perf_counter() - s0) * 1000, 3)})
             self._send(404, {"error": "not found"})
 
     return H

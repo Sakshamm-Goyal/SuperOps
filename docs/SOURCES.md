@@ -53,7 +53,7 @@ The six local guides lack independently authenticated publisher/version metadata
 | PRIOR-01 | [Google machine-type recommendations](https://docs.cloud.google.com/compute/docs/instances/apply-machine-type-recommendations-for-instances) | Existing cloud rightsizing category; no global novelty claim |
 | PRIOR-02 | [FinOps workload placement](https://www.finops.org/framework/capabilities/architecting-workload-placement/) | Cost/workload tradeoffs; product differentiator is a hypothesis |
 
-Detailed sponsor method/field findings, exact source paths and the OpenAPI hash are in [SPONSOR_RESEARCH.md](research/SPONSOR_RESEARCH.md). Immutable upstream file/line citations are in [UPSTREAM_REVIEW.md](research/UPSTREAM_REVIEW.md). Accessibility primary references are in [UX_SPEC.md](UX_SPEC.md). Sources linked there are part of this research register without duplicating every citation here.
+Detailed sponsor method/field findings, exact source paths and the OpenAPI hash are in [SPONSOR_RESEARCH.md](research/SPONSOR_RESEARCH.md). Immutable upstream file/line citations are in the team's local upstream review (not published). Accessibility primary references are in [UX_SPEC.md](UX_SPEC.md). Sources linked there are part of this research register without duplicating every citation here.
 
 ## Fact versus design resolution
 

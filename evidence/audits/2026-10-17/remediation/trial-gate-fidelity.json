@@ -1,0 +1,185 @@
+{
+ "4v4": {
+  "outcomes": [
+   "PASSED",
+   "PASSED",
+   "PASSED",
+   "PASSED",
+   "PASSED",
+   "PASSED",
+   "PASSED",
+   "PASSED",
+   "PASSED",
+   "PASSED",
+   "PASSED",
+   "PASSED",
+   "PASSED",
+   "PASSED",
+   "PASSED",
+   "PASSED",
+   "PASSED",
+   "PASSED",
+   "PASSED",
+   "PASSED"
+  ],
+  "discarded": [
+   6,
+   0,
+   0,
+   0,
+   0,
+   2,
+   0,
+   0,
+   0,
+   0,
+   6,
+   0,
+   0,
+   2,
+   0,
+   4,
+   0,
+   6,
+   0,
+   8
+  ],
+  "ratios": [
+   [
+    1.0,
+    0.9999,
+    0.9996
+   ],
+   [
+    1.004,
+    1.0,
+    1.0042
+   ],
+   [
+    0.9997,
+    1.0001,
+    0.9995
+   ]
+  ]
+ },
+ "6v4": {
+  "outcomes": [
+   "PASSED",
+   "PASSED",
+   "INCOMPLETE",
+   "PASSED",
+   "PASSED",
+   "PASSED",
+   "PASSED",
+   "PASSED",
+   "PASSED",
+   "PASSED",
+   "PASSED",
+   "PASSED",
+   "PASSED",
+   "INCOMPLETE",
+   "PASSED",
+   "PASSED",
+   "PASSED",
+   "PASSED",
+   "PASSED",
+   "PASSED"
+  ],
+  "discarded": [
+   2,
+   4,
+   6,
+   4,
+   4,
+   0,
+   2,
+   0,
+   4,
+   0,
+   2,
+   2,
+   2,
+   6,
+   2,
+   2,
+   0,
+   0,
+   0,
+   2
+  ],
+  "ratios": [
+   [
+    1.0023,
+    0.9999,
+    1.0002
+   ],
+   [
+    1.0001,
+    1.0034,
+    1.0001
+   ],
+   [
+    1.0,
+    1.0001
+   ]
+  ]
+ },
+ "8v3": {
+  "outcomes": [
+   "FAILED",
+   "PASSED",
+   "PASSED"
+  ],
+  "discarded": [
+   0,
+   0,
+   2
+  ],
+  "ratios": [
+   [
+    1.2764,
+    1.0003,
+    1.1238
+   ],
+   [
+    0.9996,
+    1.0806,
+    0.9998
+   ],
+   [
+    0.9991,
+    1.0003,
+    1.0038
+   ]
+  ]
+ },
+ "8v2": {
+  "outcomes": [
+   "FAILED",
+   "FAILED",
+   "FAILED"
+  ],
+  "discarded": [
+   0,
+   2,
+   0
+  ],
+  "ratios": [
+   [
+    14.6669,
+    14.1714,
+    14.2645
+   ],
+   [
+    14.239,
+    14.4549,
+    14.2996
+   ],
+   [
+    14.4496,
+    14.461,
+    13.786
+   ]
+  ]
+ }
+}

@@ -203,7 +203,7 @@ def test_act07_crash_after_write_reconciles_without_second_write(env):
     # simulate: intent persisted, write reached the target, process died before recording it
     with connect(rt.db) as c:
         c.execute("UPDATE actions SET status='EXECUTING' WHERE id=%s", (aid,))
-    store.compare_and_set(expected, {"max_concurrency": plan["data"]["core"]["action"]["after"]["max_concurrency"]})
+    store.compare_and_set(expected, {"max_concurrency": plan["data"]["core"]["action"]["after"]["max_concurrency"]}, writer=f"action:{aid}")
     assert execution.run(rt, aid) == "VERIFIED"
     assert store.read()["version"] == expected + 1  # not written twice
     a = client.get(f"/v1/actions/{aid}", headers=auth("lead", False)).json()
@@ -252,6 +252,8 @@ def test_act09_intervening_change_blocks_recovery(env, monkeypatch):
     assert store.read()["max_concurrency"] == 6  # the human change is not overwritten
     with connect(rt.db) as c:
         assert c.execute("SELECT holder_id FROM execution_slot").fetchone()["holder_id"] is None
+    monkeypatch.undo()
+    execution.resolve_manually(rt, aid, "lead", "inspected: human value 6 is intended")
 
 
 def test_act13_sample_mode_cannot_approve_or_execute(db_url, sandbox):
