@@ -1,0 +1,2 @@
+region,kg_co2e_per_kwh,kwh_per_vcpu_hour,kwh_per_gib_hour,pue_included,method_version,effective_from,effective_to,factor_source
+us-central1,0.43,0.0035,0.0004,true,greenops-synthetic-ops-v1,2026-08-31T00:00:00Z,,synthetic_illustrative

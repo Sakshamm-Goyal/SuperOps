@@ -1,0 +1,36 @@
+{
+  "suite": "support-v1",
+  "verifier": "support-verifier-v1",
+  "development": {
+    "suite_id": "support-dev-v1",
+    "cases": 40,
+    "by_category": {
+      "escalation_identity": 8,
+      "missing_fields": 8,
+      "order_status": 8,
+      "premium_exceptions": 8,
+      "standard_returns": 8
+    },
+    "sha256": {
+      "cases.jsonl": "1c71c3338ebe08f013b8392baf3230cf289d19d11484611f6370f16a23f67012",
+      "records.json": "fbb331e6fab05ca1fd1a5f8039ba6f3421bc42530b741fd95154e663cefa073d"
+    },
+    "path": "experiments/support/dev"
+  },
+  "holdout": {
+    "suite_id": "support-holdout-v1",
+    "cases": 40,
+    "by_category": {
+      "escalation_identity": 8,
+      "missing_fields": 8,
+      "order_status": 8,
+      "premium_exceptions": 8,
+      "standard_returns": 8
+    },
+    "sha256": {
+      "cases.jsonl": "d68601dfa5ceb60966ec4ad3bb10627de13ac6ae957707315a8d18a2ae1d3c8d",
+      "records.json": "61c7299e2b10f15945c32154a6b36825aeb657091eb0fb02fa28f9180b3e07e1"
+    },
+    "storage": "evaluator-only ($EVALUATOR_DIR); not committed, not in Zetaris views or memory"
+  }
+}

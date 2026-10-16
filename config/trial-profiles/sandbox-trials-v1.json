@@ -1,0 +1,25 @@
+{
+  "id": "sandbox-trials-v1",
+  "service_id": "support-demo",
+  "description": "Disposable trial fixtures for the support-demo sandbox. Never the final action targets.",
+  "forbidden_targets": ["local/sandbox/support-worker-stg", "local/sandbox/support-ai-workflow"],
+  "local_worker_pair": {
+    "fixtures": ["local/sandbox/trial-fixture-a", "local/sandbox/trial-fixture-b"],
+    "allowed_operations": [{"op": "set_max_concurrency", "min": 1, "max": 16}],
+    "workload": "sandbox/workload-v1.json",
+    "warmup_s": 3,
+    "measure_s": 10,
+    "pairs": 3,
+    "max_seconds": 300,
+    "max_cost_usd": "0",
+    "reset": {"max_concurrency": 8}
+  },
+  "ai_dev_suite": {
+    "allowed_suites": ["support-dev-v1"],
+    "allowed_fields": ["policy_context", "policy_char_limit", "dedupe_lookups", "max_tool_calls"],
+    "max_model_calls": 400,
+    "max_seconds": 900,
+    "max_cost_usd": "2.00"
+  },
+  "valid_days": 7
+}

@@ -1,0 +1,106 @@
+{
+  "name": "@meterless/hmem-reference",
+  "version": "0.1.0",
+  "repository": "https://github.com/Meterless/Meterless",
+  "sha": "0aa7417ba5c826396d91e891328be78c45e6fbf6",
+  "commit_date": "2026-07-22T23:14:36Z",
+  "license": "Apache-2.0",
+  "license_file": "vendor/hmem/LICENSE",
+  "notice_file": null,
+  "notice_note": "No NOTICE file exists at engines/hmem/NOTICE or repository root at this SHA (checked in local clone).",
+  "patches": "PATCHES.md",
+  "patch_diff": "vendor/hmem.patch",
+  "files": [
+    {
+      "upstream_path": "engines/hmem/reference/src/conflictDetection.ts",
+      "vendored_path": "vendor/hmem/src/conflictDetection.ts",
+      "upstream_sha256": "432e8b86ed0b5883d435e5ab4a12160d1f40d194cbdb4c119d3b710cbb0301a3",
+      "vendored_sha256": "432e8b86ed0b5883d435e5ab4a12160d1f40d194cbdb4c119d3b710cbb0301a3",
+      "modified": false
+    },
+    {
+      "upstream_path": "engines/hmem/reference/src/dreaming.ts",
+      "vendored_path": "vendor/hmem/src/dreaming.ts",
+      "upstream_sha256": "d12594d667ec068690c6b81e020cd62ade91671316a1ab9b529259304aceb009",
+      "vendored_sha256": "d12594d667ec068690c6b81e020cd62ade91671316a1ab9b529259304aceb009",
+      "modified": false
+    },
+    {
+      "upstream_path": "engines/hmem/reference/src/embeddings.ts",
+      "vendored_path": "vendor/hmem/src/embeddings.ts",
+      "upstream_sha256": "89433327ee1075a8049bc8518cdf5cabf51ad67802e192266841cdee727b6d10",
+      "vendored_sha256": "af813cfe4f76b2cb62d611737e1a634807ce15c83d863ec1eb7d1a325aa5b212",
+      "modified": true
+    },
+    {
+      "upstream_path": "engines/hmem/reference/src/index.ts",
+      "vendored_path": "vendor/hmem/src/index.ts",
+      "upstream_sha256": "9c481889afcdd70086d3bb3470842fa2330215e4d7760d826d103accdf8c1cdf",
+      "vendored_sha256": "9c481889afcdd70086d3bb3470842fa2330215e4d7760d826d103accdf8c1cdf",
+      "modified": false
+    },
+    {
+      "upstream_path": "engines/hmem/reference/src/memoryMining.ts",
+      "vendored_path": "vendor/hmem/src/memoryMining.ts",
+      "upstream_sha256": "6072693d654ea1c34a9adbf6ce80101eeb1eeb56273d264f6ceb4859ffde6562",
+      "vendored_sha256": "6072693d654ea1c34a9adbf6ce80101eeb1eeb56273d264f6ceb4859ffde6562",
+      "modified": false
+    },
+    {
+      "upstream_path": "engines/hmem/reference/src/memoryRetrieval.ts",
+      "vendored_path": "vendor/hmem/src/memoryRetrieval.ts",
+      "upstream_sha256": "4fe120b1b64fe7225b9b28fda59514c114de9e885d22c5bf0aa035788b6d629d",
+      "vendored_sha256": "83636b67380d73eb8d175523a03eaa9bf2b4b620b4b56df5f0a78a7d8fce0bec",
+      "modified": true
+    },
+    {
+      "upstream_path": "engines/hmem/reference/src/memoryStore.ts",
+      "vendored_path": "vendor/hmem/src/memoryStore.ts",
+      "upstream_sha256": "a1eac8de8c0fde0e503e1212f3cb98295a661c2a8bad93ad82e51985885e6fd0",
+      "vendored_sha256": "ff41b268882302ee45d4f7c92c8c84d4bc4ec606b7fe3619f982175e594f894c",
+      "modified": true
+    },
+    {
+      "upstream_path": "engines/hmem/reference/src/sleepCycle.ts",
+      "vendored_path": "vendor/hmem/src/sleepCycle.ts",
+      "upstream_sha256": "3ce0d4f3233d0ad7c133a2cbaf39b6122467022e0aa378a160a0d463e2264cef",
+      "vendored_sha256": "3ce0d4f3233d0ad7c133a2cbaf39b6122467022e0aa378a160a0d463e2264cef",
+      "modified": false
+    },
+    {
+      "upstream_path": "engines/hmem/reference/src/trustLedger.ts",
+      "vendored_path": "vendor/hmem/src/trustLedger.ts",
+      "upstream_sha256": "263253dd3342c488ce773d7e728d77aec983c1833873602b59ce1a6c7999e20e",
+      "vendored_sha256": "263253dd3342c488ce773d7e728d77aec983c1833873602b59ce1a6c7999e20e",
+      "modified": false
+    },
+    {
+      "upstream_path": "engines/hmem/reference/src/types.ts",
+      "vendored_path": "vendor/hmem/src/types.ts",
+      "upstream_sha256": "becb504870a67646a20a421ffe04d8732db63418393423d2186c074b182f54c7",
+      "vendored_sha256": "becb504870a67646a20a421ffe04d8732db63418393423d2186c074b182f54c7",
+      "modified": false
+    },
+    {
+      "upstream_path": "engines/hmem/LICENSE",
+      "vendored_path": "vendor/hmem/LICENSE",
+      "upstream_sha256": "63e29fc8231b53757a77fbc371071c91d768621efa1e68b1d9ff8d1bb7c4a0ef",
+      "vendored_sha256": "63e29fc8231b53757a77fbc371071c91d768621efa1e68b1d9ff8d1bb7c4a0ef",
+      "modified": false
+    },
+    {
+      "upstream_path": "engines/hmem/reference/README.md",
+      "vendored_path": "vendor/hmem/README.md",
+      "upstream_sha256": "ab3a50c274aace1e9d05e60b01598f531b3da80f966275c437aa871b7b71c775",
+      "vendored_sha256": "ab3a50c274aace1e9d05e60b01598f531b3da80f966275c437aa871b7b71c775",
+      "modified": false
+    }
+  ],
+  "excluded": [
+    "engines/hmem/reference/node_modules (not present in clone; never copied)",
+    "engines/hmem/reference/test",
+    "engines/hmem/reference/package.json",
+    "engines/hmem/reference/package-lock.json",
+    "engines/hmem/reference/tsconfig.json"
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "note": "Local sandbox targets. executor=local_analogue: a real local config change, not a GCP resize.",
+  "workers": {
+    "local/sandbox/support-worker-stg": {"port": 7520, "role": "action_target", "analogue_of": "gcp/greenops-sbx-staging/worker-stg-01", "initial_max_concurrency": 8},
+    "local/sandbox/trial-fixture-a": {"port": 7521, "role": "trial_fixture", "initial_max_concurrency": 8},
+    "local/sandbox/trial-fixture-b": {"port": 7522, "role": "trial_fixture", "initial_max_concurrency": 8}
+  },
+  "ai_workflows": {
+    "local/sandbox/support-ai-workflow": {"workflow_id": "support-workflow", "role": "action_target",
+      "initial_config": {"policy_context": "full", "policy_char_limit": null, "dedupe_lookups": false, "max_tool_calls": 8}}
+  }
+}

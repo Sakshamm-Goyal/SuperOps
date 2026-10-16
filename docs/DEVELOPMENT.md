@@ -1,6 +1,6 @@
 # Development practices
 
-Status: intended team workflow, not an installed toolchain. Read [AGENTS.md](../AGENTS.md) first and [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) for work order. The project favors complete small vertical slices with evidence over framework breadth.
+Status: toolchain installed and locked (16 Oct 2026, pre-event). The implemented layout is `greenops/{domain,adapters,agents,services,api,worker,ui}`, `memory-sidecar/`, `experiments/support/`, `sandbox/`, `sql/`, `migrations/`, `scripts/` and `tests/{unit,integration,connected}`; the Makefile commands are real. Read [AGENTS.md](../AGENTS.md) first and [IMPLEMENTATION_PLAN.md](IMPLEMENTATION_PLAN.md) for work order. The project favors complete small vertical slices with evidence over framework breadth.
 
 ## Repository structure to implement
 
