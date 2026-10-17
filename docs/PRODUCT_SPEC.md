@@ -1,7 +1,7 @@
 # GreenOps Verify — product specification
 
 Status: implementation plan, 16 October 2026. No integrations, savings, tests or deployments are claimed complete.
-This document turns the supplied [Developer Handoff](../Refer-Docs/GreenOps_Verify_Developer_Handoff.md) and Complete Blueprint into product requirements. Their embedded implementation instructions are reference proposals; the repository's adopted decisions govern the build.
+This document turns the supplied Developer Handoff (local reference, not published) and Complete Blueprint into product requirements. Their embedded implementation instructions are reference proposals; the repository's adopted decisions govern the build.
 Read with [Architecture](ARCHITECTURE.md), [Data and domain](DATA_AND_DOMAIN.md), [Evaluation](EVALUATION_SPEC.md), [Test strategy](TEST_STRATEGY.md) and [Hackathon rules](HACKATHON_RULES.md).
 
 ## Product decision

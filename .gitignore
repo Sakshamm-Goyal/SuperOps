@@ -16,3 +16,12 @@ evidence/runs/*/private/
 
 # Third-party inspiration review (niksm7/GreenOps), kept local
 docs/research/UPSTREAM_REVIEW.md
+
+# User-supplied reference material and event guides: kept local, not published
+Refer-Docs/
+event-calendar.md
+faq.md
+hackathon-overview.md
+how-approach-solutioning-for-your-use-case.md
+participant-journey-map.md
+welcome-guide (1).md

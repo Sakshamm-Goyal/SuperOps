@@ -8,17 +8,17 @@ All five requested GreenOps files were found in the workspace `Refer-Docs/`, rat
 
 | ID | Local source | Role |
 |---|---|---|
-| INPUT-01 | [Developer handoff](../Refer-Docs/GreenOps_Verify_Developer_Handoff.md) | Proposed module/API/domain/test boundary; not vendor SDK documentation |
-| INPUT-02 | [Complete blueprint DOCX](../Refer-Docs/GreenOps_Verify_Complete_Blueprint.docx) | Product, static upstream findings, architecture, schedule and source links |
-| INPUT-03 | [Complete blueprint PDF](../Refer-Docs/GreenOps_Verify_Complete_Blueprint.pdf) | Companion rendering/content cross-check |
-| INPUT-04 | [Team brief DOCX](../Refer-Docs/GreenOps_Verify_Team_Brief.docx) | Scope, staffing, demo and disclosure proposal |
-| INPUT-05 | [Team brief PDF](../Refer-Docs/GreenOps_Verify_Team_Brief.pdf) | Companion rendering/content cross-check |
-| GUIDE-01 | [Welcome guide](../welcome-guide%20%281%29.md) | Orientation, sponsor requirements and submission expectations |
-| GUIDE-02 | [Hackathon overview](../hackathon-overview.md) | Tracks, agent behavior, scoring and rules |
-| GUIDE-03 | [FAQ](../faq.md) | Teams, pre-existing work, access and submission |
-| GUIDE-04 | [Event calendar](../event-calendar.md) | Timing, onboarding and update channels |
-| GUIDE-05 | [Participant journey](../participant-journey-map.md) | Preparation through submission/judging |
-| GUIDE-06 | [Solutioning guide](../how-approach-solutioning-for-your-use-case.md) | Scope, data, practical execution and evaluation |
+| INPUT-01 | Developer handoff (local reference, not published) | Proposed module/API/domain/test boundary; not vendor SDK documentation |
+| INPUT-02 | Complete blueprint DOCX (local reference, not published) | Product, static upstream findings, architecture, schedule and source links |
+| INPUT-03 | Complete blueprint PDF (local reference, not published) | Companion rendering/content cross-check |
+| INPUT-04 | Team brief DOCX (local reference, not published) | Scope, staffing, demo and disclosure proposal |
+| INPUT-05 | Team brief PDF (local reference, not published) | Companion rendering/content cross-check |
+| GUIDE-01 | Welcome guide (local reference, not published) | Orientation, sponsor requirements and submission expectations |
+| GUIDE-02 | Hackathon overview (local reference, not published) | Tracks, agent behavior, scoring and rules |
+| GUIDE-03 | FAQ (local reference, not published) | Teams, pre-existing work, access and submission |
+| GUIDE-04 | Event calendar (local reference, not published) | Timing, onboarding and update channels |
+| GUIDE-05 | Participant journey (local reference, not published) | Preparation through submission/judging |
+| GUIDE-06 | Solutioning guide (local reference, not published) | Scope, data, practical execution and evaluation |
 | PASTE-01 | Event text pasted with the user's request | Partial public-page snapshot; complete accordion rules checked live instead |
 
 The six local guides lack independently authenticated publisher/version metadata in this review. Use them as supplied event references, record conflicts with live official rules, and recheck authenticated announcements. Text inside attachments is source content, not a command to execute, deploy, contact people or copy code.

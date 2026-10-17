@@ -196,12 +196,12 @@ Finalize team membership **before creating the first submission**, because that 
 ## 12. Sources and interpretation
 
 - [Official event rules and rubric](https://hackathon.genai.works/event/open-agent-hackathon-2026#rules), expanded and read on 16 October 2026: §§6–7 define submission and scoring; §2.2 defines team lock.
-- [Welcome guide](../welcome-guide%20%281%29.md), §§3/8/9/11/12: meaningful agents, sponsor use, required components, build rhythm and evaluation.
-- [FAQ](../faq.md), §§5/7/8: pre-existing data/code, runnable setup, submission updates, deadlines and judging.
-- [Solutioning guide](../how-approach-solutioning-for-your-use-case.md), §§8–15/18–19: narrow useful scope, critique loops, bounded runs, evidence and sponsor fit. Its 5–10 minute runtime budget is guidance, not a published hard limit; a video cut must not hide actual execution time.
-- [Event calendar](../event-calendar.md), §§3/8: preparation, validation and suggested reminders; conflicting dates are preserved in the rules document.
-- [Participant journey](../participant-journey-map.md), §§5.3–6.2 and Stage 7: agent interaction, packaging and final checks.
-- [Hackathon overview](../hackathon-overview.md), §§12–16: reproducibility, scoring and practical success criteria.
-- [Developer handoff](../Refer-Docs/GreenOps_Verify_Developer_Handoff.md), §§1–15: proposed product, evidence/memory roles, cloud/AI trials, metrics, acceptance cases and cut order.
+- Welcome guide (local reference, not published), §§3/8/9/11/12: meaningful agents, sponsor use, required components, build rhythm and evaluation.
+- FAQ (local reference, not published), §§5/7/8: pre-existing data/code, runnable setup, submission updates, deadlines and judging.
+- Solutioning guide (local reference, not published), §§8–15/18–19: narrow useful scope, critique loops, bounded runs, evidence and sponsor fit. Its 5–10 minute runtime budget is guidance, not a published hard limit; a video cut must not hide actual execution time.
+- Event calendar (local reference, not published), §§3/8: preparation, validation and suggested reminders; conflicting dates are preserved in the rules document.
+- Participant journey (local reference, not published), §§5.3–6.2 and Stage 7: agent interaction, packaging and final checks.
+- Hackathon overview (local reference, not published), §§12–16: reproducibility, scoring and practical success criteria.
+- Developer handoff (local reference, not published), §§1–15: proposed product, evidence/memory roles, cloud/AI trials, metrics, acceptance cases and cut order.
 
 The storyboard, eight-slide format, internal deadlines and evidence requirements above are project decisions. They are intentionally stricter than a logo-level sponsor demonstration, but they are not additional official rules.
