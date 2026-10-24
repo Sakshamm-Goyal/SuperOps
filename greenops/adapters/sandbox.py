@@ -31,6 +31,10 @@ class TargetUnavailable(Exception):
     pass
 
 
+class SandboxOwnershipError(TargetUnavailable):
+    """A responsive worker on the expected port serves a different config file/sandbox (audit A22): never adopt it."""
+
+
 def file_hash(path: Path) -> str:
     return "sha256:" + hashlib.sha256(path.read_bytes()).hexdigest()
 
@@ -80,12 +84,14 @@ class ConfigStore:
             self._write(cfg)
             return cfg
 
-    def compare_and_set(self, expected_version: int, changes: dict) -> dict:
+    def compare_and_set(self, expected_version: int, changes: dict, writer: str = "unknown") -> dict:
+        """Atomic CAS. `writer` is the operation identity stored with the version (audit A01): reconciliation and
+        recovery only treat a version as their own when its writer matches; unknown writers are never ours."""
         with self._locked():
             cur = self.read()
             if cur["version"] != expected_version:
                 raise VersionConflict(f"{self.target_id} is at version {cur['version']}, expected {expected_version}")
-            new = {**cur, **changes, "version": cur["version"] + 1}
+            new = {**cur, **changes, "version": cur["version"] + 1, "writer": writer}
             self._write(new)
             return new
 
@@ -99,13 +105,20 @@ class LocalWorker:
         self.store = ConfigStore(sandbox_dir, target_id)
         self.url = f"http://127.0.0.1:{self.port}"
 
+    def _owned(self, st: dict) -> dict:
+        served = st.get("config_path")
+        if st.get("worker_id") != self.target_id or not served or os.path.realpath(served) != os.path.realpath(self.store.path):
+            raise SandboxOwnershipError(f"port {self.port} serves {st.get('worker_id')} from {served}, not {self.store.path}")
+        return st
+
     def status(self) -> dict:
         try:
             r = httpx.get(self.url + "/status", timeout=3)
             r.raise_for_status()
-            return r.json()
+            st = r.json()
         except httpx.HTTPError as e:
             raise TargetUnavailable(f"{self.target_id} status unreachable: {type(e).__name__}")
+        return self._owned(st)
 
     def reload(self) -> dict:
         try:
@@ -114,7 +127,7 @@ class LocalWorker:
             raise TargetUnavailable(f"{self.target_id} reload unreachable: {type(e).__name__}")
         if r.status_code != 200:
             raise TargetUnavailable(f"{self.target_id} rejected reload: {r.text[:200]}")
-        return r.json()
+        return self._owned(r.json())
 
 
 def load_workload() -> tuple[dict, str]:
@@ -132,28 +145,38 @@ async def _run(url: str, workload: dict, duration_s: float, label: str) -> dict:
     rng = random.Random(f"{workload['seed']}-{label}")
     interval = 1.0 / workload["rate_per_s"]
     n = int(duration_s * workload["rate_per_s"])
-    lat, failures, hashes = [], 0, set()
+    lat, failures, hashes, lag, svc, queue, server = [], 0, set(), [], [], [], []
     limits = httpx.Limits(max_connections=200, max_keepalive_connections=50)
     async with httpx.AsyncClient(timeout=workload["request_timeout_s"], limits=limits) as client:
         t0 = time.perf_counter()
 
         async def one(i: int):
             nonlocal failures
-            await asyncio.sleep(max(0.0, t0 + i * interval + rng.uniform(0, workload["jitter_ms"]) / 1000 - time.perf_counter()))
+            due = t0 + i * interval + rng.uniform(0, workload["jitter_ms"]) / 1000
+            await asyncio.sleep(max(0.0, due - time.perf_counter()))
             s = time.perf_counter()
+            lag.append((s - due) * 1000)  # load-generator schedule lag: offered load fidelity
             try:
                 r = await client.post(url + "/work", json={"request_id": f"{label}-{i}", "service_ms": workload["service_ms"]})
                 if r.status_code != 200:
                     failures += 1
                     return
-                hashes.add(r.json().get("config_hash"))
+                body = r.json()
+                hashes.add(body.get("config_hash"))
                 lat.append((time.perf_counter() - s) * 1000)
+                if body.get("service_ms") is not None:
+                    svc.append(body["service_ms"])
+                    queue.append(body["queue_ms"])
+                    server.append(body["queue_ms"] + body["service_ms"])
             except httpx.HTTPError:
                 failures += 1
 
         await asyncio.gather(*(one(i) for i in range(n)))
     return {"offered": n, "completed": len(lat), "failures": failures, "p50_ms": _pct(lat, 0.50), "p95_ms": _pct(lat, 0.95),
-            "max_ms": max(lat) if lat else None, "config_hashes_seen": sorted(h for h in hashes if h)}
+            "max_ms": max(lat) if lat else None, "config_hashes_seen": sorted(h for h in hashes if h), "latencies_ms": lat,
+            "schedule_lag_p95_ms": _pct(lag, 0.95), "schedule_lag_max_ms": max(lag) if lag else None,
+            "service_p95_ms": _pct(svc, 0.95), "queue_p95_ms": _pct(queue, 0.95), "nominal_service_ms": workload["service_ms"],
+            "server_p95_ms": _pct(server, 0.95), "server_latencies_ms": server}
 
 
 def run_workload(worker: LocalWorker, duration_s: float, label: str) -> dict:
@@ -171,10 +194,12 @@ def start_workers(sandbox_dir: Path) -> list[str]:
     started = []
     for tid, spec in REGISTRY["workers"].items():
         w = LocalWorker(sandbox_dir, tid)
-        w.store.init({"worker_id": tid, "version": 1, "max_concurrency": spec["initial_max_concurrency"]})
+        w.store.init({"worker_id": tid, "version": 1, "max_concurrency": spec["initial_max_concurrency"], "writer": "init"})
         try:
-            w.status()
-            continue  # already running
+            w.status()  # raises SandboxOwnershipError if the port belongs to another sandbox directory
+            continue  # already running, and owned by this sandbox
+        except SandboxOwnershipError:
+            raise
         except TargetUnavailable:
             pass
         log = open(w.store.path.parent / "worker.log", "a")
@@ -187,10 +212,12 @@ def start_workers(sandbox_dir: Path) -> list[str]:
             try:
                 LocalWorker(sandbox_dir, tid).status()
                 break
+            except SandboxOwnershipError:
+                raise
             except TargetUnavailable:
                 time.sleep(0.1)
     for tid, spec in REGISTRY["ai_workflows"].items():
-        ConfigStore(sandbox_dir, tid).init({"workflow_id": spec["workflow_id"], "version": 1, "config": spec["initial_config"]})
+        ConfigStore(sandbox_dir, tid).init({"workflow_id": spec["workflow_id"], "version": 1, "config": spec["initial_config"], "writer": "init"})
     return started
 
 

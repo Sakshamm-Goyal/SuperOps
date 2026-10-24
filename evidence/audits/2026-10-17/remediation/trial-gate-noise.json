@@ -1,0 +1,15 @@
+{
+  "observed_at_utc": "2026-10-16T21:12:00Z",
+  "context": "Full pytest session (unit+integration) on one laptop; test trial profile warmup 1 s, 3 x 3 s paired windows at 40 req/s",
+  "before_amendment": {
+    "method": "median of per-window p95, candidate <= baseline * 1.10",
+    "identical_config_trials_4_vs_4": "6 of ~27 FAILED TRIAL-P95-REGRESSION (candidate p95 85.6-101.7 ms vs baseline 71-77 ms) in greenops_itest",
+    "effect": "3 integration tests failed: no approval-ready plan because the identical-config trial was rejected"
+  },
+  "after_amendment": {
+    "method": "pooled p95 over all latencies per side AND limit exceeded in a majority of paired windows; threshold unchanged (10%)",
+    "identical_config_trials_4_vs_4": "15 of 15 PASSED (idle machine, same test profile)",
+    "true_regression_8_to_2": "FAILED on TRIAL-NO-NEW-FAILURES, TRIAL-P95-REGRESSION, TRIAL-P95-SLO"
+  },
+  "limit": "Short windows on a shared laptop remain a noisy instrument; the production profile uses 10 s windows and the spec proposes 60 s."
+}

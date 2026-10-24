@@ -35,6 +35,21 @@ def _decimal(name: str) -> Decimal | None:
     return d
 
 
+def parse_dotenv_value(raw: str) -> str:
+    """Defined grammar (audit A09): quoted values are literal; unquoted values end at a whitespace-preceded '#'."""
+    v = raw.strip()
+    if len(v) >= 2 and v[0] in "'\"":
+        q = v[0]
+        end = v.find(q, 1)
+        if end == -1:
+            raise ValueError(f"unterminated quoted value: {raw!r}")
+        return v[1:end]
+    for i, ch in enumerate(v):
+        if ch == "#" and (i == 0 or v[i - 1] in " \t"):
+            return v[:i].rstrip()
+    return v
+
+
 def load_dotenv(path: Path = ROOT / ".env") -> None:
     """Minimal .env reader; existing environment wins. ponytail: no python-dotenv dependency."""
     if not path.exists():
@@ -44,7 +59,7 @@ def load_dotenv(path: Path = ROOT / ".env") -> None:
         if not line or line.startswith("#") or "=" not in line:
             continue
         k, v = line.split("=", 1)
-        os.environ.setdefault(k.strip(), v.strip().strip('"').strip("'"))
+        os.environ.setdefault(k.strip(), parse_dotenv_value(v))
 
 
 @dataclass(frozen=True)

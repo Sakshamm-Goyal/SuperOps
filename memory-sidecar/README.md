@@ -19,7 +19,10 @@ Semantic recall quality is therefore unproven.
 
 ## Run
 
-Requires Node >= 22.12 (developed on v22.16.0). There are no runtime npm dependencies.
+Supported runtime: **Node `>=22.12 <23`** (`engines.node`; `.nvmrc` pins `22.16.0`). Only
+v22.16.0 has been tested. Node 26 is known not to work: it rejects
+`--experimental-transform-types`. Other majors are untested and are refused. There are no
+runtime npm dependencies.
 
 ```bash
 cd memory-sidecar
@@ -29,6 +32,30 @@ EMBEDDING_MODE=nvidia EMBEDDING_API_KEY=... \
 npm start
 npm test        # node:test suite; spawns the real server against temp dirs
 ```
+
+`npm start` and `npm test` first run `scripts/check-node.mjs` (plain JavaScript, so it runs on
+any Node). It exits 1 with a message naming the Node binary when the major is not 22, the
+version is below 22.12, or that binary rejects `--experimental-transform-types`. Run it on its
+own with `npm run check-node`.
+
+**Pointing at Node 22.** npm runs scripts with the first `node` on `PATH`, and it overwrites a
+`NODE` variable you set, so choose the runtime through `PATH`, nvm, or by calling the binary
+directly. On a machine where `/usr/local/bin/node` is v22 and Homebrew's `node` is v26:
+
+```bash
+nvm use                                    # reads .nvmrc, if you use nvm
+PATH=/usr/local/bin:$PATH npm test         # put a Node 22 install first on PATH
+PATH=/usr/local/bin:$PATH npm start
+
+# Without npm (cwd memory-sidecar):
+NODE=/usr/local/bin/node
+"$NODE" scripts/check-node.mjs
+"$NODE" --experimental-transform-types --test test/*.test.ts
+"$NODE" --experimental-transform-types src/server.ts
+```
+
+The test helpers spawn the sidecar with the same binary that runs the tests
+(`process.execPath`), so a direct run never mixes runtimes.
 
 `--experimental-transform-types` is required because upstream uses TypeScript constructor
 parameter properties. `tsconfig.json` is only for editor checking. Full type checking also
@@ -73,7 +100,7 @@ Returns 200 when `ready`, otherwise 503.
 
 ```json
 {"status":"ready|degraded|unavailable","reasons":[],"engine":{"package":"@meterless/hmem-reference","version":"0.1.0","upstream_sha":"0aa7417b..."},
- "embedding_profile":{...},"store":{"records":0,"receipts":0,"data_dir":"...","unindexed_engine_records":0,"missing_engine_records":0,"reconcilable_orphans":0}}
+ "embedding_profile":{...},"store":{"records":0,"receipts":0,"data_dir":"...","unindexed_engine_records":0,"missing_engine_records":0,"missing_engine_receipt_ids":[],"reconcilable_orphans":0}}
 ```
 
 Possible `reasons`:
@@ -83,6 +110,7 @@ Possible `reasons`:
 | `MEMORY_STATE_CORRUPT` | unavailable | The state, ledger or index file could not be parsed at startup. The files are never reset or overwritten. |
 | `EMBEDDING_PROFILE_MISMATCH` | degraded | The stored profile differs from the configuration. `stored_embedding_profile` is included. Remember and recall return `503 MEMORY_NOT_READY` until a reindex. |
 | `INDEX_ENGINE_MISMATCH` | degraded | Index entries without a matching engine record, or engine records without an index entry. Recall still works, and unindexed records are excluded. |
+| `ENGINE_RECORD_MISSING` | degraded | Added alongside `INDEX_ENGINE_MISMATCH` when an index entry's engine record is gone (or carries another receipt's source). `store.missing_engine_records` counts them; `store.missing_engine_receipt_ids` lists up to 50 receipt ids, sorted. Startup logs `memory_missing_engine_records` with the ids. Those receipts are not recallable until a same-hash remember retry reconciles them (see below). |
 
 `embedding_profile` has these fields: `{kind, model_id, dimensions, preprocessing_version,
 normalization:"l2", semantic, profile_hash}`. `profile_hash` is
@@ -111,14 +139,20 @@ Responses:
 | Status | Body or code | When |
 |---|---|---|
 | 201 | `{engine_memory_id, application_receipt_id, stored_at, embedding_profile, persisted:true, duplicate:false}` | New receipt stored. |
-| 200 | Same body with `duplicate:true` | Same receipt id, same `content_hash`, same tenant+service. No new engine record is created. |
-| 409 | `IDEMPOTENCY_CONFLICT` | Same receipt id with a different hash or scope. |
+| 200 | Same body with `duplicate:true` | Same receipt id, same `content_hash`, same tenant+service, and the indexed engine record exists. No new engine record is created. |
+| 201 | Same body with `duplicate:true, reconciled:true` and a new `engine_memory_id` | Same receipt id, hash and tenant+service, but the indexed engine record is missing. The record is re-created (see below). |
+| 409 | `IDEMPOTENCY_CONFLICT` | Same receipt id with a different hash or scope, whether or not its engine record exists. Nothing is written. |
 | 422 | `VALIDATION_ERROR` | `supersedes_receipt_id` is set without `correction_review_id`. |
 | 404 | `MEMORY_NOT_FOUND` | The superseded receipt is missing or belongs to another tenant/service. |
 | 409 | `SUPERSESSION_CONFLICT` | The superseded receipt is already superseded. |
 | 201 | Same body with `duplicate:true, reconciled:true` | Crash orphan adopted (see below). No second engine record is created. |
 | 409 | `ORPHAN_CONFLICT` | An unindexed engine record with this receipt's source exists but its content differs from `finding`, or more than one exists. Nothing is written. |
 | 503 | `MEMORY_EMBEDDING_UNAVAILABLE` | Provider failure or an invalid vector (non-finite, wrong count or order, zero norm, dimension change). Nothing is written. |
+| 500 | `MEMORY_WRITE_FAILED` | An engine or index write failed, or the record was not found when `state.json` was read back. |
+
+`persisted:true` is returned only after the sidecar reads `state.json` back from disk and finds
+the acknowledged `engine_memory_id` with this receipt's source. This applies to every 200 and
+201 response.
 
 A successful correction sets the new record's `supersedes` and calls
 `store.update(old, {supersededBy: new})`, so lineage exists in both directions in the engine
@@ -144,6 +178,23 @@ is retried, the sidecar checks for an orphan before adding:
 Health reports adoptable orphans as `store.reconcilable_orphans`, and startup logs their
 receipt ids. Adoption trusts the retried request's scope and applicability, because the
 engine record carries neither.
+
+**Missing engine record.** The opposite case: an index entry exists but its engine record is
+gone from `state.json` (for example, lost or edited state). The sidecar never acknowledges
+such a receipt as a plain duplicate. On a remember retry:
+
+- If the request's `content_hash` and tenant+service equal the indexed ones, the sidecar
+  re-creates the engine record from the request (embedding `finding` with the configured
+  provider). If an unindexed orphan with this receipt's source and the same content exists
+  (a crash part-way through an earlier reconciliation), it is adopted and re-embedded instead,
+  so no second record appears. It then re-links supersession from the index in both directions:
+  the new record `supersedes` the predecessor's engine record, the predecessor gets
+  `supersededBy`, and the same is done for a successor. A linked receipt whose own record is
+  also missing is linked when it is reconciled in turn. Finally it re-points the index
+  entry's `engine_memory_id`, persists, and returns 201 with `duplicate:true, reconciled:true`.
+  The index entry's kind, applicability, evidence refs, lineage and `stored_at` are kept.
+- If the hash or scope differs, it returns 409 `IDEMPOTENCY_CONFLICT` and writes nothing.
+- An orphan with different content, or more than one, returns 409 `ORPHAN_CONFLICT`.
 
 ### `POST /memory/recall`
 
@@ -207,6 +258,10 @@ vendored engine and real files in a temp directory. The groups are:
 - **CONFORMANCE**: `hash_conformance` mode, labelled `semantic:false`.
 - **UNIT**: the fail-closed embedder and the pre-scoring filter patch.
 
+The suite has 24 tests (16 top-level tests plus 8 subtests in one CONTRACT group), including the A11
+regressions in `test/integrity.test.ts` (missing engine record, supersession re-link in both
+orders, and a crash during reconciliation).
+
 **BLOCKED**: there is no real NVIDIA (`nvidia` mode) integration test, because it needs
 authorized model access and a spend cap. See `docs/research/SPONSOR_RESEARCH.md` §5 for the
 smoke-test gate.
@@ -217,7 +272,9 @@ smoke-test gate.
   the index file are separate writes. A crash between them leaves an orphan engine record:
   health reports `INDEX_ENGINE_MISMATCH` and `reconcilable_orphans`, and recall excludes the
   record. The orphan is adopted only when the caller retries the same receipt with the same
-  finding. Nothing repairs it automatically at startup.
+  finding. Likewise, an index entry whose engine record is missing (`ENGINE_RECORD_MISSING`)
+  is repaired only by a same-hash retry from the caller, which must still hold the finding.
+  Nothing repairs either case automatically at startup.
 - This is a single-tenant sandbox. Scope is enforced by this wrapper, not the engine. Scope
   comes from the request body of an authenticated service caller; there is no per-tenant
   credential.

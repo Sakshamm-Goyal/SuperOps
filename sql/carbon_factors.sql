@@ -1,5 +1,6 @@
 -- id: carbon_factors
 -- version: 1
+-- key: region,effective_from
 -- sources: ref
 -- params: region:identifier
 SELECT region, kg_co2e_per_kwh, kwh_per_vcpu_hour, kwh_per_gib_hour, pue_included, method_version, effective_from, effective_to, factor_source

@@ -1,12 +1,15 @@
 # One controlled host, private network, durable volumes (docs/OPERATIONS.md). Only api/ui publish ports, on localhost;
 # put a TLS reverse proxy in front for any hosted use. Source databases for Zetaris must be hosted where your Zetaris
-# workspace can reach them (not this compose network).
+# workspace can reach them (not this compose network). Required in .env: POSTGRES_PASSWORD, MEMORY_AUTH_TOKEN,
+# EMBEDDING_MODE (and its key). Sandbox actor tokens are written to the appvar volume (var/actors.local.json):
+#   docker compose run --rm api cat var/actors.local.json
+# Status: written and reviewed, NOT executed (no Docker daemon was available during the build).
 name: greenops-verify
 services:
   db:
     image: postgres:17
     environment: {POSTGRES_USER: greenops, POSTGRES_DB: greenops_app, POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}"}
-    volumes: [pgdata:/var/lib/postgresql/data]
+    volumes: [pgdata:/var/lib/postgresql/data, ./deploy/db-init.sql:/docker-entrypoint-initdb.d/10-sample-src.sql:ro]
     healthcheck: {test: ["CMD", "pg_isready", "-U", "greenops"], interval: 5s, retries: 20}
   sidecar:
     build: ./memory-sidecar
@@ -18,24 +21,36 @@ services:
       EMBEDDING_API_KEY: "${EMBEDDING_API_KEY:-}"
       EMBEDDING_MODEL_ID: "${EMBEDDING_MODEL_ID:-nvidia/nv-embedqa-e5-v5}"
     volumes: [hmem:/data]
+  bootstrap:
+    build: .
+    command: ["sh", "deploy/bootstrap.sh"]
+    env_file: .env
+    environment: &appenv
+      DATABASE_URL: "postgresql://greenops:${POSTGRES_PASSWORD}@db:5432/greenops_app"
+      SAMPLE_SOURCE_URL: "postgresql://greenops:${POSTGRES_PASSWORD}@db:5432/greenops_sample_src"
+      MEMORY_BASE_URL: "http://sidecar:7410"
+      SANDBOX_DIR: /sandbox
+    volumes: [sandbox:/sandbox, appvar:/app/var]
+    depends_on: {db: {condition: service_healthy}}
+    restart: "no"
   api:
     build: .
     command: ["uvicorn", "greenops.api.app:get_app", "--factory", "--host", "0.0.0.0", "--port", "8000"]
     env_file: .env
-    environment: {DATABASE_URL: "postgresql://greenops:${POSTGRES_PASSWORD}@db:5432/greenops_app", MEMORY_BASE_URL: "http://sidecar:7410", SANDBOX_DIR: /sandbox}
-    volumes: [sandbox:/sandbox]
-    depends_on: {db: {condition: service_healthy}}
+    environment: *appenv
+    volumes: [sandbox:/sandbox, appvar:/app/var]
+    depends_on: {bootstrap: {condition: service_completed_successfully}}
     ports: ["127.0.0.1:8000:8000"]
   worker:
     build: .
     command: ["sh", "-c", "python scripts/sandbox.py up && python -m greenops.worker.main"]
     env_file: .env
-    environment: {DATABASE_URL: "postgresql://greenops:${POSTGRES_PASSWORD}@db:5432/greenops_app", MEMORY_BASE_URL: "http://sidecar:7410", SANDBOX_DIR: /sandbox}
-    volumes: [sandbox:/sandbox]
-    depends_on: {db: {condition: service_healthy}}
+    environment: *appenv
+    volumes: [sandbox:/sandbox, appvar:/app/var]
+    depends_on: {bootstrap: {condition: service_completed_successfully}}
   ui:
     build: .
     command: ["streamlit", "run", "greenops/ui/app.py", "--server.port", "8501", "--server.address", "0.0.0.0", "--server.headless", "true"]
     environment: {GREENOPS_API_URL: "http://api:8000"}
     ports: ["127.0.0.1:8501:8501"]
-volumes: {pgdata: {}, hmem: {}, sandbox: {}}
+volumes: {pgdata: {}, hmem: {}, sandbox: {}, appvar: {}}

@@ -1,0 +1,36 @@
+# CI for trusted branches: unit/contract + docs/secret checks, H-MEM sidecar suite, and real-PostgreSQL integration.
+# Connected sponsor tests are not run here (no secrets in CI); they report BLOCKED locally until credentials exist.
+name: ci
+on:
+  push: {branches: [main]}
+  pull_request: {}
+permissions: {contents: read}
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    services:
+      postgres:
+        image: postgres:16
+        env: {POSTGRES_USER: greenops, POSTGRES_HOST_AUTH_METHOD: trust}
+        ports: ["55432:5432"]
+        options: --health-cmd "pg_isready -U greenops" --health-interval 5s --health-retries 20
+    env:
+      PYTHONPATH: ${{ github.workspace }}
+      TEST_PG_ADMIN_URL: postgresql://greenops@127.0.0.1:55432/postgres
+      DATABASE_URL: postgresql://greenops@127.0.0.1:55432/greenops_app
+      SAMPLE_SOURCE_URL: postgresql://greenops@127.0.0.1:55432/greenops_sample_src
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with: {version: "0.7.3"}
+      - uses: actions/setup-node@v4
+        with: {node-version-file: memory-sidecar/.nvmrc}
+      - run: uv sync --frozen --python 3.12
+      - run: createdb -h 127.0.0.1 -p 55432 -U greenops greenops_app && createdb -h 127.0.0.1 -p 55432 -U greenops greenops_sample_src
+      - run: uv run python scripts/generate_data.py && uv run python experiments/support/generate_cases.py > /dev/null
+      - run: git diff --exit-code -- data/generated data/manifests experiments/support/dev experiments/support/manifest.json
+      - run: uv run python scripts/load_sources.py --group cloud=$SAMPLE_SOURCE_URL#cloud --group ref=$SAMPLE_SOURCE_URL#ref --group ai=$SAMPLE_SOURCE_URL#ai
+      - run: uv run pytest tests/unit -q
+      - run: uv run python scripts/verify_docs.py && uv run python scripts/secret_scan.py
+      - run: cd memory-sidecar && node scripts/check-node.mjs && node --experimental-transform-types --test test/*.test.ts
+      - run: uv run pytest tests/integration -q

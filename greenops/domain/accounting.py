@@ -29,21 +29,26 @@ def interval_cost(start: datetime, end: datetime, rates: list[Rate], currency: s
     start, end = utc(start), utc(end)
     if end <= start:
         raise DomainError("VALIDATION_ERROR", "empty or inverted interval")
-    total = Decimal(0)
-    covered = Decimal(0)
-    for r in sorted(rates, key=lambda r: r.effective_from):
+    segments = []
+    for r in rates:
         require_same("currency", r.currency, currency)
         if r.unit != "hour":
             raise DomainError("VALIDATION_ERROR", f"unsupported rate unit {r.unit!r}")
         lo = max(start, utc(r.effective_from))
         hi = min(end, utc(r.effective_to)) if r.effective_to else end
         if hi > lo:
-            hours = Decimal((hi - lo).total_seconds()) / HOUR_SECONDS
-            total += hours * dec(r.price, field="price")
-            covered += hours
-    expected = Decimal((end - start).total_seconds()) / HOUR_SECONDS
-    if covered != expected:
-        raise DomainError("EVIDENCE_INCOMPLETE", f"rates cover {covered} of {expected} hours")
+            segments.append((lo, hi, dec(r.price, field="price")))
+    # Coverage is the union of intervals: overlaps are ambiguous and gaps are missing evidence (audit A05).
+    total, cursor = Decimal(0), start
+    for lo, hi, price in sorted(segments, key=lambda s: s[0]):
+        if lo < cursor:
+            raise DomainError("VALIDATION_ERROR", f"overlapping effective rates at {lo.isoformat()}")
+        if lo > cursor:
+            raise DomainError("EVIDENCE_INCOMPLETE", f"no effective rate for [{cursor.isoformat()}, {lo.isoformat()})")
+        total += Decimal((hi - lo).total_seconds()) / HOUR_SECONDS * price
+        cursor = hi
+    if cursor < end:
+        raise DomainError("EVIDENCE_INCOMPLETE", f"no effective rate for [{cursor.isoformat()}, {end.isoformat()})")
     return total
 
 

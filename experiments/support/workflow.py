@@ -128,9 +128,23 @@ def run_case(gateway, case: dict, records: dict, cfg: AiWorkflowConfig, budget: 
             "usage_basis": "scripted_estimate" if isinstance(gateway, ScriptedGateway) else ("provider" if in_tok is not None else "missing")}
 
 
-def run_suite(gateway, cases: list[dict], records: dict, cfg: AiWorkflowConfig, budget: Budget | None, concurrency: int = 4) -> list[dict]:
+def run_suite(gateway, cases: list[dict], records: dict, cfg: AiWorkflowConfig, budget: Budget | None, concurrency: int = 4,
+              on_case=None, should_stop=None) -> list[dict]:
+    """`on_case(result)` persists each case's usage as it completes, so partial runs are accounted (audit A08).
+    `should_stop()` is checked before each case (safe cancellation boundary, audit A13)."""
+    def one(c):
+        if should_stop and should_stop():
+            raise CancelledRun("run cancelled at a safe boundary")
+        r = run_case(gateway, c, records, cfg, budget)
+        if on_case:
+            on_case(r)
+        return r
     with cf.ThreadPoolExecutor(max_workers=concurrency) as ex:
-        return list(ex.map(lambda c: run_case(gateway, c, records, cfg, budget), cases))
+        return list(ex.map(one, cases))
+
+
+class CancelledRun(Exception):
+    pass
 
 
 def scripted_support(payload: dict, tools) -> dict:

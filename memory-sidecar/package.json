@@ -6,10 +6,11 @@
   "license": "UNLICENSED",
   "type": "module",
   "engines": {
-    "node": ">=22.12"
+    "node": ">=22.12 <23"
   },
   "scripts": {
-    "start": "node --experimental-transform-types src/server.ts",
-    "test": "node --experimental-transform-types --test test/*.test.ts"
+    "check-node": "node scripts/check-node.mjs",
+    "start": "node scripts/check-node.mjs && node --experimental-transform-types src/server.ts",
+    "test": "node scripts/check-node.mjs && node --experimental-transform-types --test test/*.test.ts"
   }
 }

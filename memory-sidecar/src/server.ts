@@ -110,6 +110,10 @@ function main(): void {
     if (orphans.length > 0) {
       log("memory_reconcilable_orphans", { count: orphans.length, application_receipt_ids: orphans.map((o) => o.receiptId) });
     }
+    const missing = service.missingEngineReceipts();
+    if (missing.length > 0) {
+      log("memory_missing_engine_records", { count: missing.length, application_receipt_ids: missing });
+    }
   }
 
   const health = () => {

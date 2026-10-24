@@ -137,16 +137,19 @@ def auth(actor: str, key: bool = True) -> dict:
 INTERVAL = {"start": "2026-09-30T00:00:00Z", "end": "2026-10-21T00:00:00Z"}
 
 
-def drain(rt, limit: int = 200) -> None:
+def drain(rt, timeout_s: float = 600) -> None:
+    """Run worker steps until no job is QUEUED or RUNNING (including rescheduled ones), or fail loudly."""
+    from greenops.db import connect
     from greenops.worker.main import step
-    for _ in range(limit):
+    end = time.time() + timeout_s
+    while time.time() < end:
         if not step(rt, "pytest"):
-            from greenops.db import connect
             with connect(rt.db) as c:
-                waiting = c.execute("SELECT COUNT(*) AS n FROM jobs WHERE status='QUEUED'").fetchone()["n"]
+                waiting = c.execute("SELECT COUNT(*) AS n FROM jobs WHERE status IN ('QUEUED','RUNNING')").fetchone()["n"]
             if not waiting:
                 return
             time.sleep(0.5)
+    raise AssertionError("worker jobs still pending after drain timeout")
 
 
 def start_investigation(client, *, mode="connected_demo", memory="off", trials=True, question="Find a testable saving"):

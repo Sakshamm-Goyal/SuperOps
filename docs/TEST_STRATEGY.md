@@ -34,14 +34,14 @@ Change the main path and rerun the reproducer. Keep it as a regression. Then run
 
 ## 3. CI and execution tiers
 
-These are proposed commands and markers to implement during the build window; they do not exist yet. Do not report them as run before implementation.
+These commands exist (16–17 Oct 2026, pre-event). `make test` keeps pytest's exit code; `make release-gate` fails on any FAIL, BLOCKED or NOT_RUN. `.github/workflows/ci.yml` runs T0+T1 on trusted pushes but **has not been executed** (no remote CI run observed). There is no browser E2E harness: `make test-e2e` reports NOT_RUN and exits non-zero rather than aliasing another tier.
 
 | Tier / proposed entry point | When / budget target | Environment and secret policy | Acceptance |
 |---|---|---|---|
 | T0 `make check` | Every PR; target <3 min | Formatting, type checks, schema/OpenAPI/docs consistency, secret scan, unit cases; no external secrets | All required checks pass |
 | T1 `make test-integration` | Every trusted PR; target <8 min | Ephemeral real PostgreSQL and genuine pinned H-MEM reference with durable test volume; local executable worker; no cloud write key | Migration, rollback/transaction, concurrency, memory restart and local E2E pass |
 | T2 `make test-connected` | Day 1 onward; daily and before freeze; budgeted | Protected/manual trusted runner, real Zetaris workspace with ≥2 independent sources, real NVIDIA credential/model; application cloud writes disabled; memory writes limited to test namespace | ZET/HMEM/NIM tests pass with receipts; missing secrets → `BLOCKED` |
-| T3 `make test-e2e` | Before demo/freeze and after relevant changes | Team-owned disposable target, explicit cost cap and per-plan application approval; approved local or GCP executor | E2E-01/02 and applicable execution negatives pass; actual target independently read back |
+| T3 `make test-e2e` (**not implemented**: exits NOT_RUN) | Before demo/freeze and after relevant changes | Team-owned disposable target, explicit cost cap and per-plan application approval; approved local or GCP executor | E2E-01/02 and applicable execution negatives pass; actual target independently read back |
 | T4 `make eval MANIFEST=<locked-manifest>` | Once after candidate freeze; rerun only with a disclosed reason | Isolated evaluator with holdout labels; paid calls bounded; no production mutations | Results exported even when candidate loses; acceptance criteria in EVALUATION_SPEC |
 | T5 clean-install exercise | Day 5, repeated only after a setup/dependency change | Fresh directory and volumes, pinned dependencies, documented authorized credentials | A second builder follows README; connected preflight, one investigation, reload and export work |
 
@@ -163,8 +163,10 @@ Before accepting a release, map every advertised capability to at least one pass
 | ZET-02/04 contract, SEC-03, holdout-not-in-templates | `tests/unit/test_adapters_contract.py` | T0 (mock transport: contract only) | PASS |
 | ACT-01, 02, 03, 04/HMEM-03, 05, 07, 08, 09, 13, 14, 15, 16, SEC-01, SEC-02, SEC-05, idempotency, NO_CHANGE/NEEDS_REVIEW | `tests/integration/test_authority.py` | T1 (real PostgreSQL, real worker processes; scripted roles + sample evidence) | PASS |
 | HMEM-01, 02, 03, 05, guard, memory-unavailable, connected refuses non-semantic | `tests/integration/test_memory_learning.py` | T1 (real sidecar process, hash embedder) | PASS |
-| Sidecar contract, integrity, fail-closed, orphan adoption | `memory-sidecar/test/*.test.ts` | T1 | 21/21 PASS |
+| Sidecar contract, integrity, fail-closed, orphan adoption, missing-record reconciliation | `memory-sidecar/test/*.test.ts` | T1 | 24/24 PASS (Node 22) |
+| Audit A01–A22 regressions (unit) | `tests/unit/test_audit_regressions.py` | T0 | PASS |
+| Audit A01–A03, A06–A08, A12, A13, A15, A22 + trial-fidelity regressions | `tests/integration/test_audit_authority.py` | T1 | PASS |
 | ZET-01..04, NIM-01, NIM-02, HMEM-07/SP-07 | `tests/connected/test_sponsors.py` | T2 | **BLOCKED** (credentials) |
 | Holdout evaluation | `make eval` (`experiments/support/evaluate.py`) | T4 | NOT_RUN (needs a frozen candidate from a real-model trial) |
 
-`var/test-results/latest.json` records PASS/FAIL/BLOCKED/NOT_RUN for each pytest session (`make test` prints the counts). Not yet implemented: ACT-10 (recovery operation itself fails), ACT-11 as a dedicated test (the AI action verification checks the runner-loaded config hash), ACT-12 (process kill while holding the lock: reconciliation is covered by ACT-07), E2E-03 browser-level degraded run, and T5 clean-install exercise on a second machine.
+Latest full session (17 Oct): 93 PASS, 0 FAIL, 8 BLOCKED (`evidence/audits/2026-10-17/remediation/full-suite-after-fix.log`). `var/test-results/latest.json` records PASS/FAIL/BLOCKED/NOT_RUN for each pytest session (`make test` prints the counts). Not yet implemented: ACT-10 (recovery operation itself fails), ACT-11 as a dedicated test (the AI action verification checks the runner-loaded config hash), ACT-12 (process kill while holding the lock: reconciliation is covered by ACT-07), E2E-03 browser-level degraded run, and T5 clean-install exercise on a second machine.

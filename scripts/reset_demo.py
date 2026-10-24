@@ -35,13 +35,13 @@ def main() -> None:
         c.execute("UPDATE execution_slot SET holder_kind=NULL, holder_id=NULL, acquired_at=NULL")
     for tid, spec in REGISTRY["workers"].items():
         w = LocalWorker(s.sandbox_dir, tid)
-        w.store.init({"worker_id": tid, "version": 1, "max_concurrency": spec["initial_max_concurrency"]}, force=True)
+        w.store.init({"worker_id": tid, "version": 1, "max_concurrency": spec["initial_max_concurrency"], "writer": "reset"}, force=True)
         try:
             w.reload()
         except TargetUnavailable:
             pass
     for tid, spec in REGISTRY["ai_workflows"].items():
-        ConfigStore(s.sandbox_dir, tid).init({"workflow_id": spec["workflow_id"], "version": 1, "config": spec["initial_config"]}, force=True)
+        ConfigStore(s.sandbox_dir, tid).init({"workflow_id": spec["workflow_id"], "version": 1, "config": spec["initial_config"], "writer": "reset"}, force=True)
     hm = Path(os.environ.get("HMEM_DATA_DIR", "var/hmem-sample"))
     hm = hm if hm.is_absolute() else ROOT / hm
     if hm.exists() and any(hm.iterdir()):

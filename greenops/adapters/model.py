@@ -88,8 +88,9 @@ class AdkGateway:
 
         self.model_id = settings.model_id
         self.structured = os.environ.get("MODEL_STRUCTURED_OUTPUT", "json_schema")
+        # Generation ceiling so the conservative per-request reservation bounds actual spend (audit A08).
         self._llm = LiteLlm(model=f"openai/{settings.model_id}", api_base=settings.model_base_url,
-                            api_key=settings.model_api_key, temperature=0)
+                            api_key=settings.model_api_key, temperature=0, max_tokens=int(os.environ.get("MODEL_MAX_OUTPUT_TOKENS", "1024")))
 
     def run(self, role, instruction, payload, output_model, *, tools=None, budget=None, before_tool=None, timeout_s=45.0):
         return asyncio.run(self._run(role, instruction, payload, output_model, tools or [], budget, before_tool, timeout_s))

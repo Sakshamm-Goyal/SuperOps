@@ -11,7 +11,7 @@ from greenops.db import J
 from greenops.domain import accounting as acc
 from greenops.domain.models import (AiConfigUpdate, AiWorkflowConfig, CloudProjection, GcpMachineTypeUpdate, LocalWorkerConfigUpdate,
                                     PlanCore, PlanVersions, WorkerConfig)
-from greenops.domain.quantities import canonical_bytes, canonical_hash
+from greenops.domain.quantities import DomainError, canonical_bytes, canonical_hash
 from greenops.domain.screening import SCREENING_VERSION, Check, ScreeningResult
 from greenops.services.common import Runtime
 
@@ -44,6 +44,24 @@ def current_rate(prices: list[dict], sku: str, at: datetime) -> Decimal | None:
         if p["sku"] == sku and start <= at and (end is None or at < end):
             return Decimal(p["price"])
     return None
+
+
+def _artifact_hash(*rel: str) -> str:
+    import hashlib
+    from greenops.config import ROOT
+    h = hashlib.sha256()
+    for r in rel:
+        h.update(r.encode() + b"\0" + (ROOT / r).read_bytes() + b"\0")
+    return "sha256:" + h.hexdigest()
+
+
+def ai_artifact_versions(model_id: str | None) -> dict:
+    """Versions bound into AI plans/memories (audit A06): actual artifact hashes, not hand-maintained strings.
+    workload = workflow code + its prompt + the policy text it reads; test = verifier + development cases/records + manifest."""
+    return {"model_version": model_id,
+            "workload_version": _artifact_hash("experiments/support/workflow.py", "experiments/support/policy.md"),
+            "test_version": _artifact_hash("experiments/support/verifier.py", "experiments/support/dev/cases.jsonl",
+                                           "experiments/support/dev/records.json", "experiments/support/manifest.json")}
 
 
 def ai_current(rt: Runtime) -> tuple[int, AiWorkflowConfig]:
@@ -79,11 +97,9 @@ def build_core(rt: Runtime, inv: dict, path: str, candidate_no: int, revision: i
         version, before = ai_current(rt)
         action = AiConfigUpdate(workflow_id="support-workflow", expected_config_version=version, before=before, after=cand.workflow_config)
         projection, executor, target_key, downtime = None, "local_analogue", AI_TARGET, False
-        from experiments.support.workflow import WORKFLOW_VERSION
-        manifest = json.loads(_support_manifest())
-        versions = PlanVersions(policy_version=inv["policy_version"], workload_version=WORKFLOW_VERSION, config_version=str(version),
-                                model_version=inv["_model_id"], test_version="support-dev-v1:" + manifest["development"]["sha256"]["cases.jsonl"][:16],
-                                data_manifest_id=inv["data_manifest_id"])
+        art = ai_artifact_versions(inv["_model_id"])
+        versions = PlanVersions(policy_version=inv["policy_version"], workload_version=art["workload_version"], config_version=str(version),
+                                model_version=art["model_version"], test_version=art["test_version"], data_manifest_id=inv["data_manifest_id"])
     return PlanCore(tenant_id=inv["tenant_id"], service_id=inv["service_id"], investigation_id=str(inv["id"]), path=path,
                     revision=revision, target_key=target_key, action=action, requires_downtime=downtime, executor=executor,
                     versions=versions, projection=projection, evidence_ids=sorted(evidence_ids), calculation_versions=CALC_VERSIONS)
@@ -124,18 +140,38 @@ def screen_ai(inv: dict, cfg: AiWorkflowConfig, current: AiWorkflowConfig, polic
     return ScreeningResult(outcome, checks)
 
 
+def _ts(v):
+    return datetime.fromisoformat(v.replace("Z", "+00:00")) if v else None
+
+
+def rates_for(prices: list[dict], sku: str) -> list[acc.Rate]:
+    return [acc.Rate(p["sku"], p.get("unit", "hour"), p.get("currency", "USD"), Decimal(p["price"]), _ts(p["effective_from"]),
+                     _ts(p.get("effective_to")), p.get("rate_version", "")) for p in prices if p["sku"] == sku]
+
+
 def cloud_impacts(facts, target_mt: dict | None, prices: list[dict], carbon: list[dict], as_of: datetime, region: str) -> dict:
-    base = current_rate(prices, facts.machine_type, as_of)
-    cand = current_rate(prices, target_mt["machine_type"], as_of) if target_mt else None
-    out: dict = {"basis": "Projected at dated rate", "result_kind": "projected", "horizon_hours": str(HORIZON_HOURS),
-                 "currency": "USD", "price_basis": "synthetic_scenario", "commitment_assumption": "on-demand; no committed-use discount modelled"}
-    if base is None or cand is None:
-        out.update({"result_kind": "unknown", "reason": "effective rate missing"})
+    """Projected cost over [as_of, as_of + horizon) using every effective rate interval (audit A05).
+
+    Net saving is deliberately not computed here: experiment, transition and optimizer costs are attributed after the
+    trial (plans.finalize_cloud_net). Incomplete or ambiguous rate coverage makes the projection UNKNOWN.
+    """
+    end = as_of + timedelta(hours=int(HORIZON_HOURS))
+    out: dict = {"basis": "Projected at dated rates", "result_kind": "projected", "horizon_hours": str(HORIZON_HOURS),
+                 "horizon": [as_of.isoformat(), end.isoformat()], "currency": "USD", "price_basis": "synthetic_scenario",
+                 "commitment_assumption": "on-demand; no committed-use discount modelled"}
+    try:
+        if target_mt is None:
+            raise DomainError("EVIDENCE_INCOMPLETE", "candidate machine type unknown")
+        base = acc.interval_cost(as_of, end, rates_for(prices, facts.machine_type), "USD")
+        cand = acc.interval_cost(as_of, end, rates_for(prices, target_mt["machine_type"]), "USD")
+    except DomainError as e:
+        out.update({"result_kind": "unknown", "reason": f"rate evidence does not cover the horizon: {e}"})
     else:
-        p = acc.project_saving(base, cand, HORIZON_HOURS, experiment_cost=0, transition_cost=0)
-        out.update({"baseline_usd_per_hour": str(base), "candidate_usd_per_hour": str(cand), "baseline_cost": str(p.baseline_cost),
-                    "candidate_cost": str(p.candidate_cost), "gross_saving": str(p.gross_saving), "net_saving": str(p.net_saving),
-                    "one_time_costs": str(p.one_time_costs), "note": "projection only; not an invoice saving"})
+        out.update({"baseline_cost": str(base), "candidate_cost": str(cand), "gross_saving": str(base - cand),
+                    "baseline_usd_per_hour_at_as_of": str(current_rate(prices, facts.machine_type, as_of)),
+                    "candidate_usd_per_hour_at_as_of": str(current_rate(prices, target_mt["machine_type"], as_of)),
+                    "net_saving": None, "net_status": "pending: experiment, transition and optimizer costs are attributed after the trial",
+                    "note": "projection only; not an invoice saving"})
     f = next((c for c in carbon if c["region"] == region), None)
     def energy(vcpu, mem):
         return (Decimal(vcpu) * Decimal(f["kwh_per_vcpu_hour"]) + Decimal(mem) * Decimal(f["kwh_per_gib_hour"])) * HORIZON_HOURS
@@ -150,4 +186,20 @@ def cloud_impacts(facts, target_mt: dict | None, prices: list[dict], carbon: lis
                          "note": "estimated lower allocation, not measured avoided emissions"}
     else:
         out["carbon"] = {"basis": "Unknown", "result_kind": "unknown", "reason": "emission factors unavailable"}
+    return out
+
+
+def finalize_cloud_net(impacts: dict | None, *, experiment_cost: Decimal | None, transition_cost: Decimal | None,
+                       optimizer_overhead: Decimal | None, overhead_reason: str | None) -> dict | None:
+    """net = gross − experiment − transition − optimizer overhead, each counted once; any unknown term → net unknown."""
+    if not impacts or impacts.get("gross_saving") is None:
+        return impacts
+    parts = {"experiment_cost": experiment_cost, "transition_cost": transition_cost, "optimizer_overhead": optimizer_overhead}
+    out = {**impacts, **{k: (None if v is None else str(v)) for k, v in parts.items()}}
+    missing = [k for k, v in parts.items() if v is None]
+    if missing:
+        out.update({"net_saving": None, "net_status": f"unknown: {', '.join(missing)} not measurable" + (f" ({overhead_reason})" if overhead_reason else "")})
+    else:
+        net = Decimal(impacts["gross_saving"]) - sum(parts.values())
+        out.update({"net_saving": str(net), "net_status": "computed: gross minus one-time costs, each counted once"})
     return out

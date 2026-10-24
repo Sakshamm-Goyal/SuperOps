@@ -1,5 +1,6 @@
 -- id: inventory
 -- version: 1
+-- key: provider,project_id,resource_id
 -- sources: cloud
 -- params: service_id:service_id, as_of:timestamp
 SELECT provider, project_id, resource_id, service_id, display_name, environment, machine_type, vcpu, memory_gib,

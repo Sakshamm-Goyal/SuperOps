@@ -1,5 +1,6 @@
 -- id: ai_usage_by_run
 -- version: 1
+-- key: run_id
 -- sources: ai
 -- params: service_id:service_id
 SELECT r.run_id, r.workflow_version, r.config_json, r.cases,

@@ -4,7 +4,7 @@ Status: updated 16 October 2026. **At the user's instruction, the work packages 
 
 | Package | Status (16 Oct, pre-event) | Evidence / blocker |
 |---|---|---|
-| B01 baseline, provenance, manifests | Done | Local commit `10a2cfd` (docs baseline) plus implementation commit; `uv.lock`; data manifest |
+| B01 baseline, provenance, manifests | Done | Commit `e439c5f` (docs baseline) plus implementation commit; `uv.lock`; data manifest |
 | B02 schemas, migrations, plan hash, jobs/events | Done | `migrations/0001_initial.sql`, `greenops/domain/*`, unit oracles |
 | B03 source manifests + Zetaris templates | Implemented; **live BLOCKED** | `sql/*.sql`, `greenops/adapters/evidence.py`; contract tests pass; ZET-01..04 BLOCKED (no workspace credentials) |
 | B04 H-MEM wrapper, scope, outbox, recovery | Implemented; semantic embeddings **BLOCKED** | `memory-sidecar/` (21/21 tests), outbox and application integration tests pass; HMEM-07 BLOCKED |

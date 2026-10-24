@@ -1,5 +1,6 @@
 -- id: telemetry_series
 -- version: 1
+-- key: observed_at
 -- sources: cloud
 -- params: resource_key:resource_key, start:timestamp, end:timestamp
 SELECT observed_at, cpu_percent, memory_bytes

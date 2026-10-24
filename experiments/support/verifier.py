@@ -11,7 +11,6 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 VERIFIER_VERSION = "support-verifier-v2"  # v2: independent disclosure checks on reply/fields (audit A04)
-STATUS_WORDS = ("processing", "shipped", "delivered", "cancelled")
 Decision = Literal["ORDER_STATUS", "RETURN_ELIGIBLE", "RETURN_NOT_ELIGIBLE", "NEED_ORDER_ID", "DENY_IDENTITY", "ESCALATE"]
 ActionName = Literal["initiate_return", "escalate_to_human", "request_order_id", "none"]
 

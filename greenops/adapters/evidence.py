@@ -33,6 +33,7 @@ _SOURCE_NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*){0,
 class Template:
     id: str
     version: str
+    key: tuple[str, ...]
     sources: tuple[str, ...]
     params: dict[str, str]
     sql: str
@@ -43,7 +44,7 @@ def load_templates(sql_dir: Path = SQL_DIR) -> dict[str, Template]:
     for path in sorted(sql_dir.glob("*.sql")):
         meta, body = {}, []
         for line in path.read_text().splitlines():
-            m = re.match(r"^--\s*(id|version|sources|params):\s*(.*)$", line)
+            m = re.match(r"^--\s*(id|version|key|sources|params):\s*(.*)$", line)
             if m:
                 meta[m.group(1)] = m.group(2).strip()
             elif not line.startswith("--"):
@@ -52,7 +53,8 @@ def load_templates(sql_dir: Path = SQL_DIR) -> dict[str, Template]:
         for p in filter(None, (x.strip() for x in meta.get("params", "").split(","))):
             name, typ = p.split(":")
             params[name] = typ
-        t = Template(meta["id"], meta["version"], tuple(s.strip() for s in meta["sources"].split(",")), params, "\n".join(body).strip())
+        t = Template(meta["id"], meta["version"], tuple(k.strip() for k in meta["key"].split(",")),
+                     tuple(s.strip() for s in meta["sources"].split(",")), params, "\n".join(body).strip())
         out[t.id] = t
     return out
 
@@ -89,6 +91,17 @@ def render(template: Template, params: dict[str, Any], source_names: dict[str, s
     if re.search(r"(?<![:\w]):[a-z_]", sql):
         raise DomainError("VALIDATION_ERROR", "unrendered placeholder")
     return sql
+
+
+def duplicate_keys(t: Template, rows: list[dict]) -> list[tuple]:
+    """Rows sharing the template's declared unique key (audit A07). Missing key columns count as a violation."""
+    seen, dupes = set(), []
+    for r in rows:
+        k = tuple(r.get(c) for c in t.key)
+        if None in k or k in seen:
+            dupes.append(k)
+        seen.add(k)
+    return dupes
 
 
 def norm(v: Any) -> Any:
@@ -148,6 +161,8 @@ class SampleSqlClient:
         with psycopg.connect(self.url, row_factory=dict_row, options="-c default_transaction_read_only=on -c TimeZone=UTC") as c:
             raw = c.execute(sql).fetchmany(max_rows + 1)
         rows = [{k: norm(v) for k, v in r.items()} for r in raw[:max_rows]]
+        if dupes := duplicate_keys(t, rows):
+            raise DomainError("EVIDENCE_QUERY_FAILED", f"{t.id}: {len(dupes)} rows violate declared unique key {t.key}")
         completeness, warnings = "complete", ["runtime_mode=sample: local fixture database, not Zetaris federation"]
         if len(raw) > max_rows:
             completeness = "partial"
@@ -230,6 +245,18 @@ class ZetarisClient:
             out.append({k.lower(): norm(v) for k, v in r.items()})
         return out
 
+    MAX_PAGE_BYTES = 5 * 1024 * 1024
+
+    def _page(self, r: httpx.Response) -> dict:
+        if len(r.content) > self.MAX_PAGE_BYTES:
+            raise ZetarisError("EVIDENCE_QUERY_FAILED", f"Zetaris page exceeds {self.MAX_PAGE_BYTES} bytes")
+        try:
+            body = json.loads(r.text, parse_float=Decimal)
+            int(body["totalCount"]), int(body["totalPages"]), int(body["pageNumber"])
+        except (ValueError, KeyError, TypeError):
+            raise ZetarisError("EVIDENCE_QUERY_FAILED", "Zetaris page is not a valid paging response")
+        return body
+
     def query(self, template_id: str, params: dict, max_rows: int = 5000, max_seconds: float = 120.0) -> EvidenceResult:
         t = TEMPLATES.get(template_id)
         if t is None:
@@ -238,26 +265,38 @@ class ZetarisClient:
         started, request_ids, warnings = time.time(), [], []
         limit = max(1, min(100, self.s.zetaris_page_limit))
         r = self._call("POST", "/api/v1.0/query/sql/start", request_ids, json={"select": sql, "pageLimit": limit})
-        first = json.loads(r.text, parse_float=Decimal)
-        token = first["queryToken"]
-        rows, pages, completeness = self._records(first), 1, "complete"
         try:
+            token = json.loads(r.text)["queryToken"]
+        except (ValueError, KeyError, TypeError):
+            raise ZetarisError("EVIDENCE_QUERY_FAILED", "Zetaris start response has no queryToken")
+        rows, pages, completeness, close = [], 0, "complete", "not_attempted"
+        try:  # everything after the token is inside cleanup (audit A16)
+            first = self._page(r)
             total, total_pages, base = int(first["totalCount"]), int(first["totalPages"]), int(first["pageNumber"])
+            rows, pages = self._records(first), 1
             page = base
             while page - base + 1 < total_pages:
                 if len(rows) >= max_rows or time.time() - started > max_seconds:
-                    completeness = "partial"
-                    warnings.append("row/time budget reached before final page")
                     break
                 page += 1
-                pr = self._call("GET", "/api/v1.0/query/sql/page", request_ids,
-                                params={"queryToken": token, "pageLimit": limit, "pageNumber": page})
-                body = json.loads(pr.text, parse_float=Decimal)
+                body = self._page(self._call("GET", "/api/v1.0/query/sql/page", request_ids,
+                                              params={"queryToken": token, "pageLimit": limit, "pageNumber": page}))
                 if int(body["pageNumber"]) != page:
                     raise ZetarisError("EVIDENCE_QUERY_FAILED", f"Zetaris returned page {body['pageNumber']} for {page}")
+                if int(body["totalCount"]) != total or int(body["totalPages"]) != total_pages or body.get("queryToken", token) != token:
+                    raise ZetarisError("EVIDENCE_QUERY_FAILED", "Zetaris paging metadata changed between pages (unstable result set)")
                 rows.extend(self._records(body))
                 pages += 1
-            if completeness == "complete" and len(rows) != total:
+            if dupes := duplicate_keys(t, rows):
+                raise ZetarisError("EVIDENCE_QUERY_FAILED", f"{t.id}: {len(dupes)} duplicate or keyless rows across pages for key {t.key}")
+            if len(rows) > max_rows or (len(rows) == max_rows and total > max_rows):
+                rows = rows[:max_rows]
+                completeness = "partial"
+                warnings.append(f"row budget {max_rows} reached of totalCount={total}")
+            elif time.time() - started > max_seconds and len(rows) < total:
+                completeness = "partial"
+                warnings.append("time budget reached before final page")
+            elif len(rows) != total:
                 completeness = "partial"
                 warnings.append(f"retrieved {len(rows)} rows but totalCount={total}")
         finally:
@@ -268,7 +307,7 @@ class ZetarisClient:
                 close = f"close_failed:{getattr(e, 'code', type(e).__name__)}"
         sources = [f"zetaris:{self.s.source_names[s]}" for s in t.sources]
         receipt = _receipt(t, params, sources, started, rows, pages, completeness, warnings, request_ids,
-                           {"query_close": close, "page_limit": limit, "page_base": first.get("pageNumber")})
+                           {"query_close": close, "page_limit": limit, "page_base": base, "total_count": total, "key": list(t.key)})
         return EvidenceResult(rows, receipt, self.source_system, completeness, warnings)
 
 

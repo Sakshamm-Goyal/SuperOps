@@ -13,7 +13,7 @@ from datetime import timedelta
 from decimal import Decimal
 
 from greenops.adapters.memory import MemoryUnavailable
-from greenops.adapters.model import Budget, BudgetExceeded, ModelError
+from greenops.adapters.model import BudgetExceeded, ModelError
 from greenops.agents.roles import (INSTRUCTIONS, PROMPT_VERSION, AiCandidate, CloudCandidate, CoordinatorScope, CriticReview,
                                    InvestigatorReport, OptimizerProposal)
 from greenops.db import J, connect
@@ -52,13 +52,10 @@ def record_model_call(rt: Runtime, inv_id, trial_id, role: str, res=None, error:
                    res.tool_calls if res else 0, max(1, res.model_requests) if res else 1, res.duration_ms if res else duration_ms, error))
 
 
-def budget_for(rt: Runtime, inv: dict) -> Budget:
-    b = inv["budget_snapshot"]
-    with connect(rt.db) as c:
-        used = c.execute("SELECT COALESCE(SUM(GREATEST(requests, 1)), 0) AS n FROM model_calls m LEFT JOIN trials t ON t.id = m.trial_id "
-                         "LEFT JOIN plans p ON p.id = t.plan_id WHERE m.investigation_id=%s OR p.investigation_id=%s",
-                         (inv["id"], inv["id"])).fetchone()["n"]
-    return Budget(int(b["max_model_calls"]), Decimal(b["max_run_cost_usd"]), Decimal(b["max_conservative_cost_per_call_usd"]), int(used))
+def budget_for(rt: Runtime, inv: dict):
+    """Durable per-investigation reservations (audit A08): counted from budget_reservations, not usage metadata."""
+    from greenops.services.budget import DurableBudget, investigation_limits
+    return DurableBudget(rt.db, investigation_id=inv["id"], limits=investigation_limits(inv), daily_cap_usd=rt.settings.max_daily_cost_usd)
 
 
 def call_role(rt: Runtime, inv: dict, gateway, role: str, payload: dict, out_model, budget: Budget, tools=None):
@@ -104,19 +101,19 @@ def context(rt: Runtime, inv: dict) -> dict:
     inv["_catalog"] = catalog
     inv["_model_id"] = summ.get("model_id")
     return {"policy": policy, "facts": facts, "inventory": {resource_key(r): r for r in get("inventory")}, "catalog": catalog,
-            "prices": get("prices"), "carbon": get("carbon_factors"), "ai_usage": get("ai_usage_by_run"), "ai_dups": get("ai_duplicate_lookups"),
+            "prices": get("prices"), "carbon": [] if summ.get("carbon_incomplete") else get("carbon_factors"), "ai_usage": get("ai_usage_by_run"), "ai_dups": get("ai_duplicate_lookups"),
             "ids": ids, "series_ids": summ.get("series", {}), "as_of": inv["as_of"]}
 
 
-def current_versions(rt: Runtime, inv: dict, ctx: dict) -> dict:
-    from experiments.support.workflow import WORKFLOW_VERSION
+def current_versions(rt: Runtime, inv: dict, ctx: dict | None = None) -> dict:
+    """Applicability profile per path, shared by plans, memory envelopes and recall (audit A06)."""
     ai_ver, _ = P.ai_current(rt)
-    manifest = json.loads(P._support_manifest())
+    art = P.ai_artifact_versions(inv["summary"].get("model_id"))
     return {"cloud": {"policy_version": inv["policy_version"], "workload_version": inv["data_manifest_id"],
                       "config_version": inv["summary"].get("inventory_version", "inventory-unknown"),
                       "model_version": None, "test_version": "screen-v1"},
-            "ai": {"policy_version": inv["policy_version"], "workload_version": WORKFLOW_VERSION, "config_version": str(ai_ver),
-                   "model_version": inv["summary"].get("model_id"), "test_version": "support-dev-v1:" + manifest["development"]["sha256"]["cases.jsonl"][:16]}}
+            "ai": {"policy_version": inv["policy_version"], "workload_version": art["workload_version"], "config_version": str(ai_ver),
+                   "model_version": art["model_version"], "test_version": art["test_version"]}}
 
 
 # ---- stages -----------------------------------------------------------------------------
@@ -139,8 +136,11 @@ def _scope(rt: Runtime, inv: dict, gateway, budget: Budget) -> None:
     summ["evidence"] = {}
     for t in BASE_TEMPLATES:
         eid, res = collect(rt, inv, t, _params(inv, t), client=client)
-        if res.completeness != "complete" and t in ("policy", "inventory", "telemetry_summary"):
-            raise AppError("EVIDENCE_INCOMPLETE", 422, f"critical evidence {t} incomplete")
+        # Every decision input must be complete (audit A07); only carbon may degrade, to an explicit UNKNOWN.
+        if res.completeness != "complete":
+            if t != "carbon_factors":
+                raise AppError("EVIDENCE_INCOMPLETE", 422, f"decision evidence {t} is {res.completeness}: {res.warnings}")
+            summ["carbon_incomplete"] = True
         summ["evidence"][t] = eid
         if t == "service_cost_rollup":
             summ["federation"] = {"sources": res.receipt["sources"], "source_system": res.source_system, "evidence_id": eid,
@@ -228,10 +228,12 @@ def _screen_plan(rt, inv, ctx, cand, path):
         mt = next((m for m in ctx["catalog"] if m["machine_type"] == cand.to_machine_type), None)
         target = MachineType(mt["machine_type"], Decimal(mt["vcpu"]), Decimal(mt["memory_gib"]), mt["architecture"]) if mt else None
         action_type = "LOCAL_WORKER_CONFIG_UPDATE" if P.analogue_for(cand.resource_key) else "GCP_MACHINE_TYPE_UPDATE"
-        base = P.current_rate(ctx["prices"], facts.machine_type, inv["as_of"]) if facts else None
-        new = P.current_rate(ctx["prices"], cand.to_machine_type, inv["as_of"]) if mt else None
-        res = screen_cloud(facts, target, ctx["policy"], inv["as_of"], action_type, new, base)
         impacts = P.cloud_impacts(facts, mt, ctx["prices"], ctx["carbon"], inv["as_of"], facts.region) if facts and mt else None
+        # Economics compares horizon cost over every effective rate interval (audit A05); unknown coverage stays UNKNOWN.
+        known = impacts is not None and impacts.get("gross_saving") is not None
+        base = Decimal(impacts["baseline_cost"]) / P.HORIZON_HOURS if known else None
+        new = Decimal(impacts["candidate_cost"]) / P.HORIZON_HOURS if known else None
+        res = screen_cloud(facts, target, ctx["policy"], inv["as_of"], action_type, new, base)
         ev = [ctx["ids"]["inventory"], ctx["ids"]["telemetry_summary"], ctx["ids"]["prices"], ctx["ids"]["policy"]]
         if cand.resource_key in ctx["series_ids"]:
             ev.append(ctx["series_ids"][cand.resource_key])

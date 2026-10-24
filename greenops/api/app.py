@@ -16,7 +16,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.openapi.docs import get_swagger_ui_html
 from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import AwareDatetime, BaseModel, ConfigDict, Field
 
 from greenops.config import Settings, get_settings
 from greenops.db import J, connect, dumps
@@ -36,8 +36,8 @@ class Req(BaseModel):
 
 
 class Interval(Req):
-    start: datetime
-    end: datetime
+    start: AwareDatetime  # timezone-less timestamps are a 422, not a comparison error (audit A17)
+    end: AwareDatetime
 
 
 class CreateInvestigation(Req):
@@ -362,7 +362,7 @@ def create_app(rt: Runtime | None = None) -> FastAPI:
         nxt = _cursor(rows[limit - 1]["created_at"], rows[limit - 1]["id"]) if len(rows) > limit else None
         return {"items": json.loads(dumps(rows[:limit])), "next_cursor": nxt, "request_id": request.state.request_id}
 
-    def plan_actions(p: dict, trial: dict | None, ap: dict | None, inv: dict) -> tuple[list[str], list[str]]:
+    def plan_actions(p: dict, trial: dict | None, ap: dict | None, inv: dict, verdict: dict | None = None) -> tuple[list[str], list[str]]:
         acts, blockers = [], []
         connected = inv["runtime_mode"] == "connected_demo"
         if p["status"] == "DRAFT" and p["core"]["executor"] != "none" and not trial:
@@ -371,6 +371,8 @@ def create_app(rt: Runtime | None = None) -> FastAPI:
             blockers.append("no executor enabled for this action type (projection only)")
         if p["status"] == "AWAITING_APPROVAL":
             (acts if connected else blockers).append("approve" if connected else f"{inv['runtime_mode']} runs cannot be approved")
+            if connected and p["path"] == "ai" and (verdict is None or verdict["decision"] != "ROLLOUT_ELIGIBLE"):
+                blockers.append("AI promotion requires a ROLLOUT_ELIGIBLE frozen holdout verdict for this candidate (make eval-freeze; make eval)")
         if p["status"] == "APPROVED" and ap and ap["status"] == "ACTIVE":
             if connected and settings.sandbox_writes_enabled:
                 acts.append("execute")
@@ -442,17 +444,21 @@ def create_app(rt: Runtime | None = None) -> FastAPI:
     def get_plan(request: Request, plan_id: str, actor: dict = Depends(viewer)):
         with connect(rt.db) as c:
             p = scoped(c, "plans", plan_id, actor)
+            if A.expire_due(c, p["id"]):
+                p = c.execute("SELECT * FROM plans WHERE id=%s", (p["id"],)).fetchone()
             inv = c.execute("SELECT * FROM investigations WHERE id=%s", (p["investigation_id"],)).fetchone()
             trials = c.execute("SELECT id, status, trial_hash, suite_id, finished_at FROM trials WHERE plan_id=%s ORDER BY created_at", (p["id"],)).fetchall()
             ap = c.execute("SELECT id, status, expires_at, actor_id, consumed_action_id FROM approvals WHERE plan_id=%s ORDER BY created_at DESC LIMIT 1", (p["id"],)).fetchone()
-        acts, blockers = plan_actions(p, trials[-1] if trials else None, ap, inv)
+            verdict = A.holdout_verdict(c, p) if p["path"] == "ai" else None
+        acts, blockers = plan_actions(p, trials[-1] if trials else None, ap, inv, verdict)
         ok, why = A.versions_current(rt, p) if p["status"] in ("AWAITING_APPROVAL", "APPROVED") else (True, None)
         if not ok:
             blockers.append(f"current state differs: {why}; approval would be rejected")
         data = {**{k: p[k] for k in ("id", "investigation_id", "path", "candidate_no", "revision", "target_key", "action_type", "plan_hash",
                                       "screening", "critic", "impacts", "memory_refs", "stale_reason", "created_at", "updated_at")},
                 "core": p["core"], "canonical_json": p["canonical_json"], "rationale_untrusted_model_text": p["rationale"], "trials": trials,
-                "latest_approval": ap, "recovery_scope": RECOVERY_SCOPE}
+                "latest_approval": ap, "recovery_scope": RECOVERY_SCOPE,
+                "holdout_verdict": verdict and {k: verdict[k] for k in ("decision", "run_id", "freeze_hash", "created_at")}}
         return res(request, p["id"], p["status"], data, runtime_mode=inv["runtime_mode"], data_origin=inv["data_origin"],
                    result_kind=(p["impacts"] or {}).get("result_kind"), next_allowed_actions=acts, blockers=blockers)
 

@@ -1,5 +1,6 @@
 -- id: ai_duplicate_lookups
 -- version: 1
+-- key: run_id,tool_name
 -- sources: ai
 -- params: service_id:service_id
 SELECT d.run_id, d.tool_name, SUM(d.n - 1) AS duplicate_calls

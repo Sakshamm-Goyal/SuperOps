@@ -1,6 +1,8 @@
 """Worker-side execution: recheck → slot + target lock → persist intent → CAS write → read-back → workload → receipt.
 
-Unknown outcomes are reconciled from the target's actual version; a write is never blindly repeated.
+Unknown outcomes are reconciled from the target's actual state; a write is never blindly repeated. A target version
+counts as ours only when its recorded writer is this action's operation identity AND its content is the approved
+change (audit A01); anything else is a foreign change that automation never claims or overwrites.
 executor=local_analogue: a real local configuration change, never reported as a GCP resize.
 """
 from __future__ import annotations
@@ -14,6 +16,8 @@ from greenops.services.common import Runtime, acquire_slot, append_event, now, r
 
 SMOKE_SECONDS = 6
 AI_SMOKE_CASES = ("dev-017", "dev-033", "dev-025")  # premium exception, identity denial, missing order id
+RECONCILE_PENDING = "RECONCILE_PENDING"
+REAPPROVE_ERRORS = {"APPROVAL_EXPIRED", "AUTHORITY_REVOKED", "WRITES_DISABLED", "WRITE_NOT_OBSERVED", "DEPENDENCY_UNAVAILABLE"}
 
 
 def _journal(conn, action_id, stage: str, detail: dict) -> None:
@@ -32,13 +36,29 @@ def _store(rt, plan) -> ConfigStore:
     return ConfigStore(rt.settings.sandbox_dir, plan["target_key"])
 
 
-def _apply(rt, plan, expected_version: int) -> dict:
+def op_id(action_id) -> str:
+    return f"action:{action_id}"
+
+
+def _change(plan) -> dict:
     a = plan["core"]["action"]
-    if a["action_type"] == "LOCAL_WORKER_CONFIG_UPDATE":
-        new = _store(rt, plan).compare_and_set(expected_version, {"max_concurrency": a["after"]["max_concurrency"]})
+    return {"max_concurrency": a["after"]["max_concurrency"]} if a["action_type"] == "LOCAL_WORKER_CONFIG_UPDATE" else {"config": a["after"]}
+
+
+def _restore(plan) -> dict:
+    a = plan["core"]["action"]
+    return {"max_concurrency": a["before"]["max_concurrency"]} if a["action_type"] == "LOCAL_WORKER_CONFIG_UPDATE" else {"config": a["before"]}
+
+
+def _is_ours(cur: dict, plan, action_id, version: int) -> bool:
+    return cur["version"] == version and cur.get("writer") == op_id(action_id) and all(cur.get(k) == v for k, v in _change(plan).items())
+
+
+def _apply(rt, plan, expected_version: int, action_id) -> dict:
+    new = _store(rt, plan).compare_and_set(expected_version, _change(plan), writer=op_id(action_id))
+    if plan["core"]["action"]["action_type"] == "LOCAL_WORKER_CONFIG_UPDATE":
         LocalWorker(rt.settings.sandbox_dir, plan["target_key"]).reload()
-        return new
-    return _store(rt, plan).compare_and_set(expected_version, {"config": a["after"]})
+    return new
 
 
 def _verify(rt, plan, policy_slo_ms: int, expected_version: int) -> dict:
@@ -47,6 +67,8 @@ def _verify(rt, plan, policy_slo_ms: int, expected_version: int) -> dict:
         w = LocalWorker(rt.settings.sandbox_dir, plan["target_key"])
         st = w.status()
         smoke = run_workload(w, SMOKE_SECONDS, "verify")
+        smoke.pop("latencies_ms", None)
+        smoke.pop("server_latencies_ms", None)
         checks = {"readback_version": st["loaded_version"] == expected_version,
                   "readback_config": st["loaded_config"]["max_concurrency"] == a["after"]["max_concurrency"],
                   "served_by_loaded_config": smoke["config_hashes_seen"] == [st["loaded_config_hash"]],
@@ -56,13 +78,17 @@ def _verify(rt, plan, policy_slo_ms: int, expected_version: int) -> dict:
     from experiments.support.verifier import SupportDecision, verify
     from experiments.support.workflow import config_hash as ai_hash, load_suite, run_case
     from greenops.domain.models import AiWorkflowConfig
+    from greenops.services.budget import DurableBudget, investigation_limits
     from greenops.services.trials import DEV_SUITES
     loaded = _store(rt, plan).read()  # what a newly started workflow runner actually loads
     cfg = AiWorkflowConfig(**loaded["config"])
     cases, records = load_suite(DEV_SUITES["support-dev-v1"])
     smoke = [c for c in cases if c["case_id"] in AI_SMOKE_CASES]
     gateway = rt.model_factory()
-    results = [run_case(gateway, c, records, cfg, None) for c in smoke]
+    with connect(rt.db) as c:
+        inv = c.execute("SELECT * FROM investigations WHERE id=%s", (plan["investigation_id"],)).fetchone()
+    budget = DurableBudget(rt.db, investigation_id=inv["id"], limits=investigation_limits(inv), daily_cap_usd=rt.settings.max_daily_cost_usd)
+    results = [run_case(gateway, c, records, cfg, budget) for c in smoke]
     verdicts = [verify(c, records, SupportDecision(**r["output"]) if r["output"] else None) for c, r in zip(smoke, results)]
     checks = {"readback_version": loaded["version"] == expected_version,
               "runner_loaded_approved_config": ai_hash(cfg) == ai_hash(AiWorkflowConfig(**a["after"])),
@@ -76,7 +102,7 @@ def _finish(rt, action, plan, status: str, detail: dict, inv) -> None:
         sync = "NOT_REQUIRED"
         if inv["memory_mode"] == "on" and status in ("VERIFIED", "RECOVERED", "RECOVERY_REQUIRED", "FAILED"):
             from greenops.services.investigation import current_versions
-            v = current_versions(rt, inv, None)[plan["path"]]
+            v = current_versions(rt, inv)[plan["path"]]
             memory_service.enqueue(c, tenant_id=inv["tenant_id"], service_id=inv["service_id"], kind="verified_outcome",
                                    source_ref=f"action:{action['id']}", finding=f"Action {action['id']} on {plan['target_key']} ({plan['screening'].get('signature')}) "
                                    f"finished {status}: {detail.get('summary', '')}"[:2000], evidence_refs=plan["core"]["evidence_ids"] + [f"action:{action['id']}"],
@@ -89,7 +115,26 @@ def _finish(rt, action, plan, status: str, detail: dict, inv) -> None:
         release_slot(c, action["id"])
         if status == "VERIFIED":
             c.execute("UPDATE investigations SET status='COMPLETED', updated_at=now() WHERE id=%s", (inv["id"],))
+        if status == "FAILED" and detail.get("writes") == 0 and detail.get("error") in REAPPROVE_ERRORS:
+            # Zero-write failure: the plan is not a dead end; it needs a fresh approval (audit A12).
+            c.execute("UPDATE plans SET status='AWAITING_APPROVAL', updated_at=now() WHERE id=%s AND status='APPROVED'", (plan["id"],))
         append_event(c, inv["id"], f"action.{status.lower()}", "executor", {"action_id": str(action["id"]), "summary": detail.get("summary")})
+
+
+def _authority(rt, action, plan, ap) -> str | None:
+    """Current authority immediately before the first write (audit A02): approval enqueue time is not enough."""
+    with connect(rt.db) as c:
+        actor = c.execute("SELECT * FROM actors WHERE actor_id=%s", (action["actor_id"],)).fetchone()
+        ap_now = c.execute("SELECT status, consumed_action_id FROM approvals WHERE id=%s", (ap["id"],)).fetchone()
+    if actor is None or actor["disabled"]:
+        return "approving actor is disabled"
+    if actor["role"] not in ("operator", "admin") or actor["tenant_id"] != action["tenant_id"]:
+        return f"approving actor no longer holds an operator role in tenant {action['tenant_id']}"
+    if ap_now["status"] != "CONSUMED" or str(ap_now["consumed_action_id"]) != str(action["id"]):
+        return f"approval is {ap_now['status']}, not consumed by this action"
+    if plan["target_key"] not in rt.settings.allowed_target_ids:
+        return "target removed from ALLOWED_TARGET_IDS"
+    return None
 
 
 def run(rt: Runtime, action_id) -> str:
@@ -116,6 +161,9 @@ def run(rt: Runtime, action_id) -> str:
         if not rt.settings.sandbox_writes_enabled or rt.settings.runtime_mode.value != "connected_demo":
             _finish(rt, action, plan, "FAILED", {"error": "WRITES_DISABLED", "writes": 0, "summary": "server write flag/mode disallows execution"}, inv)
             return "FAILED"
+        if why := _authority(rt, action, plan, ap):
+            _finish(rt, action, plan, "FAILED", {"error": "AUTHORITY_REVOKED", "writes": 0, "summary": why}, inv)
+            return "FAILED"
         ok, why = versions_current(rt, plan)
         if not ok:
             with connect(rt.db) as c:
@@ -129,9 +177,9 @@ def run(rt: Runtime, action_id) -> str:
             _finish(rt, action, plan, "FAILED", {"error": "DEPENDENCY_UNAVAILABLE", "writes": 0, "summary": str(e)}, inv)
             return "FAILED"
         _set(rt, action_id, "EXECUTING", "INTENT", {"expected_version": expected, "before_config_hash": config_hash(before),
-             "change": a["after"], "approval_id": str(ap["id"]), "plan_hash": plan["plan_hash"]})
+             "change": a["after"], "operation_id": op_id(action_id), "approval_id": str(ap["id"]), "plan_hash": plan["plan_hash"]})
         try:
-            new = _apply(rt, plan, expected)
+            new = _apply(rt, plan, expected, action_id)
         except VersionConflict as e:
             _finish(rt, action, plan, "FAILED", {"error": "APPROVAL_STALE", "writes": 0, "summary": str(e)}, inv)
             return "FAILED"
@@ -140,15 +188,14 @@ def run(rt: Runtime, action_id) -> str:
             _set(rt, action_id, "EXECUTING", "WRITE_OUTCOME_UNKNOWN", {"error": str(e)})
             return reconcile(rt, action_id)
         with connect(rt.db) as c:
-            c.execute("UPDATE actions SET operation_ids=%s WHERE id=%s", (J([f"cas:{plan['target_key']}:v{new['version']}"]), action_id))
-        _set(rt, action_id, "PENDING_VERIFICATION", "WRITE_APPLIED", {"new_version": new["version"], "config_hash": config_hash(new)})
+            c.execute("UPDATE actions SET operation_ids=%s WHERE id=%s", (J([f"cas:{plan['target_key']}:v{new['version']}:{op_id(action_id)}"]), action_id))
+        _set(rt, action_id, "PENDING_VERIFICATION", "WRITE_APPLIED", {"new_version": new["version"], "config_hash": config_hash(new),
+             "operation_id": op_id(action_id)})
         status = "PENDING_VERIFICATION"
-    if status == "EXECUTING":
+    if status in ("EXECUTING", "RECOVERING"):
         return reconcile(rt, action_id)
-    if status in ("PENDING_VERIFICATION",):
+    if status == "PENDING_VERIFICATION":
         return _verify_and_finish(rt, action, plan, inv, expected + 1, slo)
-    if status == "RECOVERING":
-        return reconcile(rt, action_id)
     return status
 
 
@@ -166,26 +213,26 @@ def _verify_and_finish(rt, action, plan, inv, new_version: int, slo: int) -> str
 
 
 def _recover(rt, action, plan, inv, new_version: int, verification: dict, slo: int) -> str:
-    """Restore the exact pre-change config only if the target is still at our written version (no intervening change)."""
-    a = plan["core"]["action"]
+    """Restore the exact pre-change config only if the target still holds OUR write (version + operation identity +
+    content). Any other state is an intervening change: zero compensating writes, human step required."""
     store = _store(rt, plan)
     try:
         cur = store.read()
-        if cur["version"] != new_version:
-            raise VersionConflict(f"target at version {cur['version']}, not our version {new_version}: intervening change")
-        restore = {"max_concurrency": a["before"]["max_concurrency"]} if a["action_type"] == "LOCAL_WORKER_CONFIG_UPDATE" else {"config": a["before"]}
-        restored = store.compare_and_set(new_version, restore)
-        if a["action_type"] == "LOCAL_WORKER_CONFIG_UPDATE":
+        if not _is_ours(cur, plan, action["id"], new_version):
+            raise VersionConflict(f"target at version {cur['version']} written by {cur.get('writer')!r}, not this action's "
+                                  f"write v{new_version}: intervening change")
+        restored = store.compare_and_set(new_version, _restore(plan), writer=f"recovery:{action['id']}")
+        if plan["core"]["action"]["action_type"] == "LOCAL_WORKER_CONFIG_UPDATE":
             st = LocalWorker(rt.settings.sandbox_dir, plan["target_key"]).reload()
-            ok = st["loaded_config"]["max_concurrency"] == a["before"]["max_concurrency"]
+            ok = st["loaded_config"]["max_concurrency"] == plan["core"]["action"]["before"]["max_concurrency"]
         else:
-            ok = store.read()["config"] == a["before"]
+            ok = store.read()["config"] == plan["core"]["action"]["before"]
         status = "RECOVERED" if ok else "RECOVERY_REQUIRED"
         detail = {"verification": verification, "recovery": {"restored_version": restored["version"], "readback_ok": ok},
                   "summary": "verification failed; exact prior config restored" if ok else "restore did not read back"}
     except (VersionConflict, TargetUnavailable) as e:
         status = "RECOVERY_REQUIRED"
-        detail = {"verification": verification, "recovery": {"attempted": False, "blocked": str(e)},
+        detail = {"verification": verification, "recovery": {"attempted": False, "blocked": str(e)}, "writes_during_recovery": 0,
                   "summary": "verification failed; automated restore blocked — human step required"}
     with connect(rt.db) as c:
         c.execute("UPDATE actions SET recovery=%s WHERE id=%s", (J(detail["recovery"]), action["id"]))
@@ -194,7 +241,10 @@ def _recover(rt, action, plan, inv, new_version: int, verification: dict, slo: i
 
 
 def reconcile(rt: Runtime, action_id) -> str:
-    """Decide from the target's actual state after an interruption; never repeat the write."""
+    """Decide from the target's actual state after an interruption; never repeat the write.
+
+    Returns RECONCILE_PENDING (slot retained, job rescheduled by the worker) while the target cannot be read (audit A03).
+    """
     with connect(rt.db) as c:
         action = c.execute("SELECT * FROM actions WHERE id=%s", (action_id,)).fetchone()
         plan = c.execute("SELECT * FROM plans WHERE id=%s", (action["plan_id"],)).fetchone()
@@ -202,27 +252,52 @@ def reconcile(rt: Runtime, action_id) -> str:
         acquire_slot(c, "action", action_id)
     from greenops.services.investigation import context
     slo = context(rt, inv)["policy"].workload.slo_p95_ms
-    a = plan["core"]["action"]
-    expected = a["expected_config_version"]
+    expected = plan["core"]["action"]["expected_config_version"]
     try:
         cur = _store(rt, plan).read()
     except TargetUnavailable as e:
-        _set(rt, action_id, action["status"], "RECONCILE_BLOCKED", {"error": str(e)})
-        return action["status"]  # slot retained: unknown outcome stays unresolved until the target is readable
+        _set(rt, action_id, action["status"], "RECONCILE_BLOCKED", {"error": str(e), "next": "rescheduled; slot retained until resolved"})
+        return RECONCILE_PENDING
     if action["status"] == "RECOVERING":
         return _recover(rt, action, plan, inv, expected + 1, {"note": "resumed after interruption"}, slo)
-    if cur["version"] == expected + 1:
-        if a["action_type"] == "LOCAL_WORKER_CONFIG_UPDATE":
+    if _is_ours(cur, plan, action_id, expected + 1):
+        if plan["core"]["action"]["action_type"] == "LOCAL_WORKER_CONFIG_UPDATE":
             try:
                 LocalWorker(rt.settings.sandbox_dir, plan["target_key"]).reload()
             except TargetUnavailable:
                 pass
-        _set(rt, action_id, "PENDING_VERIFICATION", "RECONCILED", {"observed_version": cur["version"], "write": "observed"})
+        _set(rt, action_id, "PENDING_VERIFICATION", "RECONCILED", {"observed_version": cur["version"], "write": "observed (operation identity matches)"})
         return _verify_and_finish(rt, action, plan, inv, expected + 1, slo)
     if cur["version"] == expected:
         _finish(rt, action, plan, "FAILED", {"error": "WRITE_NOT_OBSERVED", "writes": 0,
                 "summary": "interrupted before the write took effect; not retried — a new approval is required"}, inv)
         return "FAILED"
-    _finish(rt, action, plan, "RECOVERY_REQUIRED", {"error": "UNEXPECTED_TARGET_VERSION", "observed_version": cur["version"],
-            "summary": "target version changed by another actor; automated recovery blocked"}, inv)
+    _finish(rt, action, plan, "RECOVERY_REQUIRED", {"error": "FOREIGN_CHANGE", "observed_version": cur["version"], "observed_writer": cur.get("writer"),
+            "writes_during_recovery": 0, "summary": "target changed by another actor; this action never claims or overwrites it — human step required"}, inv)
     return "RECOVERY_REQUIRED"
+
+
+def resolve_manually(rt: Runtime, action_id, actor_id: str, note: str) -> dict:
+    """Operator procedure for RECOVERY_REQUIRED: after a human has inspected and settled the target, record that
+    decision with the actual target read-back and release the target. Automation never takes this step itself."""
+    if not note.strip():
+        raise ValueError("a resolution note describing the human decision is required")
+    with connect(rt.db) as c:
+        actor = c.execute("SELECT * FROM actors WHERE actor_id=%s AND NOT disabled", (actor_id,)).fetchone()
+        if actor is None or actor["role"] not in ("operator", "admin"):
+            raise PermissionError("an enabled operator or admin must resolve an action")
+        action = c.execute("SELECT * FROM actions WHERE id=%s FOR UPDATE", (action_id,)).fetchone()
+        if action is None or action["status"] != "RECOVERY_REQUIRED":
+            raise ValueError(f"action is {action and action['status']}, not RECOVERY_REQUIRED")
+        plan = c.execute("SELECT * FROM plans WHERE id=%s", (action["plan_id"],)).fetchone()
+        try:
+            readback = _store(rt, plan).read()
+        except TargetUnavailable as e:
+            readback = {"unavailable": str(e)}
+        detail = {"actor": actor_id, "note": note[:1000], "target_readback": readback}
+        c.execute("UPDATE actions SET status='RESOLVED_MANUALLY', updated_at=now(), recovery = COALESCE(recovery, '{}'::jsonb) || %s WHERE id=%s",
+                  (J({"manual_resolution": detail}), action_id))
+        _journal(c, action_id, "RESOLVED_MANUALLY", detail)
+        release_slot(c, action_id)
+        append_event(c, plan["investigation_id"], "action.resolved_manually", actor_id, {"action_id": str(action_id), "note": note[:300]})
+    return detail
