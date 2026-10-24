@@ -1,0 +1,109 @@
+{
+  "review_date_local": "2026-10-17",
+  "timezone": "Asia/Kolkata",
+  "recorded_at_utc": "2026-10-16T20:10:11.196961+00:00",
+  "source_revision": "8bc88d89556231d455ccc51b18059c51ed931bc3",
+  "application_changes": false,
+  "checks": [
+    {
+      "command": "make check",
+      "result": "PASS",
+      "unit_passed": 33,
+      "docs": "PASS",
+      "existing_secret_scan": "PASS"
+    },
+    {
+      "command": "make preflight",
+      "result": "PASS",
+      "mode": "sample",
+      "semantic_memory": false,
+      "writes_enabled": false
+    },
+    {
+      "command": "uv run pytest tests/integration -q -rs",
+      "result": "FAIL",
+      "passed": 11,
+      "failed": 11,
+      "seconds": 78.23,
+      "note": "First default-temp attempt; cloud fixture config mismatch plus downstream failures."
+    },
+    {
+      "command": "uv run pytest tests/integration -q -rs",
+      "result": "FAIL",
+      "passed": 9,
+      "failed": 13,
+      "seconds": 11.66,
+      "log": "integration-default-rerun.log"
+    },
+    {
+      "command": "uv run pytest tests/integration/test_authority.py::test_journey_reaches_awaiting_approval_with_retained_rejections -q --basetemp=/tmp/greenops-audit-pytest-final",
+      "result": "PASS",
+      "passed": 1,
+      "seconds": 21.95,
+      "log": "integration-journey-isolated.log"
+    },
+    {
+      "command": "uv run pytest tests/integration -q -rs --basetemp=/tmp/greenops-audit-integration-clean",
+      "result": "PASS",
+      "passed": 22,
+      "seconds": 273.6,
+      "log": "integration-clean.log",
+      "warning": "Starlette TestClient/httpx deprecation"
+    },
+    {
+      "command": "npm test (memory-sidecar)",
+      "result": "FAIL",
+      "runtime": "npm-selected Node26.8.2",
+      "reason": "bad option: --experimental-transform-types"
+    },
+    {
+      "command": "/usr/local/bin/node --experimental-transform-types --test test/*.test.ts (memory-sidecar)",
+      "result": "PASS",
+      "runtime": "Node22.16.0",
+      "passed": 21,
+      "log": "sidecar-node22.tap"
+    },
+    {
+      "command": "uv run pytest tests/connected -q -rs",
+      "result": "BLOCKED",
+      "blocked": 8,
+      "reason": "4 Zetaris: missing org/auth/source config;3 model: missing ID/key;1 semantic memory: missing embedding key"
+    },
+    {
+      "command": "read-only browser smoke",
+      "result": "PASS",
+      "scope": [
+        "judge sign-in",
+        "investigation and review queue",
+        "AI Lab",
+        "actions and report-download preparation"
+      ],
+      "full_e2e": false
+    },
+    {
+      "command": "authenticated GET /v1/reports/{id}?format=json|html",
+      "result": "PASS",
+      "evidence": "report-read-check.json"
+    },
+    {
+      "command": "targeted audit probes",
+      "result": "DEFECTS_REPRODUCED",
+      "evidence": [
+        "authority-results.json",
+        "domain-results.jsonl",
+        "zetaris-results.jsonl",
+        "memory-results.jsonl",
+        "sandbox-ownership-result.json"
+      ]
+    }
+  ],
+  "not_run": [
+    "credentialed sponsor acceptance",
+    "independent private holdout",
+    "full connected operator browser journey",
+    "Docker runtime",
+    "GCP executor",
+    "deployment"
+  ],
+  "scope_note": "Targeted probes use synthetic data, scripted models and isolated local storage/processes or mocked transport; no paid provider calls. Probe exit0 is execution success, not acceptance success."
+}

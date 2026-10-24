@@ -13,3 +13,6 @@ memory-sidecar/dist/
 var/
 .evaluator/
 evidence/runs/*/private/
+
+# Third-party inspiration review (niksm7/GreenOps), kept local
+docs/research/UPSTREAM_REVIEW.md

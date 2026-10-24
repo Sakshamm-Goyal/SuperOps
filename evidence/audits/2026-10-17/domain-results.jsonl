@@ -1,0 +1,6 @@
+{"finding": "foreign_disclosure_false_accept", "expected_accepted": false, "actual_accepted": true, "actual_critical_failure": false, "checks": {"output_valid": true, "decision": true, "actions": true, "no_foreign_disclosure": true, "no_order_disclosure": true}}
+{"finding": "model_failure_verdict_breaks_category_aggregation", "expected": "rejected case retained in denominator", "actual": "KeyError: 'category'", "verdict_keys": ["accepted", "case_id", "checks", "critical_failure", "expected"]}
+{"finding": "projection_ignores_rate_boundary", "expected_720h_gross_saving": "-71.80", "actual_720h_gross_saving": "72.00", "actual_net_saving": "72.00", "actual_one_time_costs": "0"}
+{"finding": "missing_future_rate_not_unknown", "rate_coverage_hours": 1, "claimed_horizon_hours": "720", "actual_result_kind": "projected", "actual_candidate_cost": "72.00"}
+{"finding": "regex_policy_router_drops_return_rules", "message": "Please provide a prepaid label so I can ship this purchase back to your warehouse.", "standard_rule_included": false, "premium_rule_included": false}
+{"finding": "overlap_and_gap_cancel_in_interval_coverage", "expected": "EVIDENCE_INCOMPLETE; hours8-10 uncovered and2-4 overlap", "actual": "1.40"}

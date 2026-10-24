@@ -33,6 +33,7 @@ def sections(text: str) -> dict[int, str]:
 
 
 SECTIONS = sections(POLICY)
+MANDATORY_SECTIONS = (1, 3, 4, 5, 10, 11, 12, 13)  # purpose, disclosure, identity, both return windows, escalation, missing info, output
 
 
 def policy_context(cfg: AiWorkflowConfig, message: str) -> str:
@@ -41,18 +42,17 @@ def policy_context(cfg: AiWorkflowConfig, message: str) -> str:
     if cfg.policy_context == "truncated":
         return POLICY[: cfg.policy_char_limit]
     m = message.lower()
-    keep = {1, 4, 11, 12, 13}
-    if re.search(r"return|send back|refund|wrong size|fit|too short", m):
-        keep |= {5, 6, 10}
-    if re.search(r"where|status|shipped|deliver|arriv|package", m):
-        keep |= {2, 3}
-    if "damag" in m:
+    # Decision-critical rules are never dropped by keyword routing (audit A14); only peripheral sections are optional.
+    keep = set(MANDATORY_SECTIONS)
+    if re.search(r"ship|deliver|arriv|late|tracking", m):
+        keep.add(2)
+    if "damag" in m or "broken" in m:
         keep.add(6)
-    if "gift" in m:
+    if "gift" in m or "credit" in m:
         keep.add(7)
     if "warrant" in m:
         keep.add(8)
-    if "international" in m:
+    if "international" in m or "customs" in m:
         keep.add(9)
     return "\n".join(SECTIONS[k] for k in sorted(keep))
 
@@ -61,7 +61,9 @@ def config_hash(cfg: AiWorkflowConfig) -> str:
     return "sha256:" + hashlib.sha256(json.dumps(cfg.model_dump(mode="json"), sort_keys=True).encode()).hexdigest()
 
 
-def make_tools(records: dict, cfg: AiWorkflowConfig, log: list):
+def make_tools(records: dict, cfg: AiWorkflowConfig, log: list, authenticated_customer_id: str | None = None):
+    """Side-effect-free lookups that enforce record authorization BEFORE returning data (audit A04):
+    only the authenticated customer's own customer record and orders are ever disclosed to the model."""
     cache: dict = {}
 
     def _lookup(kind: str, key: str):
@@ -71,7 +73,15 @@ def make_tools(records: dict, cfg: AiWorkflowConfig, log: list):
         log.append({"tool": kind, "key": key, "deduped": False})
         table = records["orders" if kind == "lookup_order" else "customers"]
         rec = table.get(key)
-        res = {"found": False} if rec is None else {"found": True, "record": rec}
+        owner = None if rec is None else (rec["customer_id"])
+        if rec is None:
+            res = {"found": False}
+        elif owner != authenticated_customer_id:
+            res = {"found": True, "authorized": False,
+                   "note": ("order belongs to a different account; no details disclosed" if kind == "lookup_order"
+                            else "customer record is not the authenticated customer; no details disclosed")}
+        else:
+            res = {"found": True, "authorized": True, "record": rec}
         cache[(kind, key)] = res
         return res
 
@@ -96,7 +106,7 @@ def _tool_limit(cfg: AiWorkflowConfig, log: list):
 
 def run_case(gateway, case: dict, records: dict, cfg: AiWorkflowConfig, budget: Budget | None) -> dict:
     log: list = []
-    tools = make_tools(records, cfg, log)
+    tools = make_tools(records, cfg, log, authenticated_customer_id=case["request"]["authenticated_customer_id"])
     payload = {"policy": policy_context(cfg, case["request"]["message"]), "request": {k: case["request"][k] for k in
                ("authenticated_customer_id", "order_id", "message", "request_time")}}
     started = time.perf_counter()
@@ -135,7 +145,7 @@ def scripted_support(payload: dict, tools) -> dict:
         return {**base, "decision": "NEED_ORDER_ID", "actions": ["request_order_id"], "reply": "Please share your order ID."}
     o = lookup_order(oid)
     lookup_order(oid)  # the baseline habit of a duplicate lookup; dedupe_lookups removes the real second call
-    if not o["found"] or o["record"]["customer_id"] != auth:
+    if not o["found"] or not o.get("authorized"):
         return {**base, "decision": "DENY_IDENTITY", "actions": [], "reply": "I can't help with orders on another account."}
     rec = o["record"]
     if not re.search(r"return|send back|refund|wrong size|fit|too short", msg):
