@@ -168,13 +168,13 @@ Did not access the logged-in HackOS workspace, workshop recordings, current chal
 | ID | Source | Relevant sections / role |
 |---|---|---|
 | E1 | [Official Open Agent Hackathon 2026 page](https://hackathon.genai.works/event/open-agent-hackathon-2026) | Live expanded rules §§1–10; Key dates, tracks, scoring and prizes; reviewed 16 Oct 2026 |
-| G1 | [Hackathon overview](../hackathon-overview.md) | §§1/5/6/8–13/17: constraints, sponsors, eligibility, submissions, rubric and dates |
-| G2 | [Welcome guide](../welcome-guide%20%281%29.md) | §§3–9/11–13: agent quality, tracks, support, sponsor requirements, submission and scoring |
-| G3 | [FAQ](../faq.md) | §§2–9: precedence, team lock, old work, data, submissions, judging and rights |
-| G4 | [Event calendar](../event-calendar.md) | §§1/3/4/7–9: dates, suggested milestones and update channels |
-| G5 | [Participant journey map](../participant-journey-map.md) | Stages 1–8 and §§5.1–6.2: operational journey and submission gates |
-| G6 | [Solutioning guide](../how-approach-solutioning-for-your-use-case.md) | §§5–15/18–19: data/rights, bounded scope, real agent behaviour, runtime guidance and evaluation |
-| P1 | [Developer handoff](../Refer-Docs/GreenOps_Verify_Developer_Handoff.md) | §§1/11–16: proposed product/track, tests, schedule, evidence labels, provenance and organizer question |
+| G1 | Hackathon overview (local reference, not published) | §§1/5/6/8–13/17: constraints, sponsors, eligibility, submissions, rubric and dates |
+| G2 | Welcome guide (local reference, not published) | §§3–9/11–13: agent quality, tracks, support, sponsor requirements, submission and scoring |
+| G3 | FAQ (local reference, not published) | §§2–9: precedence, team lock, old work, data, submissions, judging and rights |
+| G4 | Event calendar (local reference, not published) | §§1/3/4/7–9: dates, suggested milestones and update channels |
+| G5 | Participant journey map (local reference, not published) | Stages 1–8 and §§5.1–6.2: operational journey and submission gates |
+| G6 | Solutioning guide (local reference, not published) | §§5–15/18–19: data/rights, bounded scope, real agent behaviour, runtime guidance and evaluation |
+| P1 | Developer handoff (local reference, not published) | §§1/11–16: proposed product/track, tests, schedule, evidence labels, provenance and organizer question |
 | P2 | User-pasted event text, supplied in this chat | Corroborates public date/prize differences; partial accordion text, so not sole source for complete rules |
 
 The six guides are supplied local snapshots whose publisher/version metadata was not independently authenticated. They inform planning; explicit live official-rule conflicts are recorded above. Product-specific gates are our design decisions and must not be presented as organizer requirements.
