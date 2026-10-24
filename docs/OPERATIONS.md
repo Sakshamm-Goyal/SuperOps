@@ -1,6 +1,6 @@
 # Operations and access runbook
 
-Status: planned sandbox runbook. No deployment, provider credentials or account limits were verified in this task. This document specifies what the implementation must support and what evidence operators must capture.
+Status: implemented pre-event (16 Oct 2026). The commands below exist (`Makefile`, `scripts/`). No deployment, provider credentials or account limits have been verified. Docker Compose is written but has not been run, because Docker was unavailable.
 
 ## Runtime modes
 

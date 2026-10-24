@@ -1,6 +1,8 @@
 # System architecture
 
-Status: proposed implementation design, 16 October 2026. Nothing in this document asserts an installed dependency, live endpoint or measured performance. Product scope is owned by [PRODUCT_SPEC.md](PRODUCT_SPEC.md); vendor facts by [sponsor research](research/SPONSOR_RESEARCH.md).
+Status: implemented pre-event, 16 October 2026 (PREEXISTING.md). The installed versions below come from `uv.lock`. No live sponsor endpoint or measured sponsor performance is asserted.
+
+**Locked versions (installed and smoke-tested locally; sponsor calls not yet made):** Python 3.12.11 · FastAPI 0.141.1 (0.143.x conflicts with ADK's opentelemetry pin) · Pydantic 2.14.1 · psycopg 3.3.6 · httpx 0.28.1 · Streamlit 1.66.0 · google-adk 2.12.0 · LiteLLM 1.105.1 (well past the compromised 1.82.7/1.82.8) · uvicorn 0.54.0 · pytest 9.1.1 · Hypothesis 6.170.0 · Node 22.16 (sidecar uses `--experimental-transform-types`; zero npm runtime dependencies) · PostgreSQL 16.15 locally, `postgres:17` in Compose · Meterless H-MEM reference `0aa7417b…`. Deviations: no SQLAlchemy/Alembic (ADR-19); Node 22 rather than 24. Product scope is owned by [PRODUCT_SPEC.md](PRODUCT_SPEC.md); vendor facts by [sponsor research](research/SPONSOR_RESEARCH.md).
 
 ## Decision
 

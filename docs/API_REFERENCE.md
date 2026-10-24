@@ -1,120 +1,99 @@
 # Application API reference
 
-**Status: proposed v1 contract, not implemented.** This is the canonical intended application API. No route below is claimed to exist today. Vendor contracts are separate in [sponsor research](research/SPONSOR_RESEARCH.md). During implementation, generate OpenAPI from FastAPI/Pydantic schemas and keep this file, response models, permission checks and Swagger examples accurate in the same change.
+**Status: implemented v1 contract, 16 October 2026 (pre-event implementation — see [PREEXISTING.md](../PREEXISTING.md)).** Routes below exist in `greenops/api/app.py`; the generated schema is snapshotted at [docs/openapi.json](openapi.json) (`make openapi`) and checked against runtime routes and this file by `tests/unit/test_scenarios_and_contracts.py` and `make verify-docs`. Vendor contracts are separate in [sponsor research](research/SPONSOR_RESEARCH.md). Any route, field, auth or error change must update this file, the response models and the snapshot in the same change.
 
 ## Transport and identity
 
-Application prefix `/v1`; JSON UTF-8; HTTPS outside localhost. A sandbox API uses distinct high-entropy bearer credentials mapped server-side to named actors/roles in the single tenant. Never use a browser-supplied `X-Actor` or tenant field as identity. UI server keeps session-bound API credentials private. This is limited sandbox authentication, not an enterprise identity platform. Public judge role has read-only access to approved demo records.
+Application prefix `/v1`; JSON UTF-8; HTTPS outside localhost (TLS reverse proxy, see [OPERATIONS.md](OPERATIONS.md)). Sandbox bearer tokens (`Authorization: Bearer …`) are stored only as SHA-256 hashes in `actors` and map server-side to a named actor, tenant and role. Tokens are created by `scripts/bootstrap.py` and written once to the git-ignored `var/actors.local.json`. The browser never supplies actor or tenant. This is limited sandbox authentication, not an enterprise identity platform.
 
-Roles: **viewer** reads scoped records; **operator** starts investigations/trials and approves/executes within configured sandbox scope; **admin** also reads operations configuration and changes deployment settings through the documented configuration procedure. No admin mutation endpoint in P0. Worker and memory sidecar use separate internal credentials. Final heldout evaluation runs through an offline evaluator command using separate evaluator-only credentials; it has no public API role or trial route. Agent and operator trial tools can choose only allowlisted development suites. Trial GET returns redacted development checks; heldout details are never exposed to normal actors, and final published aggregates require an explicit evaluator export.
+Roles: **viewer** reads scoped records; **operator** also starts investigations/trials, approves, revokes and executes within the sandbox scope; **admin** also reads `/v1/operations`. No admin mutation endpoint exists. The worker and memory sidecar use separate internal credentials (DB URL; `MEMORY_AUTH_TOKEN`). The holdout evaluator is an offline command (`make eval`) with a separate `EVALUATOR_MODEL_API_KEY`; it has no API role or route.
 
-Every resource lookup enforces tenant and service scope. Foreign/unknown IDs return 404. Missing/invalid token returns 401; known actor without permitted role returns 403. Every mutating request requires `Idempotency-Key` (UUID); missing keys return 400 MISSING_IDEMPOTENCY_KEY before creating work. The server binds actor + method + route + key to canonical request hash and durable response. Same request replays the original resource; changed body with same key returns 409. `X-Request-ID` is a validated optional caller correlation UUID; server assigns one when absent and returns it. It is not authorization or the same as an execution idempotency key.
+Every lookup is scoped to the actor's tenant; foreign or unknown IDs return 404. Missing/invalid token → 401 `AUTH_REQUIRED`; known actor without the role → 403 `FORBIDDEN`. Every mutating request requires `Idempotency-Key` (UUID): missing → 400 `MISSING_IDEMPOTENCY_KEY`, malformed → 400 `INVALID_IDEMPOTENCY_KEY`. The server binds actor + key to a canonical hash of method, route, path and body and stores the durable response (including 4xx error envelopes). The same request replays the stored response (header `Idempotent-Replay: true`); a changed body with the same key → 409 `IDEMPOTENCY_CONFLICT`. Concurrent duplicates serialize on the idempotency row. `X-Request-ID` (UUID) is optional; the server assigns one when absent or invalid and returns it on every response. It is not authorization.
 
-Decimal quantities are JSON strings with units/currency. All timestamps are UTC RFC3339. Collection responses use `{items,next_cursor}` with default limit 25, maximum 100; cursors are opaque and scoped. Unknown request fields rejected. Request size/time limits are configured and documented in OpenAPI when implemented.
+Decimal quantities are JSON strings. Timestamps are UTC RFC3339. Collections return `{items, next_cursor, request_id}` (default limit 25, max 100; opaque cursor). Unknown request fields are rejected with 422.
 
 ## Routes
 
 | Method and path | Permission | Request | Success and persistence |
 |---|---|---|---|
-| GET /health/live | Unauthenticated | None | 200 minimal process status; no dependency names or secrets |
-| GET /health/ready | Internal/operator | None | 200 ready or 503 degraded; mode-specific dependencies |
-| GET /v1/services | viewer | cursor, limit | 200 service IDs/display names and supported runtime modes |
-| POST /v1/investigations | operator | service_id, question, interval, runtime_mode, budget_profile_id, optional approved_trial_profile_id | 202 `{investigation_id,job_id,status,status_url}` persisted before response |
-| GET /v1/investigations | viewer | service_id, status, cursor, limit | 200 scoped queue summaries |
-| GET /v1/investigations/{id} | viewer | None | 200 run state, progress, candidates, evidence IDs and limitations |
-| GET /v1/investigations/{id}/events | viewer | after_sequence, limit | 200 ordered persisted events + next_sequence; simple polling in P0 |
-| POST /v1/investigations/{id}/cancel | operator | reason | 202 cancellation requested; no implication that in-flight provider work was undone |
-| GET /v1/plans/{id} | viewer | None | 200 immutable versioned plan, trial refs, eligibility and stale reasons |
-| POST /v1/plans/{id}/trials | operator | plan_hash, development suite_id/version, approved_trial_profile_id | 202 trial_id/job_id; rejects holdout suites; enforces distinct disposable trial target, allowed typed operations and finite budget |
-| GET /v1/trials/{id} | viewer | None | 200 status, checks, metrics, costs and redacted artifact refs |
-| POST /v1/plans/{id}/approve | operator | plan_hash, trial_id, trial_hash, acknowledge_downtime, approved_recovery_scope | 201 approval_id, ACTIVE, server expiry, exact scope; fails unless current validated evidence matches |
-| POST /v1/approvals/{id}/revoke | operator | reason | 200 REVOKED before consumption; 409 after consumption; no automatic rollback |
-| POST /v1/plans/{id}/execute | operator | approval_id, plan_hash | 202 action_id/job_id or original action on replay; revalidates worker-side again |
-| GET /v1/actions/{id} | viewer | None | 200 factual stage, before/after, operation refs, verification, recovery and memory sync |
-| GET /v1/evidence/{id} | viewer | None | 200 redacted source receipt and authorized underlying records |
-| GET /v1/memories/{id} | viewer | None | 200 learning provenance, applicability and redacted audit, not internal secret state |
-| GET /v1/reports/{investigation_id} | viewer | format=html or json | 200 versioned evidence report generated from committed state; no new agent run |
-| GET /v1/operations | admin | None | 200 redacted dependency readiness, active policy/version, budgets and action flags |
-| GET /openapi.json | operator in hosted deployment | None | 200 generated schema; accessible locally for development |
-| GET /docs | operator in hosted deployment | None | 200 Swagger UI using the same authenticated schema endpoint |
+| GET /health/live | Unauthenticated | None | 200 `{status:"live"}`; no dependency names |
+| GET /health/ready | operator | None | 200 ready / 503 degraded: `{status, runtime_mode, dependencies{database, memory, memory_embedding_semantic, zetaris?, model?}}` |
+| GET /v1/me | viewer | None | 200 `Resource` with the authenticated actor's id, display name, role, tenant, server runtime mode and write flag (no token data) |
+| GET /v1/services | viewer | limit | 200 page of `{service_id, display_name, runtime_modes}` |
+| POST /v1/investigations | operator | `CreateInvestigation`: service_id, question, interval{start,end}, runtime_mode, budget_profile_id, optional approved_trial_profile_id, optional memory_mode `on`(default)/`off` | 202 `{investigation_id, job_id, status:"QUEUED", status_url}`; investigation + first event + job committed before the response |
+| GET /v1/investigations | viewer | service_id, status, cursor, limit | 200 page of queue summaries |
+| GET /v1/investigations/{id} | viewer | None | 200 `Resource`: progress (stage, rounds, candidates used/cap), ordered plans, trials, actions, evidence IDs, federation receipt, forecast, memory recall, investigator report, outcome, feedback |
+| GET /v1/investigations/{id}/events | viewer | after_sequence, limit (≤500) | 200 `{items:[{seq, at, kind, actor, payload}], next_sequence}` — persisted, monotonic; polling only |
+| POST /v1/investigations/{id}/cancel | operator | reason | 202 `CANCEL_REQUESTED`; stops at the next safe stage boundary; in-flight provider work is not undone |
+| GET /v1/plans/{id} | viewer | None | 200 `Resource`: immutable `core`, `canonical_json`, `plan_hash`, screening checks, critic verdict (with enforcement notes), impacts (labelled basis), memory_refs, trials, latest approval, `recovery_scope`, `next_allowed_actions`, `blockers` |
+| POST /v1/plans/{id}/trials | operator | plan_hash, suite_id (`support-dev-v1` for AI plans, `workload-wl-v1` for cloud plans), approved_trial_profile_id | 202 `{trial_id, status, status_url}`; holdout suites → 403; wrong suite → 422; plan not `DRAFT`+`ELIGIBLE_FOR_TRIAL` → 409 |
+| GET /v1/trials/{id} | viewer | None | 200 `Resource`: status, trial_hash, checks, measured metrics, development per-case checks (development labels only), costs with usage basis |
+| POST /v1/plans/{id}/approve | operator | `ApproveRequest`: plan_hash, trial_id, trial_hash, acknowledge_downtime, approved_recovery_scope | 201 `{approval_id, status:"ACTIVE", expires_at (server-set, policy TTL 15 min), plan_hash, trial_id, trial_hash, target, action, requires_downtime, recovery_scope}`; does not execute |
+| POST /v1/approvals/{id}/revoke | operator | reason | 200 `REVOKED` before consumption (plan returns to `AWAITING_APPROVAL`); 409 after consumption; no automatic rollback |
+| POST /v1/plans/{id}/execute | operator (the approving actor) | approval_id, plan_hash | 202 `{action_id, status, replayed_existing_action, status_url}`; consumes the approval atomically with action creation; a consumed approval returns the same action |
+| GET /v1/actions/{id} | viewer | None | 200 `Resource`: factual status, before/after, operation IDs, stage journal, verification checks, recovery, `memory_sync_status`, executor label |
+| GET /v1/evidence/{id} | viewer | None | 200 `Resource`: query receipt (template/version, parameter hash, sources, request IDs, pages, completeness, result hash, close status), up to 500 source rows, labels |
+| GET /v1/memories/{id} | viewer | None (id = application receipt id) | 200 `Resource`: envelope, sync status, engine id, sidecar audit history, current-policy applicability |
+| GET /v1/reports/{id} | viewer | format=`json`\|`html` | 200 versioned report from committed state only (no agent run), with `content_hash` |
+| GET /v1/operations | admin | None | 200 redacted readiness, policy/data versions, write flag, allowed targets, execution slot, active actions, jobs, outbox, budgets, trial profiles |
+| GET /openapi.json | open when `APP_ENV=sandbox`; operator when `APP_ENV=hosted` | None | Generated schema |
+| GET /docs | same as above | None | Swagger UI over the same schema |
 
-Do not add SSE solely for animation; persisted event polling is enough for P0 and survives Streamlit reruns. Any future streaming endpoint must define reconnect, event ordering, auth and error semantics here.
+Persisted event polling is the only progress channel; there is no SSE.
 
-## Representative requests
+### Runtime modes and authority
 
-Illustrative values below are synthetic examples. Example IDs/hash strings are placeholders; runtime must use generated valid values.
+`runtime_mode` must equal the server's configured mode (else 422); `replay` cannot create investigations (409). The server snapshots policy version, data manifest, budget profile and scenario `as_of` (= `interval.end`). It never accepts project IDs, spend caps or write flags from a request. `sample` runs can investigate and run trials (labelled sample) but approval returns 409 `INVALID_STATE` and execution is refused. Execution additionally requires `RUNTIME_MODE=connected_demo`, `SANDBOX_WRITES_ENABLED=true`, the target in `ALLOWED_TARGET_IDS` and an enabled executor (`local_analogue`; the GCP executor is not configured → 422 `UNSUPPORTED_ACTION`).
 
-```json
-{
-  "service_id": "support-demo",
-  "question": "Find a testable saving while preserving service and support policy",
-  "interval": {"start": "2026-10-01T00:00:00Z", "end": "2026-10-22T00:00:00Z"},
-  "runtime_mode": "connected_demo",
-  "budget_profile_id": "sandbox-approved-budget-v1"
-}
-```
-
-The service, budget and optional approved trial profile must exist and be permitted to the actor. Without a trial profile the investigation is read-only and cannot dispatch a mutating trial. The only runtime modes are sample, connected_demo and replay; the requested mode must match server policy. sample/replay cannot approve, execute or claim connected trials. The read model uses result_kind=measured|projected|estimated|unknown and data_origin=synthetic|real_permitted from DATA_AND_DOMAIN. The server snapshots policy, source manifest, budget and scenario `as_of`; it does not accept arbitrary cloud project IDs, spend caps or write flags from this request. A connected historical scenario cannot authorize a real target without fresh target inspection and an appropriate matched trial.
+### Representative requests
 
 ```json
-{
-  "plan_hash": "sha256:<generated-plan-digest>",
-  "trial_id": "<uuid>",
-  "trial_hash": "sha256:<generated-trial-digest>",
-  "acknowledge_downtime": true,
-  "approved_recovery_scope": "restore_exact_pre_change_config_if_no_intervening_change"
-}
+{"service_id": "support-demo", "question": "Find a testable saving while preserving service and support policy",
+ "interval": {"start": "2026-09-30T00:00:00Z", "end": "2026-10-21T00:00:00Z"}, "runtime_mode": "connected_demo",
+ "budget_profile_id": "sandbox-approved-budget-v1", "approved_trial_profile_id": "sandbox-trials-v1", "memory_mode": "on"}
 ```
 
-Approval does not automatically execute. Return target, before/after, evidence/trial IDs, downtime, expiry and recovery scope for review. `acknowledge_downtime=false` is valid only where the plan requires no such acknowledgment; never default user acknowledgment to true. Approval of recovery does not permit unrelated cleanup or reverting subsequent human changes.
+```json
+{"plan_hash": "sha256:<plan digest>", "trial_id": "<uuid>", "trial_hash": "sha256:<trial digest>",
+ "acknowledge_downtime": false, "approved_recovery_scope": "restore_exact_pre_change_config_if_no_intervening_change"}
+```
+
+`acknowledge_downtime` must be true when `core.requires_downtime` is true (GCP resize plans); the local analogue reloads without downtime.
 
 ## Read model and error envelope
 
-Run responses include schema_version, id, status, progress stage, updated_at, evidence IDs, `runtime_mode`, `result_kind`, `data_origin`, `next_allowed_actions`, blockers and request_id. Compute allowed actions server-side; revalidate them on POST. Every plan/action exposes distinct trial, approval, execution, verification and memory-sync status so a successful request cannot masquerade as a completed change.
+`Resource` = `{schema_version, id, status, runtime_mode, result_kind, data_origin, next_allowed_actions, blockers, request_id, data}`. Allowed actions (`run_trial`, `approve`, `execute`, `revoke_approval`, `cancel`) are computed server-side and revalidated on POST. Plans, trials, approvals and actions keep separate statuses.
 
 ```json
-{
-  "error": {
-    "code": "APPROVAL_STALE",
-    "message": "The target configuration changed after approval.",
-    "details": {"reason": "TARGET_VERSION_CHANGED", "action_id": null},
-    "retryable": false,
-    "request_id": "<uuid>"
-  }
-}
+{"error": {"code": "APPROVAL_STALE", "message": "the target or policy changed since approval",
+           "details": {"reason": "TARGET_VERSION_CHANGED"}, "retryable": false, "request_id": "<uuid>"}}
 ```
 
-| HTTP | Stable error codes and behavior |
+| HTTP | Stable error codes |
 |---|---|
-| 400 | INVALID_CURSOR, INVALID_IDEMPOTENCY_KEY, MISSING_IDEMPOTENCY_KEY; no job created |
-| 401 / 403 / 404 | AUTH_REQUIRED, FORBIDDEN, NOT_FOUND; redact existence across scopes |
-| 409 | PLAN_CHANGED, APPROVAL_STALE, APPROVAL_EXPIRED, IDEMPOTENCY_CONFLICT, TARGET_BUSY, INVALID_STATE; no new write |
+| 400 | INVALID_CURSOR, INVALID_IDEMPOTENCY_KEY, MISSING_IDEMPOTENCY_KEY |
+| 401 / 403 / 404 | AUTH_REQUIRED, FORBIDDEN, NOT_FOUND |
+| 409 | PLAN_CHANGED, APPROVAL_STALE, APPROVAL_EXPIRED, IDEMPOTENCY_CONFLICT, TARGET_BUSY, INVALID_STATE |
 | 422 | VALIDATION_ERROR, EVIDENCE_INCOMPLETE, TRIAL_NOT_ACCEPTED, UNSUPPORTED_ACTION, BUDGET_NOT_CONFIGURED |
-| 429 | RATE_LIMITED, BUDGET_EXCEEDED; include safe Retry-After only where meaningful |
-| 503 | DEPENDENCY_UNAVAILABLE, MEMORY_NOT_READY; no silent fixture fallback |
-| 500 | INTERNAL_ERROR with correlation ID; never raw SQL, credentials or provider stack trace |
+| 503 | DEPENDENCY_UNAVAILABLE, MEMORY_NOT_READY (surfaced on investigation/action records; readiness returns 503) |
+| 500 | INTERNAL_ERROR with request id; never SQL, credentials or stack traces |
 
-For the same actor and consumed approval, execute with a new idempotency key returns the existing action when plan/scope match; a changed plan returns 409. Different actors cannot replay or consume another actor's approval and receive 403. Approval/action uniqueness prevents a second operation chain irrespective of key. The worker checks expiry again immediately before the first provider write; expired queued work fails without mutation even though approval is already marked consumed.
+An action that later fails or becomes uncertain stays readable with 200 and its factual status. An HTTP timeout after a POST does not prove failure: retry with the same key or read the action. Budget exhaustion during a run ends the investigation `NEEDS_REVIEW` with `BUDGET_EXCEEDED` in `outcome.error`; there is no 429 route in P0.
 
-If a queued action later fails or becomes uncertain, its GET resource remains 200 with factual status/error details. Do not return 500 for every non-VERIFIED action. An HTTP timeout after a POST does not prove the operation failed; retry with the same idempotency key or read the known action.
+## Private memory wrapper (memory-sidecar/)
 
-## Private memory wrapper
-
-These are **our private routes**, not Meterless vendor API endpoints. Internal auth, strict envelope schemas, single writer and durable persistence are mandatory. Caller must supply an application receipt identity; wrapper response contains engine IDs, data version and sync state.
+Our private routes, not Meterless vendor endpoints. Bearer `MEMORY_AUTH_TOKEN` on every route, single writer, strict envelopes (unknown fields → 422), 64 KiB body limit. Full details in [memory-sidecar/README.md](../memory-sidecar/README.md).
 
 | Route | Contract |
 |---|---|
-| POST /memory/remember | MemoryEnvelope → engine_memory_id, application_receipt_id, stored_at, embedding_profile, persisted acknowledgment |
-| POST /memory/recall | tenant/service scope + query + applicability versions + bounded top_k → candidate IDs, scores, reasons and provenance; caller filters again |
-| GET /memory/audit/{id} | Scoped audit history, linked source receipts, correction relations and limitations |
-| GET /health | Authenticated internal readiness, engine SHA, embedding profile and durable-store status |
+| POST /memory/remember | MemoryEnvelope → 201 `{engine_memory_id, application_receipt_id, stored_at, embedding_profile, persisted:true, duplicate:false}`; same receipt + same hash → 200 `duplicate:true`; crash-orphan adoption → 201 `duplicate:true, reconciled:true`; different hash → 409 `IDEMPOTENCY_CONFLICT`; orphan with different content → 409 `ORPHAN_CONFLICT`; correction without review → 422; superseded record already superseded → 409 `SUPERSESSION_CONFLICT`; provider failure → 503 `MEMORY_EMBEDDING_UNAVAILABLE` (nothing written) |
+| POST /memory/recall | scope + query + applicability + top_k ≤10 (+ threshold) → `{items (applicable), historical (with inapplicable_reasons), excluded_unscoped, trace, embedding_profile}`; scope filtered before scoring |
+| GET /memory/audit/{receipt_id}?tenant_id=&service_id= | Scoped ledger history, lineage, limitations; foreign scope → 404 |
+| POST /memory/reindex | Re-embed every record under the configured profile after a profile change |
+| GET /health | `{status: ready\|degraded\|unavailable, reasons, engine{package, version, upstream_sha}, embedding_profile{kind, semantic, …}, store{…, reconcilable_orphans}}`; 200 only when ready |
 
-Audit and recall do not expose holdout keys or grant actions. The wrapper must not claim a successful durable write until actual persistence completes. Schema migrations, vector profile changes and recovery failures return explicit unavailable/degraded status.
+Recall and audit never expose holdout data or grant actions. The application re-checks scope and applicability on every returned memory before use and never reconstructs an approval or action from memory.
 
 ## Version preconditions and trial profiles
 
-Plan hashes, current target/config versions and accepted trial hashes serve as explicit mutation preconditions; a client cannot resubmit a changed desired state under an older plan ID. Supported action types and fields are the discriminated union in DATA_AND_DOMAIN. Trial-profile setup is an authenticated operator command documented in OPERATIONS, with immutable profile hash, fixture identity, scope, budget and expiry. This authorizes only disposable trials and never substitutes for approval of the final target.
-
-## OpenAPI implementation gate
-
-Implement typed request/response/error models, security schemes, role descriptions, status codes, pagination, examples and enum values. Snapshot the generated schema and test representative requests against it; ensure every implemented route appears and no nonexistent route is advertised. Validate `/docs` and `/openapi.json` under local and hosted auth. Any intentional deviation from this proposal updates this file and the decision log before merging. API docs are part of API correctness. [FastAPI OpenAPI support](https://fastapi.tiangolo.com/features/).
+Plan hash, the target's current config version, workload file hash and policy version are mutation preconditions, checked at approval and again by the worker immediately before the first write. Trial profiles are created only by the operator command `make trial-profile-approve PROFILE=… ACTOR=…` (authenticated, fixture-separation checked, hash + expiry stored); editing the profile file invalidates it.

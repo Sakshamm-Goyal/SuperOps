@@ -1,0 +1,7 @@
+provider,project_id,resource_id,service_id,display_name,environment,machine_type,vcpu,memory_gib,region,architecture,stateful,local_ssd,gpu,config_version,scenario_role,effective_from,effective_to
+gcp,greenops-sbx-staging,worker-stg-01,support-demo,support-worker,staging,e2-standard-8,8,32,us-central1,x86_64,False,False,False,1,R1 safely rightsizeable,2026-09-30T00:00:00Z,
+gcp,greenops-sbx-prod,worker-prod-01,support-demo,support-worker,production,e2-standard-8,8,32,us-central1,x86_64,False,False,False,1,"R2 low average, high peak",2026-09-30T00:00:00Z,
+gcp,greenops-sbx-staging,worker-mem-01,support-demo,support-indexer,staging,n2-standard-4,4,16,us-central1,x86_64,False,False,False,1,R3 memory constrained,2026-09-30T00:00:00Z,
+gcp,greenops-sbx-staging,worker-stale-01,support-demo,support-exporter,staging,e2-standard-4,4,16,us-central1,x86_64,False,False,False,1,R4 missing/stale evidence,2026-09-30T00:00:00Z,
+gcp,greenops-sbx-staging,db-stateful-01,support-demo,support-db,staging,n2-standard-8,8,32,us-central1,x86_64,True,True,False,1,R5 unsupported stateful,2026-09-30T00:00:00Z,
+gcp,greenops-sbx-staging,worker-freeze-01,support-demo,support-notifier,staging,e2-standard-4,4,16,us-central1,x86_64,False,False,False,1,R6 change freeze,2026-09-30T00:00:00Z,

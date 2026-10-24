@@ -1,0 +1,15 @@
+{
+  "name": "@greenops/memory-sidecar",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Private GreenOps HTTP sidecar wrapping the vendored Meterless H-MEM reference engine (Apache-2.0) with scope, applicability, lineage and a real embedding boundary.",
+  "license": "UNLICENSED",
+  "type": "module",
+  "engines": {
+    "node": ">=22.12"
+  },
+  "scripts": {
+    "start": "node --experimental-transform-types src/server.ts",
+    "test": "node --experimental-transform-types --test test/*.test.ts"
+  }
+}

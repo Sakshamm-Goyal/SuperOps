@@ -1,0 +1,11 @@
+provider,region,sku,unit,currency,price,effective_from,effective_to,rate_version,price_basis
+gcp,us-central1,e2-standard-2,hour,USD,0.067,2026-08-31T00:00:00Z,,synthetic-rates-v1,synthetic_scenario
+gcp,us-central1,e2-standard-4,hour,USD,0.140,2026-08-31T00:00:00Z,2026-10-10T00:00:00Z,synthetic-rates-v1,synthetic_scenario
+gcp,us-central1,e2-standard-4,hour,USD,0.134,2026-10-10T00:00:00Z,,synthetic-rates-v2,synthetic_scenario
+gcp,us-central1,e2-standard-8,hour,USD,0.268,2026-08-31T00:00:00Z,,synthetic-rates-v1,synthetic_scenario
+gcp,us-central1,e2-highmem-2,hour,USD,0.090,2026-08-31T00:00:00Z,,synthetic-rates-v1,synthetic_scenario
+gcp,us-central1,n2-standard-2,hour,USD,0.097,2026-08-31T00:00:00Z,,synthetic-rates-v1,synthetic_scenario
+gcp,us-central1,n2-standard-4,hour,USD,0.194,2026-08-31T00:00:00Z,,synthetic-rates-v1,synthetic_scenario
+gcp,us-central1,n2-standard-8,hour,USD,0.388,2026-08-31T00:00:00Z,,synthetic-rates-v1,synthetic_scenario
+gcp,us-central1,n2-highmem-2,hour,USD,0.131,2026-08-31T00:00:00Z,,synthetic-rates-v1,synthetic_scenario
+gcp,us-central1,t2a-standard-4,hour,USD,0.154,2026-08-31T00:00:00Z,,synthetic-rates-v1,synthetic_scenario

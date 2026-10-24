@@ -1,0 +1,2 @@
+model_family,input_per_million,output_per_million,currency,effective_from,effective_to,price_basis
+default,0.60,1.20,USD,2026-08-31T00:00:00Z,,synthetic_catalogue_equivalent

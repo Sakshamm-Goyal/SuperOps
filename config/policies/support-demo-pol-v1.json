@@ -1,0 +1,19 @@
+{
+  "policy_id": "support-demo-ops-policy",
+  "version": "pol-v1",
+  "service_id": "support-demo",
+  "effective_from": "2026-09-01T00:00:00Z",
+  "cpu_max_utilization": "0.80",
+  "memory_max_utilization": "0.80",
+  "telemetry_max_age_minutes": 30,
+  "required_critical_coverage": "1",
+  "allowed_action_types": ["LOCAL_WORKER_CONFIG_UPDATE", "AI_CONFIG_UPDATE"],
+  "executable_environments": ["staging", "sandbox"],
+  "frozen_resources": ["gcp/greenops-sbx-staging/worker-freeze-01"],
+  "unsupported_features": ["stateful", "local_ssd", "gpu"],
+  "workload": {"p95_regression_max": "0.10", "slo_p95_ms": 800, "max_error_rate": "0"},
+  "ai": {"min_accepted": 38, "total_cases": 40, "efficiency_aspiration": "0.15"},
+  "approval_ttl_minutes": 15,
+  "trial_validity_hours": 24,
+  "max_candidates_per_path": 3
+}

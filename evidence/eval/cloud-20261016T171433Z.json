@@ -1,0 +1,104 @@
+{
+  "generated_at": "2026-10-16T17:14:33.865405+00:00",
+  "data_origin": "synthetic",
+  "runtime_mode": "sample",
+  "forecast_temporal_evaluation": {
+    "gcp/greenops-sbx-prod/worker-prod-01": {
+      "mae_cpu_pct": "0.688",
+      "envelope_coverage": "365/384",
+      "residual_q95": "1.43",
+      "origins": "days 18-21",
+      "no_future_data": true
+    },
+    "gcp/greenops-sbx-staging/db-stateful-01": {
+      "mae_cpu_pct": "0.704",
+      "envelope_coverage": "362/384",
+      "residual_q95": "1.35",
+      "origins": "days 18-21",
+      "no_future_data": true
+    },
+    "gcp/greenops-sbx-staging/worker-freeze-01": {
+      "mae_cpu_pct": "0.663",
+      "envelope_coverage": "370/384",
+      "residual_q95": "1.43",
+      "origins": "days 18-21",
+      "no_future_data": true
+    },
+    "gcp/greenops-sbx-staging/worker-mem-01": {
+      "mae_cpu_pct": "0.665",
+      "envelope_coverage": "370/384",
+      "residual_q95": "1.33",
+      "origins": "days 18-21",
+      "no_future_data": true
+    },
+    "gcp/greenops-sbx-staging/worker-stale-01": {
+      "mae_cpu_pct": "0.684",
+      "envelope_coverage": "352/372",
+      "residual_q95": "1.38",
+      "origins": "days 18-21",
+      "no_future_data": true
+    },
+    "gcp/greenops-sbx-staging/worker-stg-01": {
+      "mae_cpu_pct": "0.824",
+      "envelope_coverage": "362/384",
+      "residual_q95": "1.64",
+      "origins": "days 18-21",
+      "no_future_data": true
+    }
+  },
+  "decision_benchmark": {
+    "rows": [
+      {
+        "resource": "gcp/greenops-sbx-prod/worker-prod-01",
+        "role": "R2 peak + production",
+        "b0_recommendation": "e2-standard-4",
+        "b1_eligible_for_trial": [],
+        "ledger_safe": []
+      },
+      {
+        "resource": "gcp/greenops-sbx-staging/db-stateful-01",
+        "role": "R5 stateful",
+        "b0_recommendation": "n2-standard-4",
+        "b1_eligible_for_trial": [],
+        "ledger_safe": []
+      },
+      {
+        "resource": "gcp/greenops-sbx-staging/worker-freeze-01",
+        "role": "R6 change freeze",
+        "b0_recommendation": "e2-highmem-2",
+        "b1_eligible_for_trial": [],
+        "ledger_safe": []
+      },
+      {
+        "resource": "gcp/greenops-sbx-staging/worker-mem-01",
+        "role": "R3 memory (n2-highmem-2 fits but no allowed executor)",
+        "b0_recommendation": "n2-highmem-2",
+        "b1_eligible_for_trial": [],
+        "ledger_safe": []
+      },
+      {
+        "resource": "gcp/greenops-sbx-staging/worker-stale-01",
+        "role": "R4 evidence incomplete",
+        "b0_recommendation": "e2-highmem-2",
+        "b1_eligible_for_trial": [],
+        "ledger_safe": []
+      },
+      {
+        "resource": "gcp/greenops-sbx-staging/worker-stg-01",
+        "role": "R1 rightsizeable",
+        "b0_recommendation": "e2-standard-4",
+        "b1_eligible_for_trial": [
+          "e2-standard-4"
+        ],
+        "ledger_safe": [
+          "e2-standard-4"
+        ]
+      }
+    ],
+    "B0_unsafe_recommendations": 5,
+    "B0_safe_recommendations": 1,
+    "B1_unsafe_eligible": 0,
+    "B1_safe_eligible": 1,
+    "note": "B0 is a deliberately simple frozen heuristic, not an industry optimizer; six synthetic resources only"
+  }
+}

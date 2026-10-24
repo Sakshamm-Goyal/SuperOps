@@ -1,0 +1,10 @@
+{
+  "workload_id": "support-worker-workload",
+  "version": "wl-v1",
+  "rate_per_s": 40,
+  "service_ms": 60,
+  "jitter_ms": 5,
+  "seed": 7,
+  "request_timeout_s": 2.0,
+  "note": "Fixed offered rate; ~2.4 requests in flight on average and at most 3 without jitter. Mirrors R1's ~2.7 vCPU observed peak."
+}

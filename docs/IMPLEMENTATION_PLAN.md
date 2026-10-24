@@ -1,6 +1,25 @@
 # Implementation plan and backlog
 
-Status: planned, 16 October 2026. All work items below are NOT STARTED. This turn creates docs only. The user confirmed **4–5 active builders** and an **original implementation**: niksm7/GreenOps is third-party inspiration, with no reuse of its code, prompts, assets or results. Track eligibility and treatment of pre-event preparation still require organizer clarification.
+Status: updated 16 October 2026. **At the user's instruction, the work packages were implemented pre-event** (ADR-18; declared in PREEXISTING.md). Live sponsor gates remain BLOCKED pending credentials. The table below records the current status; the original plan text follows unchanged.
+
+| Package | Status (16 Oct, pre-event) | Evidence / blocker |
+|---|---|---|
+| B01 baseline, provenance, manifests | Done | Local commit `10a2cfd` (docs baseline) plus implementation commit; `uv.lock`; data manifest |
+| B02 schemas, migrations, plan hash, jobs/events | Done | `migrations/0001_initial.sql`, `greenops/domain/*`, unit oracles |
+| B03 source manifests + Zetaris templates | Implemented; **live BLOCKED** | `sql/*.sql`, `greenops/adapters/evidence.py`; contract tests pass; ZET-01..04 BLOCKED (no workspace credentials) |
+| B04 H-MEM wrapper, scope, outbox, recovery | Implemented; semantic embeddings **BLOCKED** | `memory-sidecar/` (21/21 tests), outbox and application integration tests pass; HMEM-07 BLOCKED |
+| B05 ADK roles + critic loop | Implemented; real-model run **BLOCKED** | `greenops/agents/roles.py`, `greenops/adapters/model.py`; scripted-role journeys pass; NIM-01..02 BLOCKED |
+| B06 capacity, forecast, cost, carbon | Done | Unit oracles; `make eval-cloud` |
+| B07 UI | See README / UI agent report | `greenops/ui/` |
+| B08 matched local trial | Done (local analogue) | Authority journey test: real worker processes, A/B/B/A/A/B measurement |
+| B09 approval / executor / reconciler | Done (local analogue) | ACT-01..17 integration tests pass |
+| B10a support workflow + candidates | Implemented; real-model dev runs **BLOCKED** | `experiments/support/`; scripted dev trial: truncated fails 32/40, relevant_sections passes 40/40 |
+| B10b verifier, 40/40 split, evaluator | Implemented; independence limited | Same author for both partitions; role D should re-author the holdout |
+| B11 connected cloud journey | Control flow done; connected **BLOCKED** | Needs Zetaris + NVIDIA + semantic memory |
+| B12 cross-run learning | Mechanism done (hash embedder); semantic **BLOCKED** | `tests/integration/test_memory_learning.py` |
+| B13 release acceptance | Not run | Needs connected PASS results |
+| B14 packaging (video, deck, submission) | Not started | Requires event-window work and user authorization |
+ The user confirmed **4–5 active builders** and an **original implementation**: niksm7/GreenOps is third-party inspiration, with no reuse of its code, prompts, assets or results. Track eligibility and treatment of pre-event preparation still require organizer clarification.
 
 ## Confirmed staffing plan
 

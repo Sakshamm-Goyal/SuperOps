@@ -2,7 +2,7 @@
 
 ## Purpose and current phase
 
-Deliver a complete, maintainable, evidence-backed implementation of the product specified here. The current task is **documentation only**; do not create application code, deploy, spend credits, submit, or publish until a later user task authorizes implementation or that action. This phase restriction may be changed by a later explicit user request; these files do not override the user.
+Deliver a complete, maintainable, evidence-backed implementation of the product specified here. **Phase update, 16 October 2026:** the user explicitly authorized and requested full implementation before the event. The application now exists and is declared as pre-existing work in PREEXISTING.md. Deployment, spending credits, outreach, submission and publication still require their own explicit user authorization. These files do not override the user.
 
 The user confirmed on 16 October 2026: niksm7/GreenOps is third-party concept inspiration; build our own implementation and do not reuse its code, prompts or assets. Plan for 4–5 active builders using the role assignments in docs/IMPLEMENTATION_PLAN.md. Preserve the independent evaluator's control of holdout data.
 

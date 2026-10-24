@@ -1,0 +1,59 @@
+--- a/engines/hmem/reference/src/embeddings.ts
++++ b/memory-sidecar/vendor/hmem/src/embeddings.ts
+@@ -23,7 +23,16 @@
+   return h >>> 0;
+ }
+ 
++// GreenOps patch (Apache-2.0 modification): optional registered embedder.
++// When set, embed() delegates to it; otherwise the original hash mock below runs.
++let registeredEmbedder: ((text: string) => number[]) | null = null;
++
++export function setEmbedder(fn: ((text: string) => number[]) | null): void {
++  registeredEmbedder = fn;
++}
++
+ export function embed(text: string): number[] {
++  if (registeredEmbedder) return registeredEmbedder(text); // GreenOps patch (Apache-2.0 modification)
+   const vec = new Array<number>(DIM).fill(0);
+   for (const token of tokenize(text)) {
+     const h = fnv1a(token);
+--- a/engines/hmem/reference/src/memoryRetrieval.ts
++++ b/memory-sidecar/vendor/hmem/src/memoryRetrieval.ts
+@@ -63,7 +63,8 @@
+     return clamp01(raw) * m.confidence;
+   }
+ 
+-  query(query: string, opts?: { topN?: number; threshold?: number; chatId?: string }): QueryResult {
++  // GreenOps patch (Apache-2.0 modification): optional `filter`, applied before scoring.
++  query(query: string, opts?: { topN?: number; threshold?: number; chatId?: string; filter?: (m: MemoryRecord) => boolean }): QueryResult {
+     const queryEmbedding = embed(query);
+     const queryTokens = tokenize(query).slice(0, 8);
+     const queryEntities = this.store.extractEntities(query);
+@@ -74,6 +75,7 @@
+     const scored: RetrievedMemory[] = [];
+     for (const m of this.store.all()) {
+       if (opts?.chatId && m.chatId && m.chatId !== opts.chatId) continue;
++      if (opts?.filter && !opts.filter(m)) continue; // GreenOps patch (Apache-2.0 modification): scope filter before ranking
+       const s = this.score(m, queryEmbedding, queryTokens, queryEntities, queryDomain);
+       if (s >= threshold) scored.push({ memory: m, relevance: s });
+     }
+--- a/engines/hmem/reference/src/memoryStore.ts
++++ b/memory-sidecar/vendor/hmem/src/memoryStore.ts
+@@ -60,7 +60,16 @@
+   persist(): void {
+     if (!this.stateFile) return;
+     const records = [...this.records.values()].sort((a, b) => a.id.localeCompare(b.id));
+-    fs.writeFileSync(this.stateFile, JSON.stringify({ seq: this.seq, records }, null, 2) + "\n", "utf-8");
++    // GreenOps patch (Apache-2.0 modification): atomic write (tmp file, fsync, rename).
++    const tmp = `${this.stateFile}.${process.pid}.tmp`;
++    const fd = fs.openSync(tmp, "w");
++    try {
++      fs.writeSync(fd, JSON.stringify({ seq: this.seq, records }, null, 2) + "\n", null, "utf-8");
++      fs.fsyncSync(fd);
++    } finally {
++      fs.closeSync(fd);
++    }
++    fs.renameSync(tmp, this.stateFile);
+   }
+ 
+   add(input: AddInput): MemoryRecord {

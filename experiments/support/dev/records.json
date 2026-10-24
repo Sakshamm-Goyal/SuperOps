@@ -1,0 +1,670 @@
+{
+ "customers": {
+  "C1000": {
+   "customer_id": "C1000",
+   "email": "c1000@example.invalid",
+   "name": "Customer C1000",
+   "tier": "premium"
+  },
+  "C1001": {
+   "customer_id": "C1001",
+   "email": "c1001@example.invalid",
+   "name": "Customer C1001",
+   "tier": "standard"
+  },
+  "C1002": {
+   "customer_id": "C1002",
+   "email": "c1002@example.invalid",
+   "name": "Customer C1002",
+   "tier": "premium"
+  },
+  "C1003": {
+   "customer_id": "C1003",
+   "email": "c1003@example.invalid",
+   "name": "Customer C1003",
+   "tier": "standard"
+  },
+  "C1004": {
+   "customer_id": "C1004",
+   "email": "c1004@example.invalid",
+   "name": "Customer C1004",
+   "tier": "premium"
+  },
+  "C1005": {
+   "customer_id": "C1005",
+   "email": "c1005@example.invalid",
+   "name": "Customer C1005",
+   "tier": "standard"
+  },
+  "C1006": {
+   "customer_id": "C1006",
+   "email": "c1006@example.invalid",
+   "name": "Customer C1006",
+   "tier": "premium"
+  },
+  "C1007": {
+   "customer_id": "C1007",
+   "email": "c1007@example.invalid",
+   "name": "Customer C1007",
+   "tier": "standard"
+  },
+  "C1008": {
+   "customer_id": "C1008",
+   "email": "c1008@example.invalid",
+   "name": "Customer C1008",
+   "tier": "standard"
+  },
+  "C1009": {
+   "customer_id": "C1009",
+   "email": "c1009@example.invalid",
+   "name": "Customer C1009",
+   "tier": "standard"
+  },
+  "C1010": {
+   "customer_id": "C1010",
+   "email": "c1010@example.invalid",
+   "name": "Customer C1010",
+   "tier": "standard"
+  },
+  "C1011": {
+   "customer_id": "C1011",
+   "email": "c1011@example.invalid",
+   "name": "Customer C1011",
+   "tier": "standard"
+  },
+  "C1012": {
+   "customer_id": "C1012",
+   "email": "c1012@example.invalid",
+   "name": "Customer C1012",
+   "tier": "standard"
+  },
+  "C1013": {
+   "customer_id": "C1013",
+   "email": "c1013@example.invalid",
+   "name": "Customer C1013",
+   "tier": "standard"
+  },
+  "C1014": {
+   "customer_id": "C1014",
+   "email": "c1014@example.invalid",
+   "name": "Customer C1014",
+   "tier": "standard"
+  },
+  "C1015": {
+   "customer_id": "C1015",
+   "email": "c1015@example.invalid",
+   "name": "Customer C1015",
+   "tier": "standard"
+  },
+  "C1016": {
+   "customer_id": "C1016",
+   "email": "c1016@example.invalid",
+   "name": "Customer C1016",
+   "tier": "premium"
+  },
+  "C1017": {
+   "customer_id": "C1017",
+   "email": "c1017@example.invalid",
+   "name": "Customer C1017",
+   "tier": "premium"
+  },
+  "C1018": {
+   "customer_id": "C1018",
+   "email": "c1018@example.invalid",
+   "name": "Customer C1018",
+   "tier": "premium"
+  },
+  "C1019": {
+   "customer_id": "C1019",
+   "email": "c1019@example.invalid",
+   "name": "Customer C1019",
+   "tier": "premium"
+  },
+  "C1020": {
+   "customer_id": "C1020",
+   "email": "c1020@example.invalid",
+   "name": "Customer C1020",
+   "tier": "premium"
+  },
+  "C1021": {
+   "customer_id": "C1021",
+   "email": "c1021@example.invalid",
+   "name": "Customer C1021",
+   "tier": "premium"
+  },
+  "C1022": {
+   "customer_id": "C1022",
+   "email": "c1022@example.invalid",
+   "name": "Customer C1022",
+   "tier": "premium"
+  },
+  "C1023": {
+   "customer_id": "C1023",
+   "email": "c1023@example.invalid",
+   "name": "Customer C1023",
+   "tier": "premium"
+  },
+  "C1024": {
+   "customer_id": "C1024",
+   "email": "c1024@example.invalid",
+   "name": "Customer C1024",
+   "tier": "premium"
+  },
+  "C1025": {
+   "customer_id": "C1025",
+   "email": "c1025@example.invalid",
+   "name": "Customer C1025",
+   "tier": "standard"
+  },
+  "C1026": {
+   "customer_id": "C1026",
+   "email": "c1026@example.invalid",
+   "name": "Customer C1026",
+   "tier": "premium"
+  },
+  "C1027": {
+   "customer_id": "C1027",
+   "email": "c1027@example.invalid",
+   "name": "Customer C1027",
+   "tier": "standard"
+  },
+  "C1028": {
+   "customer_id": "C1028",
+   "email": "c1028@example.invalid",
+   "name": "Customer C1028",
+   "tier": "premium"
+  },
+  "C1029": {
+   "customer_id": "C1029",
+   "email": "c1029@example.invalid",
+   "name": "Customer C1029",
+   "tier": "standard"
+  },
+  "C1030": {
+   "customer_id": "C1030",
+   "email": "c1030@example.invalid",
+   "name": "Customer C1030",
+   "tier": "premium"
+  },
+  "C1031": {
+   "customer_id": "C1031",
+   "email": "c1031@example.invalid",
+   "name": "Customer C1031",
+   "tier": "standard"
+  },
+  "C1032": {
+   "customer_id": "C1032",
+   "email": "c1032@example.invalid",
+   "name": "Customer C1032",
+   "tier": "standard"
+  },
+  "C1033": {
+   "customer_id": "C1033",
+   "email": "c1033@example.invalid",
+   "name": "Customer C1033",
+   "tier": "standard"
+  },
+  "C1034": {
+   "customer_id": "C1034",
+   "email": "c1034@example.invalid",
+   "name": "Customer C1034",
+   "tier": "standard"
+  },
+  "C1035": {
+   "customer_id": "C1035",
+   "email": "c1035@example.invalid",
+   "name": "Customer C1035",
+   "tier": "premium"
+  },
+  "C1036": {
+   "customer_id": "C1036",
+   "email": "c1036@example.invalid",
+   "name": "Customer C1036",
+   "tier": "standard"
+  },
+  "C1037": {
+   "customer_id": "C1037",
+   "email": "c1037@example.invalid",
+   "name": "Customer C1037",
+   "tier": "standard"
+  },
+  "C1038": {
+   "customer_id": "C1038",
+   "email": "c1038@example.invalid",
+   "name": "Customer C1038",
+   "tier": "standard"
+  },
+  "C1039": {
+   "customer_id": "C1039",
+   "email": "c1039@example.invalid",
+   "name": "Customer C1039",
+   "tier": "premium"
+  },
+  "C1040": {
+   "customer_id": "C1040",
+   "email": "c1040@example.invalid",
+   "name": "Customer C1040",
+   "tier": "standard"
+  },
+  "C1041": {
+   "customer_id": "C1041",
+   "email": "c1041@example.invalid",
+   "name": "Customer C1041",
+   "tier": "standard"
+  },
+  "C1042": {
+   "customer_id": "C1042",
+   "email": "c1042@example.invalid",
+   "name": "Customer C1042",
+   "tier": "standard"
+  },
+  "C1043": {
+   "customer_id": "C1043",
+   "email": "c1043@example.invalid",
+   "name": "Customer C1043",
+   "tier": "standard"
+  }
+ },
+ "orders": {
+  "O01000": {
+   "address": "70 Example Street",
+   "customer_id": "C1000",
+   "delivered_at": "2026-10-01T11:00:00Z",
+   "items": [
+    "synthetic-item"
+   ],
+   "order_id": "O01000",
+   "status": "processing"
+  },
+  "O01001": {
+   "address": "7 Example Street",
+   "customer_id": "C1001",
+   "delivered_at": "2026-10-08T07:00:00Z",
+   "items": [
+    "synthetic-item"
+   ],
+   "order_id": "O01001",
+   "status": "shipped"
+  },
+  "O01002": {
+   "address": "78 Example Street",
+   "customer_id": "C1002",
+   "delivered_at": "2026-10-03T11:00:00Z",
+   "items": [
+    "synthetic-item"
+   ],
+   "order_id": "O01002",
+   "status": "delivered"
+  },
+  "O01003": {
+   "address": "63 Example Street",
+   "customer_id": "C1003",
+   "delivered_at": "2026-10-12T10:00:00Z",
+   "items": [
+    "synthetic-item"
+   ],
+   "order_id": "O01003",
+   "status": "cancelled"
+  },
+  "O01004": {
+   "address": "57 Example Street",
+   "customer_id": "C1004",
+   "delivered_at": "2026-10-13T09:00:00Z",
+   "items": [
+    "synthetic-item"
+   ],
+   "order_id": "O01004",
+   "status": "processing"
+  },
+  "O01005": {
+   "address": "25 Example Street",
+   "customer_id": "C1005",
+   "delivered_at": "2026-10-17T10:00:00Z",
+   "items": [
+    "synthetic-item"
+   ],
+   "order_id": "O01005",
+   "status": "shipped"
+  },
+  "O01006": {
+   "address": "57 Example Street",
+   "customer_id": "C1006",
+   "delivered_at": "2026-10-14T13:00:00Z",
+   "items": [
+    "synthetic-item"
+   ],
+   "order_id": "O01006",
+   "status": "delivered"
+  },
+  "O01007": {
+   "address": "25 Example Street",
+   "customer_id": "C1007",
+   "delivered_at": "2026-10-02T09:00:00Z",
+   "items": [
+    "synthetic-item"
+   ],
+   "order_id": "O01007",
+   "status": "cancelled"
+  },
+  "O01008": {
+   "address": "42 Example Street",
+   "customer_id": "C1008",
+   "delivered_at": "2026-10-17T07:00:00Z",
+   "items": [
+    "synthetic-item"
+   ],
+   "order_id": "O01008",
+   "status": "delivered"
+  },
+  "O01009": {
+   "address": "82 Example Street",
+   "customer_id": "C1009",
+   "delivered_at": "2026-10-08T11:00:00Z",
+   "items": [
+    "synthetic-item"
+   ],
+   "order_id": "O01009",
+   "status": "delivered"
+  },
+  "O01010": {
+   "address": "55 Example Street",
+   "customer_id": "C1010",
+   "delivered_at": "2026-09-30T08:00:00Z",
+   "items": [
+    "synthetic-item"
+   ],
+   "order_id": "O01010",
+   "status": "delivered"
+  },
+  "O01011": {
+   "address": "9 Example Street",
+   "customer_id": "C1011",
+   "delivered_at": "2026-09-21T11:00:00Z",
+   "items": [
+    "synthetic-item"
+   ],
+   "order_id": "O01011",
+   "status": "delivered"
+  },
+  "O01012": {
+   "address": "60 Example Street",
+   "customer_id": "C1012",
+   "delivered_at": "2026-09-20T08:00:00Z",
+   "items": [
+    "synthetic-item"
+   ],
+   "order_id": "O01012",
+   "status": "delivered"
+  },
+  "O01013": {
+   "address": "28 Example Street",
+   "customer_id": "C1013",
+   "delivered_at": "2026-09-19T10:00:00Z",
+   "items": [
+    "synthetic-item"
+   ],
+   "order_id": "O01013",
+   "status": "delivered"
+  },
+  "O01014": {
+   "address": "84 Example Street",
+   "customer_id": "C1014",
+   "delivered_at": "2026-09-17T13:00:00Z",
+   "items": [
+    "synthetic-item"
+   ],
+   "order_id": "O01014",
+   "status": "delivered"
+  },
+  "O01015": {
+   "address": "88 Example Street",
+   "customer_id": "C1015",
+   "delivered_at": "2026-09-05T05:00:00Z",
+   "items": [
+    "synthetic-item"
+   ],
+   "order_id": "O01015",
+   "status": "delivered"
+  },
+  "O01016": {
+   "address": "86 Example Street",
+   "customer_id": "C1016",
+   "delivered_at": "2026-09-19T09:00:00Z",
+   "items": [
+    "synthetic-item"
+   ],
+   "order_id": "O01016",
+   "status": "delivered"
+  },
+  "O01017": {
+   "address": "51 Example Street",
+   "customer_id": "C1017",
+   "delivered_at": "2026-09-05T10:00:00Z",
+   "items": [
+    "synthetic-item"
+   ],
+   "order_id": "O01017",
+   "status": "delivered"
+  },
+  "O01018": {
+   "address": "30 Example Street",
+   "customer_id": "C1018",
+   "delivered_at": "2026-08-22T08:00:00Z",
+   "items": [
+    "synthetic-item"
+   ],
+   "order_id": "O01018",
+   "status": "delivered"
+  },
+  "O01019": {
+   "address": "10 Example Street",
+   "customer_id": "C1019",
+   "delivered_at": "2026-08-21T08:00:00Z",
+   "items": [
+    "synthetic-item"
+   ],
+   "order_id": "O01019",
+   "status": "delivered"
+  },
+  "O01020": {
+   "address": "96 Example Street",
+   "customer_id": "C1020",
+   "delivered_at": "2026-08-20T08:00:00Z",
+   "items": [
+    "synthetic-item"
+   ],
+   "order_id": "O01020",
+   "status": "delivered"
+  },
+  "O01021": {
+   "address": "1 Example Street",
+   "customer_id": "C1021",
+   "delivered_at": "2026-08-11T08:00:00Z",
+   "items": [
+    "synthetic-item"
+   ],
+   "order_id": "O01021",
+   "status": "delivered"
+  },
+  "O01022": {
+   "address": "28 Example Street",
+   "customer_id": "C1022",
+   "delivered_at": "2026-09-25T07:00:00Z",
+   "items": [
+    "synthetic-item"
+   ],
+   "order_id": "O01022",
+   "status": "delivered"
+  },
+  "O01023": {
+   "address": "13 Example Street",
+   "customer_id": "C1023",
+   "delivered_at": "2026-08-19T06:00:00Z",
+   "items": [
+    "synthetic-item"
+   ],
+   "order_id": "O01023",
+   "status": "delivered"
+  },
+  "O01024": {
+   "address": "3 Example Street",
+   "customer_id": "C1024",
+   "delivered_at": "2026-10-10T09:00:00Z",
+   "items": [
+    "synthetic-item"
+   ],
+   "order_id": "O01024",
+   "status": "delivered"
+  },
+  "O01025": {
+   "address": "91 Example Street",
+   "customer_id": "C1025",
+   "delivered_at": "2026-10-10T09:00:00Z",
+   "items": [
+    "synthetic-item"
+   ],
+   "order_id": "O01025",
+   "status": "delivered"
+  },
+  "O01026": {
+   "address": "2 Example Street",
+   "customer_id": "C1026",
+   "delivered_at": "2026-10-10T09:00:00Z",
+   "items": [
+    "synthetic-item"
+   ],
+   "order_id": "O01026",
+   "status": "delivered"
+  },
+  "O01027": {
+   "address": "73 Example Street",
+   "customer_id": "C1027",
+   "delivered_at": "2026-10-10T10:00:00Z",
+   "items": [
+    "synthetic-item"
+   ],
+   "order_id": "O01027",
+   "status": "delivered"
+  },
+  "O01028": {
+   "address": "5 Example Street",
+   "customer_id": "C1028",
+   "delivered_at": "2026-10-10T12:00:00Z",
+   "items": [
+    "synthetic-item"
+   ],
+   "order_id": "O01028",
+   "status": "delivered"
+  },
+  "O01029": {
+   "address": "24 Example Street",
+   "customer_id": "C1029",
+   "delivered_at": "2026-10-10T08:00:00Z",
+   "items": [
+    "synthetic-item"
+   ],
+   "order_id": "O01029",
+   "status": "delivered"
+  },
+  "O01030": {
+   "address": "9 Example Street",
+   "customer_id": "C1030",
+   "delivered_at": "2026-10-10T10:00:00Z",
+   "items": [
+    "synthetic-item"
+   ],
+   "order_id": "O01030",
+   "status": "delivered"
+  },
+  "O01031": {
+   "address": "52 Example Street",
+   "customer_id": "C1031",
+   "delivered_at": "2026-10-10T12:00:00Z",
+   "items": [
+    "synthetic-item"
+   ],
+   "order_id": "O01031",
+   "status": "delivered"
+  },
+  "O01032": {
+   "address": "84 Example Street",
+   "customer_id": "C1032",
+   "delivered_at": "2026-10-15T09:00:00Z",
+   "items": [
+    "synthetic-item"
+   ],
+   "order_id": "O01032",
+   "status": "delivered"
+  },
+  "O01033": {
+   "address": "61 Example Street",
+   "customer_id": "C1034",
+   "delivered_at": "2026-10-15T05:00:00Z",
+   "items": [
+    "synthetic-item"
+   ],
+   "order_id": "O01033",
+   "status": "delivered"
+  },
+  "O01034": {
+   "address": "64 Example Street",
+   "customer_id": "C1036",
+   "delivered_at": "2026-10-15T12:00:00Z",
+   "items": [
+    "synthetic-item"
+   ],
+   "order_id": "O01034",
+   "status": "delivered"
+  },
+  "O01035": {
+   "address": "40 Example Street",
+   "customer_id": "C1038",
+   "delivered_at": "2026-10-15T06:00:00Z",
+   "items": [
+    "synthetic-item"
+   ],
+   "order_id": "O01035",
+   "status": "delivered"
+  },
+  "O01036": {
+   "address": "89 Example Street",
+   "customer_id": "C1040",
+   "delivered_at": "2026-10-12T12:00:00Z",
+   "items": [
+    "synthetic-item"
+   ],
+   "order_id": "O01036",
+   "status": "delivered"
+  },
+  "O01037": {
+   "address": "88 Example Street",
+   "customer_id": "C1041",
+   "delivered_at": "2026-10-12T06:00:00Z",
+   "items": [
+    "synthetic-item"
+   ],
+   "order_id": "O01037",
+   "status": "delivered"
+  },
+  "O01038": {
+   "address": "11 Example Street",
+   "customer_id": "C1042",
+   "delivered_at": "2026-10-12T14:00:00Z",
+   "items": [
+    "synthetic-item"
+   ],
+   "order_id": "O01038",
+   "status": "delivered"
+  },
+  "O01039": {
+   "address": "5 Example Street",
+   "customer_id": "C1043",
+   "delivered_at": "2026-10-12T13:00:00Z",
+   "items": [
+    "synthetic-item"
+   ],
+   "order_id": "O01039",
+   "status": "delivered"
+  }
+ }
+}

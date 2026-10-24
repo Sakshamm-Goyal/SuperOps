@@ -1,0 +1,29 @@
+[project]
+name = "greenops-verify"
+version = "0.1.0"
+description = "Evidence-backed cloud and AI change investigation, approval and verification workbench"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+  "fastapi==0.141.1",
+  "uvicorn==0.54.0",
+  "pydantic==2.14.1",
+  "psycopg[binary]==3.3.6",
+  "httpx==0.28.1",
+  "streamlit==1.66.0",
+  "google-adk==2.12.0",
+  "litellm==1.105.1",
+]
+
+[dependency-groups]
+dev = ["pytest==9.1.1", "hypothesis==6.170.0"]
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+markers = [
+  "integration: needs local PostgreSQL and the H-MEM sidecar runtime",
+  "connected: needs real Zetaris/NVIDIA credentials; BLOCKED when absent",
+]

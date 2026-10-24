@@ -1,0 +1,42 @@
+# GreenOps Verify workbench: quiet light review-desk theme.
+# Teal = verified/selected, amber = attention, red = failed/blocked. Status text and icons always accompany color.
+
+[theme]
+base = "light"
+primaryColor = "#0f766e"
+backgroundColor = "#fbfbf9"
+secondaryBackgroundColor = "#eef2f1"
+textColor = "#1c2526"
+linkColor = "#0f5f59"
+baseFontSize = 16
+greenColor = "#0f766e"
+greenTextColor = "#0b5a54"
+greenBackgroundColor = "#e3f1ef"
+orangeColor = "#b45309"
+orangeTextColor = "#8a3f06"
+orangeBackgroundColor = "#fdf1dc"
+yellowColor = "#b45309"
+yellowTextColor = "#8a3f06"
+yellowBackgroundColor = "#fdf1dc"
+redColor = "#b42318"
+redTextColor = "#912018"
+redBackgroundColor = "#fbe9e7"
+blueColor = "#2f5d7c"
+blueTextColor = "#244a63"
+blueBackgroundColor = "#e8eff5"
+grayColor = "#5b6566"
+grayTextColor = "#3f4849"
+grayBackgroundColor = "#eef0f0"
+
+[client]
+# Never show tracebacks to users; the UI shows error codes and request IDs instead.
+showErrorDetails = "none"
+toolbarMode = "minimal"
+
+[browser]
+gatherUsageStats = false
+
+[server]
+# Local sandbox workbench: listen on loopback only. The workbench never accepts uploads.
+address = "127.0.0.1"
+maxUploadSize = 1

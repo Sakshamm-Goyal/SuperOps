@@ -1,6 +1,6 @@
 # Test strategy
 
-**Status: planning specification, 16 October 2026. No application, test suite, sponsor connection or performance result is established by this document.** The future implementation must turn the IDs below into executable checks. D owns the independent acceptance suite, evaluation and security verdicts. A implements data/sponsor test plumbing, B implements domain/agent/workload test plumbing, and C implements API/jobs/execution test plumbing. D is the sole owner of holdout labels and evaluator credentials; candidate implementers receive development cases only.
+**Status: implemented pre-event, 16 October 2026 (see PREEXISTING.md).** Tiers T0–T4 exist as `make check`, `test-integration`, `test-connected`, `test-e2e` and `eval`; see the implemented map at the end. Connected sponsor tests are BLOCKED until credentials are supplied. The future implementation must turn the IDs below into executable checks. D owns the independent acceptance suite, evaluation and security verdicts. A implements data/sponsor test plumbing, B implements domain/agent/workload test plumbing, and C implements API/jobs/execution test plumbing. D is the sole owner of holdout labels and evaluator credentials; candidate implementers receive development cases only.
 
 The user confirmed 4–5 builders over six days. A–D form the core team; optional E owns UI/UX and submission packaging. With four builders, C owns the minimal UI and coordinates submission, while D verifies acceptance/demo evidence and the package. The product scope is unchanged: a cloud investigation, one support-workflow experiment, genuine Zetaris and Meterless integration, a bounded critique/revision loop, and one approved change with read-back. See [evaluation specification](EVALUATION_SPEC.md) for the experimental protocol and numerical oracles. The source design is [the supplied developer handoff](../Refer-Docs/GreenOps_Verify_Developer_Handoff.md); its instructions describe a proposal, not an already working system.
 
@@ -152,3 +152,19 @@ GCP-specific execution additionally checks stop → terminal operation/state →
 Release blockers are unexplained arithmetic/identity errors, evidence loss, label leakage, unauthorized or duplicate writes, false `VERIFIED`, memory scope leakage, missing required sponsor evidence, or inability to run the documented core flow. A lower-than-hoped saving is not a reason to invent a better result: ship the working no-change/rejection outcome or reduce the claim. Optional GCP execution can be cut in favour of the declared local analogue; required sponsors, evidence, approval and verification remain in scope.
 
 Before accepting a release, map every advertised capability to at least one passed ID and artifact. Re-run affected checks when code/config/dependency/policy changes; pin a final manifest for the submitted version. Publish counts of `PASS`, `FAIL`, `BLOCKED`, `NOT_RUN` and `NOT_APPLICABLE` separately. All counts are currently **not measured**.
+
+
+## 8. Implemented test map (16 October 2026, pre-event)
+
+| IDs | Where | Tier | Last local result |
+|---|---|---|---|
+| D-02, D-04, D-05, D-07..09, D-16, D-17, D-19, D-20, plan-hash | `tests/unit/test_domain_oracles.py` | T0 | PASS |
+| D-01, D-03, D-04..06, D-18, OpenAPI = runtime routes = API_REFERENCE | `tests/unit/test_scenarios_and_contracts.py` | T0 | PASS (needs the sample DB loaded) |
+| ZET-02/04 contract, SEC-03, holdout-not-in-templates | `tests/unit/test_adapters_contract.py` | T0 (mock transport: contract only) | PASS |
+| ACT-01, 02, 03, 04/HMEM-03, 05, 07, 08, 09, 13, 14, 15, 16, SEC-01, SEC-02, SEC-05, idempotency, NO_CHANGE/NEEDS_REVIEW | `tests/integration/test_authority.py` | T1 (real PostgreSQL, real worker processes; scripted roles + sample evidence) | PASS |
+| HMEM-01, 02, 03, 05, guard, memory-unavailable, connected refuses non-semantic | `tests/integration/test_memory_learning.py` | T1 (real sidecar process, hash embedder) | PASS |
+| Sidecar contract, integrity, fail-closed, orphan adoption | `memory-sidecar/test/*.test.ts` | T1 | 21/21 PASS |
+| ZET-01..04, NIM-01, NIM-02, HMEM-07/SP-07 | `tests/connected/test_sponsors.py` | T2 | **BLOCKED** (credentials) |
+| Holdout evaluation | `make eval` (`experiments/support/evaluate.py`) | T4 | NOT_RUN (needs a frozen candidate from a real-model trial) |
+
+`var/test-results/latest.json` records PASS/FAIL/BLOCKED/NOT_RUN for each pytest session (`make test` prints the counts). Not yet implemented: ACT-10 (recovery operation itself fails), ACT-11 as a dedicated test (the AI action verification checks the runner-loaded config hash), ACT-12 (process kill while holding the lock: reconciliation is covered by ACT-07), E2E-03 browser-level degraded run, and T5 clean-install exercise on a second machine.

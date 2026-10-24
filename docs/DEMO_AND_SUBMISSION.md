@@ -1,7 +1,7 @@
 # Demo, judging evidence and submission plan
 
 **Prepared:** 16 October 2026  
-**Status:** Planned demonstration and packaging; no achieved results, completed integrations, video, deck or submission yet.  
+**Status (updated 16 Oct):** The application was implemented pre-event (PREEXISTING.md). Sample-mode runs and their evidence exist. No connected sponsor results, video, deck or submission exist yet. Media must label sample/scripted runs as such and must not present them as sponsor evidence.  
 **Primary track proposed:** Track 02 — The Agent That Can Explain Why, subject to the eligibility gate in [Hackathon rules](HACKATHON_RULES.md).  
 **Confirmed planning inputs:** 4–5 active builders; niksm7/GreenOps is third-party inspiration for an original implementation, with no upstream code/assets reuse. Organizer track and pre-event-disclosure questions remain open.
 
