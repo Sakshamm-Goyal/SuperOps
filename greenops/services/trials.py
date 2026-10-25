@@ -175,8 +175,11 @@ def _cloud_trial(rt: Runtime, trial: dict, plan: dict, doc: dict, policy: Servic
         r.pop("server_latencies_ms", None)
     checks = [
         {"check_id": "TRIAL-COMPARABLE", "status": "PASS" if comparable else "FAIL",
-         "detail": f"identical offered load (schedule lag p95 ≤ {MAX_SCHEDULE_LAG_MS} ms in every judged window; {len(discarded)} non-comparable "
-                   f"windows re-measured); candidate fixture served the candidate config hash"},
+         "detail": (f"identical offered load (schedule lag p95 ≤ {MAX_SCHEDULE_LAG_MS} ms in every judged window; {len(discarded)} non-comparable "
+                    f"windows re-measured); candidate fixture served the candidate config hash") if comparable else
+                   (f"load generator could not deliver the manifest's offered load: {len(discarded)} windows exceeded schedule lag "
+                    f"(p95 > {MAX_SCHEDULE_LAG_MS} ms or max > {MAX_BURST_LAG_MS} ms) after {MAX_PAIR_REMEASURES} re-measures; candidate not judged"
+                    if not pair_complete else "candidate fixture did not serve the candidate config hash in every window, or offered load differed")},
         {"check_id": "TRIAL-NO-NEW-FAILURES", "status": "PASS" if cfail <= bfail else "FAIL", "detail": f"candidate failures {cfail} vs baseline {bfail}"},
         {"check_id": "TRIAL-P95-REGRESSION", "status": "FAIL" if regression else "PASS",
          "detail": f"pooled server-side candidate p95 {cp95 and round(cp95, 1)} ms vs limit {round(limit, 1)} ms (baseline {round(bp95, 1)} ms "
@@ -351,7 +354,9 @@ def _post_trial(rt, inv, plan, trial_id, status, result, trial_hash) -> None:
             critic = {"verdict": "ERROR", "note": f"{type(e).__name__}"}
     real = {c["check_id"] for c in result["checks"]}
     validated = status == "PASSED" and critic.get("verdict") == "VALIDATED" and bool(set(critic.get("check_ids", [])) & real)
-    new_status = "AWAITING_APPROVAL" if validated else "REJECTED"
+    # INCOMPLETE: the instrument (load, budget, execution) failed, so the candidate was never judged. It stays DRAFT and
+    # can be re-trialled; rejecting it would turn instrument noise into a verdict (EVALUATION_SPEC 2026-10-17 amendment).
+    new_status = "AWAITING_APPROVAL" if validated else "DRAFT" if status == "INCOMPLETE" else "REJECTED"
     sig = plan["screening"].get("signature")
     reason = "; ".join(f"{c['check_id']}: {c['detail']}" for c in result["checks"] if c["status"] != "PASS") or f"critic {critic.get('verdict')}"
     versions = I.current_versions(rt, inv, None)
@@ -388,5 +393,6 @@ def _post_trial(rt, inv, plan, trial_id, status, result, trial_hash) -> None:
         inv2 = I.load(c, inv["id"])
     summ = inv2["summary"]
     if not validated:
-        summ.setdefault("feedback", []).append({"signature": sig, "outcome": "FAILED", "reasons": reason, "trial_id": str(trial_id)})
+        summ.setdefault("feedback", []).append({"signature": sig, "outcome": "INCOMPLETE" if status == "INCOMPLETE" else "FAILED",
+                                                "reasons": reason, "trial_id": str(trial_id)})
         I.save_summary(rt, inv["id"], summ)

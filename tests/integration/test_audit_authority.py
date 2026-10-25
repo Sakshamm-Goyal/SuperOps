@@ -329,3 +329,31 @@ def test_trial_window_with_load_generator_lag_is_remeasured_not_judged(env, monk
     monkeypatch.setattr(T, "run_workload", lambda w, d, label: {**real(w, d, label), "schedule_lag_p95_ms": 40.0})
     out = T._cloud_trial(rt, {"id": "t2", "plan_id": None}, plan, doc, pol)
     assert out["outcome"] == "INCOMPLETE"
+
+
+def test_incomplete_cloud_trial_does_not_judge_the_candidate(env, monkeypatch):
+    """25 Oct: a non-comparable (INCOMPLETE) trial rejected an eligible plan and fed 'FAILED' back to the agents.
+    INCOMPLETE means the instrument failed, so the plan stays DRAFT, can be re-trialled, and feedback says INCOMPLETE."""
+    from greenops.services import trials as T
+    rt, client = env
+    real = T.run_workload
+    monkeypatch.setattr(T, "run_workload", lambda w, d, label: {**real(w, d, label), "schedule_lag_p95_ms": 40.0})
+    iid = start_investigation(client)
+    drain(rt)
+    inv = client.get(f"/v1/investigations/{iid}", headers=auth("lead", False)).json()
+    incomplete = {t["plan_id"] for t in inv["data"]["trials"] if t["status"] == "INCOMPLETE" and t["suite_id"] == "workload-wl-v1"}
+    assert incomplete, inv["data"]["trials"]
+    plans = [p for p in inv["data"]["plans"] if p["id"] in incomplete]
+    assert all(p["status"] == "DRAFT" for p in plans), [(p["status"], p["screening"]["signature"]) for p in plans]
+    sigs = {p["screening"]["signature"] for p in plans}
+    assert all(f["outcome"] == "INCOMPLETE" for f in inv["data"]["feedback"] if f.get("signature") in sigs and f.get("trial_id"))
+    assert inv["status"] in ("NEEDS_REVIEW", "AWAITING_APPROVAL")
+    comparable = next(c for t in inv["data"]["trials"] if t["plan_id"] in incomplete
+                      for c in client.get(f"/v1/trials/{t['id']}", headers=auth("lead", False)).json()["data"]["result"]["checks"]
+                      if c["check_id"] == "TRIAL-COMPARABLE")
+    assert comparable["status"] == "FAIL" and "identical offered load" not in comparable["detail"]  # FAIL never reads as a pass
+    monkeypatch.setattr(T, "run_workload", real)
+    p = plans[0]
+    r = client.post(f"/v1/plans/{p['id']}/trials", headers=auth("lead"), json={
+        "plan_hash": p["plan_hash"], "approved_trial_profile_id": "sandbox-trials-v1", "suite_id": "workload-wl-v1"})
+    assert r.status_code == 202, r.text

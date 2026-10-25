@@ -263,3 +263,62 @@ def cost_per_accepted(value: Any) -> str:
 def usage_basis_label(basis: str | None) -> str:
     return {"provider": "provider-reported usage", "scripted_estimate": "scripted estimate (not provider billing)"}.get(
         basis or "", f"unknown basis ({basis})" if basis else "unknown basis")
+
+
+# ---- demo story ------------------------------------------------------------------------------------
+# The Story page retells one investigation as four moments. Each picker returns None when this run did not
+# produce that moment, so the page states what is missing instead of inventing it.
+
+def check(plan: dict, check_id: str) -> dict | None:
+    return next((c for c in (plan.get("screening") or {}).get("checks") or [] if c.get("check_id") == check_id), None)
+
+
+def story(d: dict) -> dict:
+    plans = d.get("plans") or []
+    trial_of = {t.get("plan_id"): t for t in d.get("trials") or []}
+    cloud = [p for p in plans if p.get("path") == "cloud"]
+    peak_fail = [p for p in cloud if (check(p, "CHK-CPU-PEAK") or {}).get("status") == "FAIL"]
+    trap = next((p for p in peak_fail if environment_of(p.get("target_key")).startswith("production")), None) or \
+        next(iter(peak_fail), None)
+    revision = next((p for p in cloud if (trial_of.get(p["id"]) or {}).get("status") == "PASSED"), None)
+    rejected_first = revision and next((p for p in cloud if p.get("target_key") == revision.get("target_key")
+                                        and p.get("status") == "REJECTED"), None)
+    ai_trials = [(p, trial_of[p["id"]]) for p in plans if p.get("path") == "ai" and p["id"] in trial_of]
+    mem = d.get("memory") or {}
+    proposed = {(p.get("screening") or {}).get("signature") for p in plans}
+    recalled = [m for m in mem.get("applicable") or [] if m.get("kind") in ("screening_rejection", "rejected_trial")]
+    return {
+        "trap": trap,
+        "revision": revision,
+        "rejected_first": rejected_first,
+        "not_judged": [p for p in cloud if (trial_of.get(p["id"]) or {}).get("status") == "INCOMPLETE"],
+        "ai_fail": next(((p, t) for p, t in ai_trials if t.get("status") == "FAILED"), None),
+        "ai_pass": next(((p, t) for p, t in ai_trials if t.get("status") == "PASSED"), None),
+        "memory_status": mem.get("status"),
+        "recalled": recalled,
+        "not_repeated": [m for m in recalled if m.get("signature") not in proposed],
+        "historical": mem.get("historical") or [],
+        "awaiting": [p for p in plans if p.get("status") == "AWAITING_APPROVAL"],
+        "counts": {"screened": len(plans), "rejected": sum(p.get("status") == "REJECTED" for p in plans),
+                   "trials_passed": sum(t.get("status") == "PASSED" for t in trial_of.values()),
+                   "awaiting": sum(p.get("status") == "AWAITING_APPROVAL" for p in plans), "recalled": len(recalled)},
+    }
+
+
+def lost_categories(result: dict) -> list[dict]:
+    """Categories where the candidate accepted fewer cases than the baseline."""
+    base = (result.get("baseline") or {}).get("by_category") or {}
+    cand = (result.get("candidate") or {}).get("by_category") or {}
+    return [{"category": k, "baseline": base[k].get("accepted"), "candidate": v.get("accepted"), "total": v.get("total")}
+            for k, v in cand.items() if k in base and (v.get("accepted") or 0) < (base[k].get("accepted") or 0)]
+
+
+def vcpu_points(rows: list[dict], vcpu: Any) -> list[dict]:
+    """CPU percent rows -> absolute vCPU points for charting (display only; checks use the API's own values)."""
+    n = float(vcpu)
+    return [{"observed_at": r["observed_at"], "vcpu": float(r["cpu_percent"]) * n / 100}
+            for r in rows if r.get("cpu_percent") not in (None, "")]
+
+
+def pct(fraction: Any) -> str:
+    return "—" if fraction is None else f"{fmt_num(Decimal(str(fraction)) * 100, 1)}%"

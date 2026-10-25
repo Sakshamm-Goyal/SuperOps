@@ -123,7 +123,7 @@ def scripted_investigator(payload: dict, tools) -> dict:
 
 
 def _blocked_signatures(payload: dict) -> set[str]:
-    blocked = {f["signature"] for f in payload.get("feedback", []) if f.get("outcome") in ("REJECTED", "FAILED")}
+    blocked = {f["signature"] for f in payload.get("feedback", []) if f.get("outcome") in ("REJECTED", "FAILED", "INCOMPLETE")}
     blocked |= {m["signature"] for m in payload.get("memory", [])
                 if m.get("applicable") and m.get("signature") and m.get("kind") in ("screening_rejection", "rejected_trial")}
     return blocked

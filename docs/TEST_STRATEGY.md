@@ -165,7 +165,8 @@ Before accepting a release, map every advertised capability to at least one pass
 | HMEM-01, 02, 03, 05, guard, memory-unavailable, connected refuses non-semantic | `tests/integration/test_memory_learning.py` | T1 (real sidecar process, hash embedder) | PASS |
 | Sidecar contract, integrity, fail-closed, orphan adoption, missing-record reconciliation | `memory-sidecar/test/*.test.ts` | T1 | 24/24 PASS (Node 22) |
 | Audit A01–A22 regressions (unit) | `tests/unit/test_audit_regressions.py` | T0 | PASS |
-| Audit A01–A03, A06–A08, A12, A13, A15, A22 + trial-fidelity regressions | `tests/integration/test_audit_authority.py` | T1 | PASS |
+| Audit A01–A03, A06–A08, A12, A13, A15, A22 + trial-fidelity regressions; INCOMPLETE trial leaves plan DRAFT (ADR-24, 25 Oct) | `tests/integration/test_audit_authority.py` | T1 | PASS |
+| Story page moment selection (absent moments stay absent; not-judged trial is not a revision) | `tests/unit/test_story.py` | T0 | PASS |
 | ZET-01..04, NIM-01, NIM-02, HMEM-07/SP-07 | `tests/connected/test_sponsors.py` | T2 | **BLOCKED** (credentials) |
 | Holdout evaluation | `make eval` (`experiments/support/evaluate.py`) | T4 | NOT_RUN (needs a frozen candidate from a real-model trial) |
 
