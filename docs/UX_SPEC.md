@@ -14,7 +14,7 @@ This is an investigation workspace with an optional request field, not a chat tr
 
 ## Navigation and persistent context
 
-Sidebar: **Investigations · AI Lab · Actions & reports · Operations**. Show current service and environment at the top.
+Sidebar: **Story · Investigations · AI Lab · Actions & reports · Operations**. **Story** (default page, added 25 Oct 2026) retells one investigation as four moments — the peak-CPU trap, the revision that passed a matched trial, the AI candidate the verifier rejected and its passing revision, and memory skipping a known failure — plus what still needs a human. It only selects records the other pages show, and states when a moment is absent from that run (for example a trial that was not comparable). Show current service and environment at the top.
 Global banner: runtime mode, authenticated actor, sandbox type, overall source health and remaining experiment budget.
 Always distinguish `Connected demo`, `Recorded replay` and `Degraded read-only`. “Connected” describes integrations; data may still be synthetic and needs a separate origin badge.
 Every page shows investigation ID, service, relevant policy/workload versions and last refreshed time. Show timestamps with timezone; retain UTC in receipts.
