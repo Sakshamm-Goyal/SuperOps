@@ -77,6 +77,22 @@ class ExecuteRequest(Req):
     plan_hash: str
 
 
+class CopilotMessage(Req):
+    message: str = Field(min_length=1, max_length=4000)
+    conversation_id: uuid.UUID | None = None
+    investigation_id: uuid.UUID | None = None
+
+
+class CopilotReply(BaseModel):
+    conversation_id: str
+    message_id: str
+    reply: str
+    model_id: str
+    tool_calls: list[dict[str, Any]]
+    citations: list[dict[str, Any]]
+    suggested_prompts: list[str]
+
+
 class ErrorBody(BaseModel):
     code: str
     message: str
@@ -566,6 +582,44 @@ def create_app(rt: Runtime | None = None) -> FastAPI:
                    "engine_memory_id": m["engine_memory_id"], "sync_status": m["status"], "audit": audit, "audit_error": audit_error,
                    "current_policy_applicability": reasons or ["APPLICABLE_TO_CURRENT_POLICY"],
                    "note": "memory informs investigations; it never authorizes an action"})
+
+    # ---- overview / copilot ---------------------------------------------------------------------
+
+    @app.get("/v1/overview", tags=["services"], responses=ERRORS)
+    def overview(request: Request, actor: dict = Depends(viewer)):
+        from greenops.services import overview as O
+        return {**json.loads(dumps(O.build(rt, actor["tenant_id"]))), "request_id": request.state.request_id}
+
+    def caller_get(request: Request):
+        """In-process GET with the caller's own token: the copilot sees exactly what the caller may see."""
+        from fastapi.testclient import TestClient
+        tc = TestClient(app, raise_server_exceptions=False)
+        auth = request.headers.get("authorization", "")
+
+        def get(path: str):
+            r = tc.get(path, headers={"Authorization": auth})
+            try:
+                return r.status_code, r.json()
+            except ValueError:
+                return r.status_code, {"error": {"code": "NON_JSON"}}
+        return get
+
+    @app.post("/v1/copilot/messages", tags=["copilot"], response_model=CopilotReply, responses=ERRORS)
+    def copilot_message(request: Request, body: CopilotMessage, actor: dict = Depends(viewer),
+                        idempotency_key: str | None = Header(None, alias="Idempotency-Key")):
+        from greenops import copilot
+        get = caller_get(request)
+
+        def handler(c):
+            out = copilot.converse(rt, actor, body.message, body.conversation_id and str(body.conversation_id),
+                                   body.investigation_id and str(body.investigation_id), get)
+            return 200, out
+        return idempotent(request, actor, idempotency_key, "POST /v1/copilot/messages", body.model_dump(mode="json"), handler)
+
+    @app.get("/v1/copilot/conversations/{conversation_id}", tags=["copilot"], responses=ERRORS)
+    def copilot_conversation(request: Request, conversation_id: str, actor: dict = Depends(viewer)):
+        from greenops import copilot
+        return {**copilot.conversation(rt, actor, conversation_id), "request_id": request.state.request_id}
 
     @app.get("/v1/reports/{investigation_id}", tags=["reports"], responses={**ERRORS, 200: {"content": {"application/json": {}, "text/html": {}}}})
     def report(request: Request, investigation_id: str, actor: dict = Depends(viewer), format: Literal["json", "html"] = "json"):
