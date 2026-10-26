@@ -6,8 +6,8 @@ PG_PORT ?= 55432
 PG_DIR := var/pg
 SAMPLE_SRC := postgresql://greenops@127.0.0.1:$(PG_PORT)/greenops_sample_src
 
-.PHONY: bootstrap db-up db-down sample-data sources-split preflight dev api worker ui sidecar sandbox-up sandbox-down \
-        check test-unit test-integration test-connected test-e2e test test-sidecar eval eval-freeze eval-cloud \
+.PHONY: bootstrap db-up db-down sample-data sources-split sources-up zetaris-setup preflight dev api worker ui sidecar sandbox-up sandbox-down \
+        check web web-build test-unit test-integration test-connected test-e2e test test-sidecar eval eval-freeze eval-cloud \
         memory-ablation trial-profile-approve reset-demo demo openapi verify-docs
 
 bootstrap:            ## locked Python + Node deps, local PostgreSQL, generated data, migrations, actors
@@ -33,6 +33,16 @@ sample-data:          ## regenerate deterministic synthetic data + support cases
 sources-split:        ## load source A (cloud+ref) and source B (ai) into SEPARATE databases for Zetaris registration
 	$(PY) scripts/load_sources.py --group cloud=$(SOURCE_A_URL)#public --group ref=$(SOURCE_A_URL)#ref --group ai=$(SOURCE_B_URL)#public
 
+sources-up:           ## source B: a separate PostgreSQL container (physically distinct from source A, the project PostgreSQL)
+	@test -f var/sources.local.env || $(PY) -c "from scripts.zetaris_setup import local_env; local_env()"
+	@. var/sources.local.env; docker ps -a --format '{{.Names}}' | grep -q '^greenops-src-ai$$' || docker run -d --name greenops-src-ai \
+	  --restart unless-stopped -e POSTGRES_USER=greenops -e POSTGRES_PASSWORD=$$SRC_B_ADMIN_PW -e POSTGRES_DB=greenops_src_ai \
+	  -p 127.0.0.1:55434:5432 -v greenops-src-ai:/var/lib/postgresql/data postgres:17-alpine >/dev/null
+	@docker start greenops-src-ai >/dev/null; until docker exec greenops-src-ai pg_isready -U greenops -q; do sleep 1; done; echo "source B ready on :55434"
+
+zetaris-setup:        ## load both sources, read-only roles, register datasources in Zetaris (ZETARIS_* in .env), verify counts
+	$(PY) scripts/zetaris_setup.py
+
 preflight:            ## redacted readiness of configured capabilities (fails with actionable missing inputs)
 	$(PY) scripts/preflight.py
 
@@ -48,6 +58,13 @@ worker:
 
 ui:
 	uv run streamlit run greenops/ui/app.py --server.port 8501 --server.headless true
+
+WEB_NODE_PATH ?= /usr/local/bin
+web:                  ## React workbench on :5173 (proxies /v1, /health, /docs, /openapi.json to the API on :8000)
+	cd web && PATH="$(WEB_NODE_PATH):$$PATH" && (test -d node_modules || npm ci --ignore-scripts) && npm run dev
+
+web-build:            ## type-check and build the React workbench into web/dist
+	cd web && PATH="$(WEB_NODE_PATH):$$PATH" && (test -d node_modules || npm ci --ignore-scripts) && npm run build
 
 sandbox-up:           ## start the local executable sandbox workers (action target + two trial fixtures)
 	$(PY) scripts/sandbox.py up

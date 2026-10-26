@@ -178,6 +178,10 @@ class ZetarisError(Exception):
         self.code = code
 
 
+_SPARK_TS = re.compile(r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}(\.\d{1,9})?$")
+_UTC_ZONES = {"GMT", "UTC", "Etc/UTC", "Etc/GMT", "Z", "+00:00"}
+
+
 class ZetarisClient:
     """Zetaris SaaS REST adapter per public OpenAPI v1 (sha256 4ec254d6…): login, sql/start, sql/page, sql/close."""
     source_system = "zetaris"
@@ -190,6 +194,7 @@ class ZetarisClient:
         self.http = http or httpx.Client(base_url=settings.zetaris_base_url.rstrip("/"), timeout=timeout_s)
         self.max_retries = max_retries
         self._token: str | None = None
+        self._session_tz: str | None = None
 
     def _headers(self, request_id: str) -> dict:
         return {"X-Request-ID": request_id, "X-Org-ID": str(int(self.s.zetaris_org_id)), "Accept": "application/json"}
@@ -245,6 +250,24 @@ class ZetarisClient:
             out.append({k.lower(): norm(v) for k, v in r.items()})
         return out
 
+    def _utc_timestamps(self, rows: list[dict], request_ids: list[str]) -> list[dict]:
+        """Spark returns timestamptz as zone-less strings rendered in the session time zone (local Zetaris, 26 Oct).
+        Convert them to RFC3339 UTC only after confirming the session zone is UTC; any other zone fails closed."""
+        if not any(isinstance(v, str) and _SPARK_TS.match(v) for r in rows for v in r.values()):
+            return rows
+        if self._session_tz is None:
+            r = self._call("POST", "/api/v1.0/query/sql/start", request_ids, json={"select": "SELECT current_timezone() AS tz", "pageLimit": 1})
+            body = self._page(r)
+            self._session_tz = str(self._records(body)[0]["tz"])
+            try:
+                self._call("DELETE", f"/api/v1.0/query/sql/close/{body.get('queryToken')}", request_ids)
+            except ZetarisError:
+                pass
+        if self._session_tz not in _UTC_ZONES:
+            raise ZetarisError("EVIDENCE_QUERY_FAILED", f"Zetaris session time zone {self._session_tz} is not UTC; zone-less timestamps are ambiguous")
+        conv = lambda v: rfc3339(datetime.fromisoformat(v.replace(" ", "T")).replace(tzinfo=timezone.utc)) if isinstance(v, str) and _SPARK_TS.match(v) else v
+        return [{k: conv(v) for k, v in r.items()} for r in rows]
+
     MAX_PAGE_BYTES = 5 * 1024 * 1024
 
     def _page(self, r: httpx.Response) -> dict:
@@ -287,6 +310,7 @@ class ZetarisClient:
                     raise ZetarisError("EVIDENCE_QUERY_FAILED", "Zetaris paging metadata changed between pages (unstable result set)")
                 rows.extend(self._records(body))
                 pages += 1
+            rows = self._utc_timestamps(rows, request_ids)
             if dupes := duplicate_keys(t, rows):
                 raise ZetarisError("EVIDENCE_QUERY_FAILED", f"{t.id}: {len(dupes)} duplicate or keyless rows across pages for key {t.key}")
             if len(rows) > max_rows or (len(rows) == max_rows and total > max_rows):

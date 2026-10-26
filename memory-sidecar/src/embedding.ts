@@ -105,20 +105,25 @@ export class EmbeddingClient {
     const headers: Record<string, string> = { "content-type": "application/json", accept: "application/json" };
     if (this.cfg.apiKey) headers.authorization = `Bearer ${this.cfg.apiKey}`;
 
-    let res: Response;
-    try {
-      res = await fetch(`${this.cfg.baseUrl}/embeddings`, {
-        method: "POST",
-        headers,
-        body: JSON.stringify(body),
-        signal: AbortSignal.timeout(this.cfg.timeoutMs),
-      });
-    } catch (err) {
-      const name = err instanceof Error ? err.name : "Error";
-      throw new EmbeddingUnavailableError(`embedding request failed (${name})`);
-    }
-    if (!res.ok) {
+    // One retry for a transient provider failure (timeout, 429, 5xx): a single slow NVIDIA response failed
+    // HMEM-07 on 26 Oct. Embedding is a read; nothing is written until vectors are validated.
+    let res: Response | undefined;
+    for (let attempt = 1; ; attempt++) {
+      try {
+        res = await fetch(`${this.cfg.baseUrl}/embeddings`, {
+          method: "POST",
+          headers,
+          body: JSON.stringify(body),
+          signal: AbortSignal.timeout(this.cfg.timeoutMs),
+        });
+      } catch (err) {
+        if (attempt < 2) continue;
+        const name = err instanceof Error ? err.name : "Error";
+        throw new EmbeddingUnavailableError(`embedding request failed (${name})`);
+      }
+      if (res.ok) break;
       await res.body?.cancel().catch(() => undefined);
+      if (attempt < 2 && (res.status === 429 || res.status >= 500)) continue;
       throw new EmbeddingUnavailableError(`embedding provider returned HTTP ${res.status}`);
     }
     let parsed: unknown;

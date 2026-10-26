@@ -126,7 +126,15 @@ class AdkGateway:
     def run(self, role, instruction, payload, output_model, *, tools=None, budget=None, before_tool=None, timeout_s=None):
         # Per-turn ceiling; 45 s was too tight for a 120B hosted model writing a typed report plus one correction.
         timeout_s = timeout_s or float(os.environ.get("MODEL_ROLE_TIMEOUT_S", "90"))
-        return asyncio.run(self._run(role, instruction, payload, output_model, tools or [], budget, before_tool, timeout_s))
+        # One fresh-session retry for a transient provider failure (a single >90 s or HTTP 500 response failed whole
+        # investigations on 25 and 26 Oct). Role calls are read-only proposals; every request still reserves budget.
+        for attempt in (1, 2):
+            try:
+                return asyncio.run(self._run(role, instruction, payload, output_model, tools or [], budget, before_tool, timeout_s))
+            except ModelError as e:
+                if e.code != "DEPENDENCY_UNAVAILABLE" or attempt == 2:
+                    raise
+                logging.getLogger(__name__).warning("%s: transient provider failure, retrying once: %s", role, e)
 
     async def _run(self, role, instruction, payload, output_model, tools, budget, before_tool, timeout_s):
         from google.adk.agents import LlmAgent

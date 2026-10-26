@@ -34,6 +34,9 @@ Decimal quantities are JSON strings. Timestamps are UTC RFC3339. Collections ret
 | GET /v1/actions/{id} | viewer | None | 200 `Resource`: factual status (incl. terminal `RESOLVED_MANUALLY` after the operator procedure), before/after, operation IDs, stage journal, verification checks, recovery, `memory_sync_status`, executor label |
 | GET /v1/evidence/{id} | viewer | None | 200 `Resource`: query receipt (template/version, parameter hash, sources, request IDs, pages, completeness, result hash, close status), up to 500 source rows, labels |
 | GET /v1/memories/{id} | viewer | None (id = application receipt id) | 200 `Resource`: envelope, sync status, engine id, sidecar audit history, current-policy applicability |
+| GET /v1/overview | viewer | None | 200 dashboard read model from committed state: `{runtime_mode, service_id, generated_at, investigations{total, by_status}, plans{total, by_status}, savings{proposed_monthly_usd, blocked_monthly_usd, verified_monthly_usd, latest_investigation_id, basis}, carbon{proposed_monthly_kgco2e, basis}, rejections_by_check[{check_id, n}], memory{status, semantic, embedding_model, engine, engine_sha, records, pending, recalls, applicable_hits}, federation{mode, sources[{group, name}], receipts, last_receipt_at}, model{agent_model_id, copilot_model_id}, recent[{at, kind, investigation_id, actor, summary}], request_id}`. Savings are projections with the stated basis, never invoice savings; no agent run |
+| POST /v1/copilot/messages | viewer | `CopilotMessage`: message (1–4000 chars), optional conversation_id, optional investigation_id (context) | 200 `CopilotReply` `{conversation_id, message_id, reply (markdown), model_id, tool_calls[{tool, input, ok, duration_ms}], citations[{kind, id, label}], suggested_prompts}`; both turns persisted in `copilot_messages`, the call recorded in `model_calls` (role `copilot`). Advisory only, see [Ops Copilot](#ops-copilot). 503 `DEPENDENCY_UNAVAILABLE` when `ANTHROPIC_API_KEY` is absent or the model is unavailable; foreign conversation → 404 |
+| GET /v1/copilot/conversations/{id} | viewer (the conversation's own actor) | None | 200 `{conversation_id, investigation_id, messages[{message_id, role, content, at, tool_calls, citations}], request_id}` |
 | GET /v1/reports/{id} | viewer | format=`json`\|`html` | 200 versioned report from committed state only (no agent run), with `content_hash` |
 | GET /v1/operations | admin | None | 200 redacted readiness, policy/data versions, write flag, allowed targets, execution slot, active actions, jobs, outbox, budgets, trial profiles |
 | GET /openapi.json | open when `APP_ENV=sandbox`; operator when `APP_ENV=hosted` | None | Generated schema |
@@ -79,6 +82,15 @@ Persisted event polling is the only progress channel; there is no SSE.
 | 500 | INTERNAL_ERROR with request id; never SQL, credentials or stack traces |
 
 An action that later fails or becomes uncertain stays readable with 200 and its factual status. An HTTP timeout after a POST does not prove failure: retry with the same key or read the action. Budget exhaustion during a run ends the investigation `NEEDS_REVIEW` with `BUDGET_EXCEEDED` in `outcome.error`; there is no 429 route in P0.
+
+## Ops Copilot
+
+A conversational DevOps assistant on Claude Haiku 4.5 (`COPILOT_MODEL_ID`, default `claude-haiku-4-5-20251001`; key `ANTHROPIC_API_KEY`). It is advisory and holds no authority:
+
+- **API tools** call only allowlisted GET routes of this API, in-process, with the caller's own bearer token, so it reads exactly what the caller may read: investigations (+events), plans, trials, actions, evidence, memories, reports, overview, me, and operations (admin callers only). Any other path is refused before the call.
+- **recall_memory** runs scoped Meterless H-MEM recall with the same application-side applicability re-checks as investigations.
+- **query_evidence** runs one reviewed SQL template with validated parameters through the configured evidence path (Zetaris federation in `connected_demo`, the labelled sample database otherwise). Results are returned to the conversation and are not stored as investigation evidence.
+- No tool can start, approve, revoke, execute or cancel anything. Replies cite the records they used. Model text is never parsed for authority.
 
 ## Private memory wrapper (memory-sidecar/)
 

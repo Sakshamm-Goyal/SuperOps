@@ -89,6 +89,100 @@
     "title": "CancelRequest",
     "type": "object"
    },
+   "CopilotMessage": {
+    "additionalProperties": false,
+    "properties": {
+     "conversation_id": {
+      "anyOf": [
+       {
+        "format": "uuid",
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Conversation Id"
+     },
+     "investigation_id": {
+      "anyOf": [
+       {
+        "format": "uuid",
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Investigation Id"
+     },
+     "message": {
+      "maxLength": 4000,
+      "minLength": 1,
+      "title": "Message",
+      "type": "string"
+     }
+    },
+    "required": [
+     "message"
+    ],
+    "title": "CopilotMessage",
+    "type": "object"
+   },
+   "CopilotReply": {
+    "properties": {
+     "citations": {
+      "items": {
+       "additionalProperties": true,
+       "type": "object"
+      },
+      "title": "Citations",
+      "type": "array"
+     },
+     "conversation_id": {
+      "title": "Conversation Id",
+      "type": "string"
+     },
+     "message_id": {
+      "title": "Message Id",
+      "type": "string"
+     },
+     "model_id": {
+      "title": "Model Id",
+      "type": "string"
+     },
+     "reply": {
+      "title": "Reply",
+      "type": "string"
+     },
+     "suggested_prompts": {
+      "items": {
+       "type": "string"
+      },
+      "title": "Suggested Prompts",
+      "type": "array"
+     },
+     "tool_calls": {
+      "items": {
+       "additionalProperties": true,
+       "type": "object"
+      },
+      "title": "Tool Calls",
+      "type": "array"
+     }
+    },
+    "required": [
+     "conversation_id",
+     "message_id",
+     "reply",
+     "model_id",
+     "tool_calls",
+     "citations",
+     "suggested_prompts"
+    ],
+    "title": "CopilotReply",
+    "type": "object"
+   },
    "CreateInvestigation": {
     "additionalProperties": false,
     "properties": {
@@ -818,6 +912,255 @@
     "summary": "Revoke",
     "tags": [
      "approvals"
+    ]
+   }
+  },
+  "/v1/copilot/conversations/{conversation_id}": {
+   "get": {
+    "operationId": "copilot_conversation_v1_copilot_conversations__conversation_id__get",
+    "parameters": [
+     {
+      "in": "path",
+      "name": "conversation_id",
+      "required": true,
+      "schema": {
+       "title": "Conversation Id",
+       "type": "string"
+      }
+     }
+    ],
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     },
+     "400": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorEnvelope"
+        }
+       }
+      },
+      "description": "Bad Request"
+     },
+     "401": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorEnvelope"
+        }
+       }
+      },
+      "description": "Unauthorized"
+     },
+     "403": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorEnvelope"
+        }
+       }
+      },
+      "description": "Forbidden"
+     },
+     "404": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorEnvelope"
+        }
+       }
+      },
+      "description": "Not Found"
+     },
+     "409": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorEnvelope"
+        }
+       }
+      },
+      "description": "Conflict"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorEnvelope"
+        }
+       }
+      },
+      "description": "Unprocessable Entity"
+     },
+     "429": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorEnvelope"
+        }
+       }
+      },
+      "description": "Too Many Requests"
+     },
+     "503": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorEnvelope"
+        }
+       }
+      },
+      "description": "Service Unavailable"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Copilot Conversation",
+    "tags": [
+     "copilot"
+    ]
+   }
+  },
+  "/v1/copilot/messages": {
+   "post": {
+    "operationId": "copilot_message_v1_copilot_messages_post",
+    "parameters": [
+     {
+      "in": "header",
+      "name": "Idempotency-Key",
+      "required": false,
+      "schema": {
+       "anyOf": [
+        {
+         "type": "string"
+        },
+        {
+         "type": "null"
+        }
+       ],
+       "title": "Idempotency-Key"
+      }
+     }
+    ],
+    "requestBody": {
+     "content": {
+      "application/json": {
+       "schema": {
+        "$ref": "#/components/schemas/CopilotMessage"
+       }
+      }
+     },
+     "required": true
+    },
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/CopilotReply"
+        }
+       }
+      },
+      "description": "Successful Response"
+     },
+     "400": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorEnvelope"
+        }
+       }
+      },
+      "description": "Bad Request"
+     },
+     "401": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorEnvelope"
+        }
+       }
+      },
+      "description": "Unauthorized"
+     },
+     "403": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorEnvelope"
+        }
+       }
+      },
+      "description": "Forbidden"
+     },
+     "404": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorEnvelope"
+        }
+       }
+      },
+      "description": "Not Found"
+     },
+     "409": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorEnvelope"
+        }
+       }
+      },
+      "description": "Conflict"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorEnvelope"
+        }
+       }
+      },
+      "description": "Unprocessable Entity"
+     },
+     "429": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorEnvelope"
+        }
+       }
+      },
+      "description": "Too Many Requests"
+     },
+     "503": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorEnvelope"
+        }
+       }
+      },
+      "description": "Service Unavailable"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Copilot Message",
+    "tags": [
+     "copilot"
     ]
    }
   },
@@ -1960,6 +2303,110 @@
     "summary": "Operations",
     "tags": [
      "operations"
+    ]
+   }
+  },
+  "/v1/overview": {
+   "get": {
+    "operationId": "overview_v1_overview_get",
+    "responses": {
+     "200": {
+      "content": {
+       "application/json": {
+        "schema": {}
+       }
+      },
+      "description": "Successful Response"
+     },
+     "400": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorEnvelope"
+        }
+       }
+      },
+      "description": "Bad Request"
+     },
+     "401": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorEnvelope"
+        }
+       }
+      },
+      "description": "Unauthorized"
+     },
+     "403": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorEnvelope"
+        }
+       }
+      },
+      "description": "Forbidden"
+     },
+     "404": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorEnvelope"
+        }
+       }
+      },
+      "description": "Not Found"
+     },
+     "409": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorEnvelope"
+        }
+       }
+      },
+      "description": "Conflict"
+     },
+     "422": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorEnvelope"
+        }
+       }
+      },
+      "description": "Unprocessable Entity"
+     },
+     "429": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorEnvelope"
+        }
+       }
+      },
+      "description": "Too Many Requests"
+     },
+     "503": {
+      "content": {
+       "application/json": {
+        "schema": {
+         "$ref": "#/components/schemas/ErrorEnvelope"
+        }
+       }
+      },
+      "description": "Service Unavailable"
+     }
+    },
+    "security": [
+     {
+      "HTTPBearer": []
+     }
+    ],
+    "summary": "Overview",
+    "tags": [
+     "services"
     ]
    }
   },
