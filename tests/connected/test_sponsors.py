@@ -130,7 +130,7 @@ def semantic_sidecar(tmp_path_factory):
         pytest.skip("BLOCKED: missing EMBEDDING_API_KEY/MODEL_API_KEY for real embeddings")
     data, token, port = tmp_path_factory.mktemp("hmem-semantic"), secrets.token_urlsafe(24), 7498
     env = {**os.environ, "MEMORY_AUTH_TOKEN": token, "HMEM_DATA_DIR": str(data), "PORT": str(port), "EMBEDDING_MODE": "nvidia",
-           "EMBEDDING_API_KEY": key, "EMBEDDING_MODEL_ID": os.environ.get("EMBEDDING_MODEL_ID", "nvidia/nv-embedqa-e5-v5")}
+           "EMBEDDING_API_KEY": key, "EMBEDDING_MODEL_ID": os.environ.get("EMBEDDING_MODEL_ID", "nvidia/nemotron-3.5-embed-1b")}
     procs = []
 
     def start(e=env):

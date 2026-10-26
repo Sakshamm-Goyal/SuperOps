@@ -13,7 +13,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from greenops.domain.models import AiWorkflowConfig
 
-PROMPT_VERSION = "roles-v1"
+PROMPT_VERSION = "roles-v2"  # v2 (25 Oct): explicit brevity; a real model overran the output ceiling
 
 
 class Out(BaseModel):
@@ -198,4 +198,8 @@ def scripted_critic(payload: dict, tools) -> dict:
 
 SCRIPTS = {"coordinator": scripted_coordinator, "investigator": scripted_investigator,
            "optimizer": scripted_optimizer, "critic": scripted_critic}
-INSTRUCTIONS = {"coordinator": COORDINATOR, "investigator": INVESTIGATOR, "optimizer": OPTIMIZER, "critic": CRITIC}
+# Real models wrote 400-character findings for every resource and truncated the typed JSON at the output ceiling.
+BREVITY = ("\n\nKeep every free-text field to one sentence under 200 characters. Give at most one observation per "
+           "resource and only for resources that matter to the question. Output only the structured result.")
+INSTRUCTIONS = {role: text + BREVITY for role, text in
+                {"coordinator": COORDINATOR, "investigator": INVESTIGATOR, "optimizer": OPTIMIZER, "critic": CRITIC}.items()}

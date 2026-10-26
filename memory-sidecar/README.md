@@ -70,7 +70,7 @@ needs `typescript` and `@types/node`, which are not installed here.
 | `PORT` / `HOST` | `7410` / `127.0.0.1` | `PORT=0` picks a free port, which tests use. |
 | `EMBEDDING_MODE` | required | `nvidia`, `openai_compatible` or `hash_conformance`. `hash_conformance` is only for deterministic tests and is labelled `semantic:false`. |
 | `EMBEDDING_BASE_URL` | `https://integrate.api.nvidia.com/v1` | The sidecar calls `POST {base}/embeddings`. |
-| `EMBEDDING_MODEL_ID` | `nvidia/nv-embedqa-e5-v5` | Ignored in `hash_conformance` mode. |
+| `EMBEDDING_MODEL_ID` | `nvidia/nemotron-3.5-embed-1b` | Ignored in `hash_conformance` mode. |
 | `EMBEDDING_API_KEY` | none | Required for `nvidia`. Sent as a Bearer token and never logged. |
 | `EMBEDDING_PREPROCESSING_VERSION` | `v1` | `v1` applies Unicode NFC normalization only. |
 | `EMBEDDING_TIMEOUT_MS` | `15000` | Allowed range 100..120000. |

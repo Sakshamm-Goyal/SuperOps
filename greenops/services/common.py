@@ -1,6 +1,7 @@
 """Shared service plumbing: runtime dependencies, errors, events and durable jobs."""
 from __future__ import annotations
 
+import os
 import uuid
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
@@ -43,7 +44,9 @@ class Runtime:
         from greenops.agents.roles import SCRIPTS
 
         def model():
-            if settings.runtime_mode.value == "connected_demo":
+            # SAMPLE_MODEL=nvidia: real agents over the labelled sample evidence, to exercise model behaviour before
+            # federation exists. Still runtime_mode=sample (approval stays blocked); the plan records the real model id.
+            if settings.runtime_mode.value == "connected_demo" or os.environ.get("SAMPLE_MODEL") == "nvidia":
                 return AdkGateway(settings)
             from experiments.support.workflow import scripted_support
             return ScriptedGateway({**SCRIPTS, "support": scripted_support})
