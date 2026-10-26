@@ -19,7 +19,7 @@ def _d(v) -> Decimal | None:
 
 def _sum(vals) -> str | None:
     vals = [v for v in vals if v is not None]
-    return format(sum(vals, Decimal(0)), "f") if vals else None
+    return format(sum(vals, Decimal(0)).quantize(Decimal("0.001")), "f") if vals else None
 
 
 def build(rt: Runtime, tenant_id: str) -> dict:

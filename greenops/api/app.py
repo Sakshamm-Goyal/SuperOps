@@ -464,7 +464,7 @@ def create_app(rt: Runtime | None = None) -> FastAPI:
                 p = c.execute("SELECT * FROM plans WHERE id=%s", (p["id"],)).fetchone()
             inv = c.execute("SELECT * FROM investigations WHERE id=%s", (p["investigation_id"],)).fetchone()
             trials = c.execute("SELECT id, status, trial_hash, suite_id, finished_at FROM trials WHERE plan_id=%s ORDER BY created_at", (p["id"],)).fetchall()
-            ap = c.execute("SELECT id, status, expires_at, actor_id, consumed_action_id FROM approvals WHERE plan_id=%s ORDER BY created_at DESC LIMIT 1", (p["id"],)).fetchone()
+            ap = c.execute("SELECT id, status, expires_at, actor_id, consumed_action_id, plan_hash, trial_id, trial_hash, created_at FROM approvals WHERE plan_id=%s ORDER BY created_at DESC LIMIT 1", (p["id"],)).fetchone()
             verdict = A.holdout_verdict(c, p) if p["path"] == "ai" else None
         acts, blockers = plan_actions(p, trials[-1] if trials else None, ap, inv, verdict)
         ok, why = A.versions_current(rt, p) if p["status"] in ("AWAITING_APPROVAL", "APPROVED") else (True, None)
@@ -555,9 +555,20 @@ def create_app(rt: Runtime | None = None) -> FastAPI:
             r = c.execute("SELECT * FROM query_receipts WHERE id=%s", (e["receipt_id"],)).fetchone()
         rows = e["data"]["rows"]
         receipt = {k: v for k, v in r["receipt"].items()}
+        hourly = None
+        if e["kind"] == "telemetry_series":  # peak-preserving view of the whole interval for charts (raw rows stay capped at 500)
+            buckets: dict[str, dict] = {}
+            for row in rows:
+                h = str(row.get("observed_at", ""))[:13] + ":00:00Z"
+                b = buckets.setdefault(h, {"hour": h, "cpu_percent_max": None, "memory_bytes_max": None, "samples": 0})
+                b["samples"] += 1
+                for k, out in (("cpu_percent", "cpu_percent_max"), ("memory_bytes", "memory_bytes_max")):
+                    if row.get(k) is not None and (b[out] is None or float(row[k]) > float(b[out])):
+                        b[out] = row[k]
+            hourly = [buckets[k] for k in sorted(buckets)]
         return res(request, e["id"], r["completeness"], {**{k: e[k] for k in ("id", "kind", "subject", "observed_from", "observed_to", "retrieved_at",
                    "quality_flags")}, "receipt": receipt, "source_system": r["source_system"], "rows": rows[:500], "rows_truncated": len(rows) > 500,
-                   "row_count": len(rows)}, result_kind=e["result_kind"], data_origin=e["data_origin"], runtime_mode=r["runtime_mode"])
+                   "row_count": len(rows), "series_hourly_peak": hourly}, result_kind=e["result_kind"], data_origin=e["data_origin"], runtime_mode=r["runtime_mode"])
 
     @app.get("/v1/memories/{memory_id}", tags=["memory"], response_model=Resource, responses=ERRORS)
     def get_memory(request: Request, memory_id: str, actor: dict = Depends(viewer)):
