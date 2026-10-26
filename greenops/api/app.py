@@ -381,8 +381,9 @@ def create_app(rt: Runtime | None = None) -> FastAPI:
     def plan_actions(p: dict, trial: dict | None, ap: dict | None, inv: dict, verdict: dict | None = None) -> tuple[list[str], list[str]]:
         acts, blockers = [], []
         connected = inv["runtime_mode"] == "connected_demo"
-        if p["status"] == "DRAFT" and p["core"]["executor"] != "none" and not trial:
-            acts.append("run_trial")
+        rerun = trial and (trial["status"] == "INCOMPLETE" or ((p.get("critic") or {}).get("trial") or {}).get("critic", {}).get("verdict") in ("ERROR", "MISSING"))
+        if p["status"] == "DRAFT" and p["core"]["executor"] != "none" and (not trial or rerun):
+            acts.append("run_trial")  # first trial, or a re-trial after an INCOMPLETE instrument or an unavailable reviewer
         if p["core"]["executor"] == "none":
             blockers.append("no executor enabled for this action type (projection only)")
         if p["status"] == "AWAITING_APPROVAL":

@@ -126,6 +126,7 @@ Then run `make sandbox-up`, `make sidecar`, `make api`, `make worker` and `make 
 | `make test` / `make release-gate` | Everything in one session with PASS/FAIL/BLOCKED/NOT_RUN counts / fail unless all PASS |
 | `make eval-freeze PLAN=…` then `make eval` | Freeze an AI candidate, then the evaluator-only holdout (role D) |
 | `make eval-cloud` / `make memory-ablation` | Forecast and naive-baseline benchmark / memory on-off sequence |
+| `make correct-memory RECEIPT=… ACTOR=… NOTE=…` | Supersede a wrong memory with a reviewed correction (lineage kept; recall marks the original SUPERSEDED) |
 | `make resolve-action ACTION=… ACTOR=… NOTE=…` | Operator record of a human resolution for `RECOVERY_REQUIRED` |
 
 Latest results are recorded with dates in [NEW_WORK.md](NEW_WORK.md) and [docs/TEST_STRATEGY.md §8](docs/TEST_STRATEGY.md).
