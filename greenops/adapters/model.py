@@ -123,7 +123,10 @@ class AdkGateway:
         reasoning = os.environ.get("MODEL_REASONING", "off") == "on"
         self._llm = NimLiteLlm(model=f"openai/{settings.model_id}", api_base=settings.model_base_url,
                             api_key=settings.model_api_key, temperature=0, max_tokens=int(os.environ.get("MODEL_MAX_OUTPUT_TOKENS", "4096")),
-                            extra_body={"chat_template_kwargs": {"enable_thinking": reasoning}})
+                            extra_body={"chat_template_kwargs": {"enable_thinking": reasoning}},
+                            # A single hung NVIDIA request consumed whole 90 s role budgets (26 Oct, twice); a per-request
+                            # ceiling with one provider retry recovers inside the role timeout. Reads only; budget reserved per request.
+                            timeout=float(os.environ.get("MODEL_REQUEST_TIMEOUT_S", "40")), num_retries=1)
 
     def run(self, role, instruction, payload, output_model, *, tools=None, budget=None, before_tool=None, timeout_s=None):
         # Per-turn ceiling; 45 s was too tight for a 120B hosted model writing a typed report plus one correction.
@@ -195,7 +198,8 @@ class AdkGateway:
                                                      f"(first: {first.get('type')} at {'.'.join(map(str, first.get('loc', ())))}; "
                                                      f"output tokens {totals['out']})")
         except asyncio.TimeoutError:
-            raise ModelError("DEPENDENCY_UNAVAILABLE", f"{role}: model call exceeded {timeout_s}s")
+            raise ModelError("DEPENDENCY_UNAVAILABLE", f"{role}: model call exceeded {timeout_s}s after {totals['requests']} model "
+                                                       f"requests and {totals['tools']} tool calls ({', '.join(t['tool'] for t in tool_log[-6:]) or 'none'})")
         except BudgetExceeded:
             raise
         except ModelError:
