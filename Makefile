@@ -6,7 +6,7 @@ PG_PORT ?= 55432
 PG_DIR := var/pg
 SAMPLE_SRC := postgresql://greenops@127.0.0.1:$(PG_PORT)/greenops_sample_src
 
-.PHONY: bootstrap db-up db-down sample-data sources-split sources-up zetaris-setup preflight dev api worker ui sidecar sandbox-up sandbox-down \
+.PHONY: bootstrap db-up db-down sample-data sources-split sources-up zetaris-setup autopilot preflight dev api worker ui sidecar sandbox-up sandbox-down \
         check web web-build test-unit test-integration test-connected test-e2e test test-sidecar eval eval-freeze eval-cloud \
         memory-ablation trial-profile-approve reset-demo demo openapi verify-docs
 
@@ -42,6 +42,9 @@ sources-up:           ## source B: a separate PostgreSQL container (physically d
 
 zetaris-setup:        ## load both sources, read-only roles, register datasources in Zetaris (ZETARIS_* in .env), verify counts
 	$(PY) scripts/zetaris_setup.py
+
+autopilot:            ## drift-triggered investigations as the `automation` actor (ONCE=1 for a single check)
+	ONCE=$(ONCE) $(PY) scripts/autopilot.py
 
 preflight:            ## redacted readiness of configured capabilities (fails with actionable missing inputs)
 	$(PY) scripts/preflight.py

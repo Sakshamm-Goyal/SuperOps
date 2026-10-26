@@ -16,7 +16,7 @@ from greenops.db import connect, migrate
 
 ACTORS = [("lead", "Engineering lead", "operator"), ("teammate", "Read-only teammate", "viewer"),
           ("admin", "Sandbox operator admin", "admin"), ("judge", "Public judge (read-only)", "viewer"),
-          ("operator2", "Second operator", "operator")]
+          ("operator2", "Second operator", "operator"), ("autopilot", "Autopilot (drift-triggered investigations)", "automation")]
 
 
 def main() -> None:

@@ -26,7 +26,7 @@ from greenops.services import approvals as A, reports
 from greenops.services.common import AppError, Runtime, append_event, enqueue, now
 
 API_VERSION = "1.0.0"
-ROLE_RANK = {"viewer": 0, "operator": 1, "admin": 2}
+ROLE_RANK = {"viewer": 0, "automation": 1, "operator": 2, "admin": 3}  # automation: start investigations only
 
 
 # ---- schemas --------------------------------------------------------------------------
@@ -196,7 +196,7 @@ def create_app(rt: Runtime | None = None) -> FastAPI:
             return a
         return dep
 
-    viewer, operator, admin = actor_dep("viewer"), actor_dep("operator"), actor_dep("admin")
+    viewer, automation, operator, admin = actor_dep("viewer"), actor_dep("automation"), actor_dep("operator"), actor_dep("admin")
 
     def idempotent(request: Request, actor: dict, key: str | None, route: str, body: dict, handler) -> JSONResponse:
         if key is None:
@@ -321,7 +321,7 @@ def create_app(rt: Runtime | None = None) -> FastAPI:
         return {"items": rows, "next_cursor": None, "request_id": request.state.request_id}
 
     @app.post("/v1/investigations", tags=["investigations"], status_code=202, response_model=Accepted, responses=ERRORS)
-    def create_investigation(request: Request, body: CreateInvestigation, actor: dict = Depends(operator),
+    def create_investigation(request: Request, body: CreateInvestigation, actor: dict = Depends(automation),
                              idempotency_key: str | None = Header(None, alias="Idempotency-Key")):
         def handler(c):
             if body.runtime_mode != settings.runtime_mode.value:
