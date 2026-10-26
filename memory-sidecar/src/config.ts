@@ -62,7 +62,7 @@ export function loadConfig(env: NodeJS.ProcessEnv): SidecarConfig {
 
   const modelId = mode === "hash_conformance"
     ? HASH_MODEL_ID
-    : env.EMBEDDING_MODEL_ID && env.EMBEDDING_MODEL_ID !== "" ? env.EMBEDDING_MODEL_ID : "nvidia/nv-embedqa-e5-v5";
+    : env.EMBEDDING_MODEL_ID && env.EMBEDDING_MODEL_ID !== "" ? env.EMBEDDING_MODEL_ID : "nvidia/nemotron-3.5-embed-1b";
 
   const preprocessingVersion = env.EMBEDDING_PREPROCESSING_VERSION && env.EMBEDDING_PREPROCESSING_VERSION !== ""
     ? env.EMBEDDING_PREPROCESSING_VERSION
