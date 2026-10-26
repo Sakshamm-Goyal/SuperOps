@@ -328,3 +328,21 @@ def test_d15_every_candidate_fails_gives_justified_no_change(db_url, sandbox):
     assert [p["status"] for p in inv["data"]["plans"]] == ["REJECTED"]
     rep = client.get(f"/v1/reports/{iid}", headers=auth("lead", False)).json()
     assert rep["outcome"]["status"] == "NO_CHANGE" and rep["plans"][0]["screening"]["outcome"] == "REJECTED"
+
+
+def test_automation_actor_starts_investigations_but_holds_no_change_authority(db_url, sandbox):
+    """Autopilot may queue an investigation; every route that moves a plan toward a write refuses it (403)."""
+    from greenops.api.app import create_app
+    rt = make_runtime(db_url, sandbox)
+    client = TestClient(create_app(rt))
+    body = {"service_id": "support-demo", "question": "autopilot drift check", "interval": INTERVAL, "runtime_mode": rt.settings.runtime_mode.value,
+            "budget_profile_id": "sandbox-approved-budget-v1"}
+    assert client.post("/v1/investigations", headers=auth("autopilot"), json=body).status_code == 202
+    pid = str(uuid.uuid4())
+    for path, payload in ((f"/v1/plans/{pid}/approve", {"plan_hash": "x", "trial_id": pid, "trial_hash": "x", "acknowledge_downtime": False,
+                                                        "approved_recovery_scope": "x"}),
+                          (f"/v1/plans/{pid}/execute", {"approval_id": pid, "plan_hash": "x"}),
+                          (f"/v1/plans/{pid}/trials", {"plan_hash": "x", "suite_id": "workload-wl-v1", "approved_trial_profile_id": "sandbox-trials-v1"}),
+                          (f"/v1/approvals/{pid}/revoke", {"reason": "x"}), (f"/v1/investigations/{pid}/cancel", {"reason": "x"})):
+        r = client.post(path, headers=auth("autopilot"), json=payload)
+        assert r.status_code == 403 and r.json()["error"]["code"] == "FORBIDDEN", (path, r.text)

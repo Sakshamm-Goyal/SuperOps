@@ -25,7 +25,8 @@ from greenops.config import ROOT, RuntimeMode, get_settings
 PG = os.environ.get("TEST_PG_ADMIN_URL", "postgresql://greenops@127.0.0.1:55432/postgres")
 TEST_DB = "greenops_itest"
 TOKENS = {"lead": ("operator", "tok-lead-" + "x" * 20), "teammate": ("viewer", "tok-viewer-" + "x" * 20),
-          "operator2": ("operator", "tok-op2-" + "x" * 20), "admin": ("admin", "tok-admin-" + "x" * 20)}
+          "operator2": ("operator", "tok-op2-" + "x" * 20), "admin": ("admin", "tok-admin-" + "x" * 20),
+          "autopilot": ("automation", "tok-auto-" + "x" * 20)}
 
 
 def _pg_available() -> bool:
