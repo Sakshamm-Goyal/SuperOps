@@ -10,12 +10,15 @@ from greenops.services.common import Runtime, now
 
 
 def enqueue(conn, *, tenant_id: str, service_id: str, kind: str, source_ref: str, finding: str, evidence_refs: list[str],
-            applicability: dict, signature: str | None, target_id: str | None) -> uuid.UUID:
+            applicability: dict, signature: str | None, target_id: str | None,
+            supersedes_receipt_id: str | None = None, correction_review_id: str | None = None) -> uuid.UUID:
     """Commit the envelope with the receipt it describes (same transaction as the caller's status change)."""
     rid = uuid.uuid4()
     env = {"application_receipt_id": str(rid), "kind": kind, "scope": {"tenant_id": tenant_id, "service_id": service_id, "target_id": target_id},
            "finding": finding[:2000], "evidence_refs": [str(e) for e in evidence_refs][:50], "applicability": applicability,
            "tags": [f"kind:{kind}"]}
+    if supersedes_receipt_id:  # reviewed correction: the sidecar links lineage and recall marks the predecessor SUPERSEDED
+        env["supersedes_receipt_id"], env["correction_review_id"] = str(supersedes_receipt_id), correction_review_id
     env["content_hash"] = canonical_hash({k: env[k] for k in ("kind", "scope", "finding", "evidence_refs", "applicability")})
     conn.execute("INSERT INTO memory_outbox (id, tenant_id, service_id, receipt_kind, application_receipt_id, source_ref, signature, envelope, "
                  "content_hash, status) VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,'PENDING')",

@@ -120,6 +120,9 @@ trial-profile-approve:   ## make trial-profile-approve PROFILE=config/trial-prof
 resolve-action:       ## record a human resolution: make resolve-action ACTION=<id> ACTOR=lead NOTE="..."
 	$(PY) scripts/resolve_action.py $(ACTION) --actor $(ACTOR) --note "$(NOTE)"
 
+correct-memory:       ## supersede a wrong memory with a reviewed correction: make correct-memory RECEIPT=<id> ACTOR=lead NOTE="..."
+	$(PY) scripts/correct_memory.py $(RECEIPT) --actor $(ACTOR) --note "$(NOTE)"
+
 reset-demo:
 	$(PY) scripts/reset_demo.py --confirm support-demo
 

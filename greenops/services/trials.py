@@ -356,7 +356,10 @@ def _post_trial(rt, inv, plan, trial_id, status, result, trial_hash) -> None:
     validated = status == "PASSED" and critic.get("verdict") == "VALIDATED" and bool(set(critic.get("check_ids", [])) & real)
     # INCOMPLETE: the instrument (load, budget, execution) failed, so the candidate was never judged. It stays DRAFT and
     # can be re-trialled; rejecting it would turn instrument noise into a verdict (EVALUATION_SPEC 2026-10-17 amendment).
-    new_status = "AWAITING_APPROVAL" if validated else "DRAFT" if status == "INCOMPLETE" else "REJECTED"
+    # The critic could not review a PASSED trial (provider outage, 26 Oct): that is not a verdict either. The plan stays
+    # DRAFT for re-trial and no outcome memory is written, so an outage cannot become a remembered "failure".
+    review_unavailable = status == "PASSED" and critic.get("verdict") in ("ERROR", "MISSING")
+    new_status = "AWAITING_APPROVAL" if validated else "DRAFT" if status == "INCOMPLETE" or review_unavailable else "REJECTED"
     sig = plan["screening"].get("signature")
     reason = "; ".join(f"{c['check_id']}: {c['detail']}" for c in result["checks"] if c["status"] != "PASS") or f"critic {critic.get('verdict')}"
     versions = I.current_versions(rt, inv, None)
@@ -382,7 +385,7 @@ def _post_trial(rt, inv, plan, trial_id, status, result, trial_hash) -> None:
         c.execute("UPDATE plans SET status=%s, critic=%s, updated_at=now() WHERE id=%s",
                   (new_status, J({**(plan["critic"] or {}), "trial": {"trial_id": str(trial_id), "status": status, "critic": critic}}), plan["id"]))
         append_event(c, inv["id"], "plan.post_trial", "agent:critic", {"plan_id": str(plan["id"]), "status": new_status, "critic": critic, "reason": reason})
-        if inv["memory_mode"] == "on" and status in ("PASSED", "FAILED"):
+        if inv["memory_mode"] == "on" and status in ("PASSED", "FAILED") and not review_unavailable:
             kind = "validated_plan" if validated else "rejected_trial"
             finding = (f"Trial {trial_id} for {sig} {'passed' if validated else 'failed'} under policy {inv['policy_version']}: "
                        + ("; ".join(f"{c['check_id']}: {c['detail']}" for c in result["checks"])))
@@ -393,6 +396,7 @@ def _post_trial(rt, inv, plan, trial_id, status, result, trial_hash) -> None:
         inv2 = I.load(c, inv["id"])
     summ = inv2["summary"]
     if not validated:
-        summ.setdefault("feedback", []).append({"signature": sig, "outcome": "INCOMPLETE" if status == "INCOMPLETE" else "FAILED",
+        summ.setdefault("feedback", []).append({"signature": sig, "outcome": "INCOMPLETE" if status == "INCOMPLETE"
+                                                else "REVIEW_UNAVAILABLE" if review_unavailable else "FAILED",
                                                 "reasons": reason, "trial_id": str(trial_id)})
         I.save_summary(rt, inv["id"], summ)

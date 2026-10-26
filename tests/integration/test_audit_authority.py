@@ -357,3 +357,30 @@ def test_incomplete_cloud_trial_does_not_judge_the_candidate(env, monkeypatch):
     r = client.post(f"/v1/plans/{p['id']}/trials", headers=auth("lead"), json={
         "plan_hash": p["plan_hash"], "approved_trial_profile_id": "sandbox-trials-v1", "suite_id": "workload-wl-v1"})
     assert r.status_code == 202, r.text
+
+
+def test_post_trial_critic_outage_does_not_reject_a_passed_trial(db_url, sandbox):
+    """26 Oct (connected run 298a9c62): NVIDIA returned HTTP 500 for the post-trial critic and the plan whose matched
+    trial PASSED was REJECTED. A provider outage is not a verdict: the plan stays DRAFT, can be re-trialled, and no
+    failure memory is written."""
+    from greenops.adapters.model import ModelError
+    from greenops.agents.roles import SCRIPTS
+
+    def critic(payload, tools):
+        if any(c.get("stage") == "post_trial" for c in payload["candidates"]):
+            raise ModelError("DEPENDENCY_UNAVAILABLE", "critic: model provider error InternalServerError")
+        return SCRIPTS["critic"](payload, tools)
+    rt = make_runtime(db_url, sandbox, scripts={"critic": critic})
+    client = TestClient(create_app_for(rt))
+    iid = start_investigation(client)
+    drain(rt)
+    inv = client.get(f"/v1/investigations/{iid}", headers=auth("lead", False)).json()
+    passed = {t["plan_id"] for t in inv["data"]["trials"] if t["status"] == "PASSED"}
+    assert passed, inv["data"]["trials"]
+    plans = [p for p in inv["data"]["plans"] if p["id"] in passed]
+    assert all(p["status"] == "DRAFT" for p in plans), [(p["status"], p["screening"]["signature"]) for p in plans]
+    p = client.get(f"/v1/plans/{plans[0]['id']}", headers=auth("lead", False)).json()
+    assert "run_trial" in p["next_allowed_actions"], p
+    with connect(rt.db) as c:
+        tids = [f"trial:{t['id']}" for t in inv["data"]["trials"] if t["status"] == "PASSED"]
+        assert not c.execute("SELECT 1 FROM memory_outbox WHERE source_ref = ANY(%s)", (tids,)).fetchone()
