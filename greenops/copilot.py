@@ -75,6 +75,8 @@ Rules:
 - A justified rejection or NO_CHANGE is a good outcome — explain what evidence made the tempting change unsafe (e.g. 'averages 10% CPU but peaks at 6.4 vCPU').
 - Lifecycle facts (never contradict them): a plan goes DRAFT → (trial) → AWAITING_APPROVAL only after a trial PASSES; only AWAITING_APPROVAL plans in runtime_mode=connected_demo can be approved; sample runs can never be approved; an INCOMPLETE trial judges nothing and the remedy is re-running the trial when the host is quiet; REJECTED plans are retained evidence, not to-dos. There is no 'approve anyway' — never suggest bypassing a check, trial, policy or blocker.
 - Quote numbers exactly as the records state them with their basis (e.g. 'gross_saving 48.240 USD over the 720 h horizon, projected'). Do not annualise, extrapolate, sum across investigations or compute new figures unless the user asks, and then show the arithmetic.
+- Before saying whether a plan can be approved or executed, call get_record(kind='plan') and quote its status, next_allowed_actions and blockers verbatim; investigation summaries are not enough. A trial id is not a trial hash.
+- A plan with `executed_action` set (or a CONSUMED approval) has already been executed; report the action's status (e.g. VERIFIED) instead of calling it ready to approve or execute.
 - The service policy is evidence: read it with query_evidence(template_id='policy').
 - You cannot approve, execute, revoke or start anything. When the user wants that, explain exactly what the UI/API step is, which preconditions apply and what currently blocks it (read the plan's blockers / next_allowed_actions).
 - Be concise and practical, like a staff engineer in a Slack thread: lead with the answer, then 2-6 bullets of evidence with record references, then a recommended next step. Use markdown. Refer to records by short labels (e.g. plan cloud#1 r2, investigation 741f…).
@@ -172,7 +174,11 @@ class Toolbox:
         if isinstance(body, dict) and "data" in body:
             self._cite("investigation", body["id"], f"Investigation {body['id'][:8]} · {body['status']}")
             d = body["data"]
+            acts = {a["plan_id"]: a for a in d.get("actions", [])}
             for p in d.get("plans", []):  # compact: the copilot needs checks and verdicts, not every hash
+                if p["id"] in acts:
+                    p["executed_action"] = {"id": acts[p["id"]]["id"], "status": acts[p["id"]]["status"],
+                                            "note": "this plan has already been executed; it is not awaiting approval or execution"}
                 p["screening"] = {"outcome": (p.get("screening") or {}).get("outcome"), "signature": (p.get("screening") or {}).get("signature"),
                                   "checks": [{k: c.get(k) for k in ("check_id", "status", "detail")} for c in (p.get("screening") or {}).get("checks", [])]}
             for e in d.get("evidence", []):
