@@ -41,8 +41,11 @@ def screen_capacity(check_id: str, demand, capacity, max_utilization, unit: str)
     d = dec(demand, field="demand")
     util = d / cap if cap else None
     ok = d <= allowed
-    reason = (f"peak {d.normalize():f} {unit} ≤ {allowed.normalize():f} {unit} allowed ({limit:%} of {cap.normalize():f})"
-              if ok else f"peak {d.normalize():f} {unit} exceeds {allowed.normalize():f} {unit} allowed ({limit:%} of {cap.normalize():f})")
+    shown = d.quantize(Decimal("0.0001")).normalize() if abs(d) < 10**12 else d  # display only; the decision uses exact d
+    if (shown <= allowed) != ok:
+        shown = d.normalize()  # rounding would make the text contradict the decision at the boundary
+    reason = (f"peak {shown:f} {unit} ≤ {allowed.normalize():f} {unit} allowed ({limit:%} of {cap.normalize():f})"
+              if ok else f"peak {shown:f} {unit} exceeds {allowed.normalize():f} {unit} allowed ({limit:%} of {cap.normalize():f})")
     return CapacityCheck(check_id, ok, d, cap, allowed, util, unit, reason)
 
 
