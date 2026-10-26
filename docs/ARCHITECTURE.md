@@ -93,7 +93,7 @@ P0 has one durable global execution slot shared by mutating trials, actions and 
 | Entity | Lifecycle |
 |---|---|
 | Investigation | QUEUED → RUNNING → AWAITING_APPROVAL, COMPLETED, NO_CHANGE, NEEDS_REVIEW, FAILED or CANCELLED |
-| Candidate plan | DRAFT → NEEDS_EVIDENCE or REJECTED or VALIDATED → AWAITING_APPROVAL → APPROVED; any invalidating change → STALE |
+| Candidate plan | DRAFT → NEEDS_EVIDENCE or REJECTED or VALIDATED → AWAITING_APPROVAL → APPROVED; any invalidating change → STALE. An INCOMPLETE trial leaves the plan DRAFT (not judged; re-trial allowed) |
 | Trial | QUEUED → RUNNING → PASSED, FAILED, INCOMPLETE or CANCELLED |
 | Approval | ACTIVE → CONSUMED, EXPIRED, REVOKED or STALE |
 | Action | QUEUED → EXECUTING → PENDING_VERIFICATION → VERIFIED, FAILED or RECOVERY_REQUIRED → RECOVERING → RECOVERED or RECOVERY_REQUIRED; RECOVERY_REQUIRED → RESOLVED_MANUALLY only through the authenticated operator procedure (`make resolve-action`) |

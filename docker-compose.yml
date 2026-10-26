@@ -19,7 +19,7 @@ services:
       HOST: 0.0.0.0
       EMBEDDING_MODE: "${EMBEDDING_MODE:?set EMBEDDING_MODE}"
       EMBEDDING_API_KEY: "${EMBEDDING_API_KEY:-}"
-      EMBEDDING_MODEL_ID: "${EMBEDDING_MODEL_ID:-nvidia/nv-embedqa-e5-v5}"
+      EMBEDDING_MODEL_ID: "${EMBEDDING_MODEL_ID:-nvidia/nemotron-3.5-embed-1b}"
     volumes: [hmem:/data]
   bootstrap:
     build: .
