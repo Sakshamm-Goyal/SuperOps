@@ -466,14 +466,18 @@ def create_app(rt: Runtime | None = None) -> FastAPI:
             trials = c.execute("SELECT id, status, trial_hash, suite_id, finished_at FROM trials WHERE plan_id=%s ORDER BY created_at", (p["id"],)).fetchall()
             ap = c.execute("SELECT id, status, expires_at, actor_id, consumed_action_id, plan_hash, trial_id, trial_hash, created_at FROM approvals WHERE plan_id=%s ORDER BY created_at DESC LIMIT 1", (p["id"],)).fetchone()
             verdict = A.holdout_verdict(c, p) if p["path"] == "ai" else None
+            executed = c.execute("SELECT id, status, memory_sync_status, updated_at FROM actions WHERE plan_id=%s ORDER BY created_at DESC LIMIT 1",
+                                 (p["id"],)).fetchone()
         acts, blockers = plan_actions(p, trials[-1] if trials else None, ap, inv, verdict)
+        if executed:
+            blockers.append(f"already executed: action {executed['id']} is {executed['status']}; a new change needs a new investigation and approval")
         ok, why = A.versions_current(rt, p) if p["status"] in ("AWAITING_APPROVAL", "APPROVED") else (True, None)
         if not ok:
             blockers.append(f"current state differs: {why}; approval would be rejected")
         data = {**{k: p[k] for k in ("id", "investigation_id", "path", "candidate_no", "revision", "target_key", "action_type", "plan_hash",
                                       "screening", "critic", "impacts", "memory_refs", "stale_reason", "created_at", "updated_at")},
                 "core": p["core"], "canonical_json": p["canonical_json"], "rationale_untrusted_model_text": p["rationale"], "trials": trials,
-                "latest_approval": ap, "recovery_scope": RECOVERY_SCOPE,
+                "latest_approval": ap, "executed_action": executed, "recovery_scope": RECOVERY_SCOPE,
                 "holdout_verdict": verdict and {k: verdict[k] for k in ("decision", "run_id", "freeze_hash", "created_at")}}
         return res(request, p["id"], p["status"], data, runtime_mode=inv["runtime_mode"], data_origin=inv["data_origin"],
                    result_kind=(p["impacts"] or {}).get("result_kind"), next_allowed_actions=acts, blockers=blockers)

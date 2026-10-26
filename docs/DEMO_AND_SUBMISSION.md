@@ -52,6 +52,24 @@ Target **225 seconds** to leave 15 seconds of margin under the official four-min
 | 3:25–3:35 | Exported report | Show a usable decision record covering outcome, costs, uncertainty and next step | Report references match the runs; missing carbon says unknown; no aggregate double-counting |
 | 3:35–3:45 | Final evidence/architecture card | State what was built, where sponsors contribute, and the next scoped enhancement | Repo revision, honest Cursor usage and NVIDIA contribution; limitations visibly stated |
 
+### 3a. Recording script: connected runs of 26 October 2026 (real IDs)
+
+Everything below exists in the local database from live runs (Zetaris 2.4.3 local platform, Nemotron 3.5 Super, Nemotron 3.5 Embed, Meterless H-MEM, Claude Haiku 4.5). Record from the web workbench at http://localhost:5173 signed in as `lead`. Start a fresh investigation live during the first segment; while it runs, cut to the completed runs below. Never present the completed runs as the live one.
+
+| Time | Screen | Say (short) | Record IDs |
+|---|---|---|---|
+| 0:00–0:15 | Landing hero → *Open the workbench* | "Cloud savings advice is cheap. Proving a change is safe is the hard part." | — |
+| 0:15–0:40 | Overview: proposed vs **blocked by evidence** vs verified; sponsor panel | "Two physical databases, federated through Zetaris; every number has a receipt." | `federation.receipts` count on the panel |
+| 0:40–1:15 | Investigations → *New investigation* (live). Then open the completed connected run `5db3ceac…` story page | "Nemotron proposed three cheaper machines. Deterministic checks decided: `worker-freeze-01` is under a change freeze; `worker-stale-01` was **skipped by Meterless memory** (it already failed) and its telemetry is stale and incomplete. Only `worker-stg-01 → e2-standard-4` survives." (The peak-vs-average example — prod averages 10% but peaks at 6.4 vCPU — appears in labelled sample runs; the live model did not propose it.) | investigation `5db3ceac-2c13-42d7-84d7-e615811af80c`; rejected plans `ade86a0f…` (CHK-POLICY change freeze), `439eca39…` (MEM-PRIOR-FAILURE memory `d64a7738…`, coverage, freshness) |
+| 1:15–1:45 | Same page: matched trial PASSED; Zetaris receipt card | "Identical offered load on two fixtures; p95 within limit; sources and result hash on the receipt." | trial `029582bb-fd37-4e23-9776-66f89a2815f2` |
+| 1:45–2:25 | Plan `ecd752bb…` → approval panel → Action page | "I approve the exact plan hash and trial hash for 15 minutes. One write, read back, fresh workload: VERIFIED, measured. Local sandbox analogue, not a GCP resize." | plan `ecd752bb-2271-4209-8c4c-405d6c9e839d`; approval `2906ab78…`; action `9dc3a3a6-08e6-451f-a335-66b46175e42e` |
+| 2:25–2:55 | Second run `fb8b36c6…`: memory callout | "Meterless remembered: the next run cited the verified trial and proposed one candidate instead of three." | investigation `fb8b36c6-07fe-44c7-99fe-983a7a613387` |
+| 2:55–3:25 | Ops Copilot slide-over: "Can I approve this now? What blocks it?" | "Claude Haiku answers from the same records, read-only, with citations. It cannot approve anything." | conversation shown live |
+| 3:25–3:40 | Terminal: `make autopilot ONCE=1` (`no_drift` / `investigation_started`) | "Autopilot watches Zetaris evidence for drift and re-investigates. It can start runs, never approve." | autopilot log line |
+| 3:40–3:45 | Architecture card | "PostgreSQL holds authority; models propose; evidence decides." | repo revision |
+
+Before recording: `uptime` load below ~5, so trials are not INCOMPLETE from host contention. Make sure `make preflight` passes, and hide `.env`.
+
 ### If the result differs from the planned narrative
 
 - A genuinely rejected candidate is valuable evidence. If no safe improvement exists, present a sourced `NO_CHANGE` result and show an approved action from a separate clearly named successful case.
@@ -146,6 +164,16 @@ Fill this from real evidence after implementation; remove placeholders rather th
 | NVIDIA | Candidate reasoning/critique model or another useful tested role | Model/version, endpoint type, run trace and measured contribution if used | Do not say Nemotron/NIM was used because it is on a slide or in an environment example |
 
 Keep API keys, tenant identifiers, private query contents and unnecessary personal data out of screenshots. Sponsor integration is assessed by real functionality, not repeated logos.
+
+### 8a. Sponsor evidence (filled 26 October 2026, local machine)
+
+| Sponsor | What it actually does here | Evidence |
+|---|---|---|
+| Zetaris | Local Zetaris platform 2.4.3 (Docker, hackathon registry images) federates **two physical PostgreSQL servers**: A is host PostgreSQL 16 (`cloud_pg`, and `cloud_ref` as datasource views over schema `ref`); B is a separate PostgreSQL 17 container (`ai_pg`). Read-only `zetaris_ro` roles. All investigation evidence and the Copilot's live queries go through `query/sql/start|page|close` | `make zetaris-setup` output; connected gates ZET-01..04 PASS (`evidence/connected/`); query receipts with request IDs and result hashes on every evidence record; adapter fix for Spark's zone-less timestamps (UTC session verified, fails closed otherwise) |
+| Meterless | Vendored H-MEM reference `0aa7417b` in our sidecar with semantic embeddings; outbox-delivered outcomes; recall with application-side applicability checks changes the next run | HMEM-07 PASS (paraphrase recall 9/10 on 25 Oct, restart, version rejection, provider removal); memory records SENT for action `9dc3a3a6…`; run `fb8b36c6…` proposed 1 candidate after recall vs 3 before |
+| NVIDIA | Nemotron 3.5 Super (coordinator, investigator, optimizer, critic via Google ADK + LiteLLM); Nemotron 3.5 Embed for memory | NIM-01/02 PASS; per-role tokens and durations in `model_calls`; fixes recorded with reproducers (timeouts, truncated output) |
+| Anthropic | Claude Haiku 4.5 Ops Copilot: read-only tool use over the caller-scoped API, H-MEM recall and Zetaris templates | `tests/unit/test_copilot.py` (no mutating tool, allowlist); conversations persisted in `copilot_messages` |
+| Cursor | Not used for this implementation (built with Claude Code); disclose honestly | `README.md` provenance section |
 
 ## 9. Recording and release procedure
 
