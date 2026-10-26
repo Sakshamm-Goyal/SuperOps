@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import asyncio
-import fcntl
 import hashlib
 import json
 import os
@@ -60,9 +59,23 @@ class ConfigStore:
     @contextmanager
     def _locked(self):
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        with open(self.path.with_suffix(".lock"), "w") as lf:
-            fcntl.flock(lf, fcntl.LOCK_EX)
-            yield
+        with open(self.path.with_suffix(".lock"), "a+b") as lf:
+            if os.name == "posix":
+                import fcntl
+                fcntl.flock(lf, fcntl.LOCK_EX)
+                yield
+            else:
+                import msvcrt
+                if lf.seek(0, os.SEEK_END) == 0:
+                    lf.write(b"\0")
+                    lf.flush()
+                lf.seek(0)
+                msvcrt.locking(lf.fileno(), msvcrt.LK_LOCK, 1)
+                try:
+                    yield
+                finally:
+                    lf.seek(0)
+                    msvcrt.locking(lf.fileno(), msvcrt.LK_UNLCK, 1)
 
     def read(self) -> dict:
         if not self.path.exists():
