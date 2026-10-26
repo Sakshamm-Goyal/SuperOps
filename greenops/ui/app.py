@@ -880,6 +880,210 @@ def activity_tab(ctx: Ctx, inv_id: str) -> None:
             "Payload": P.cell(e.get("payload"), 200)} for e in items])
 
 
+# ---- Story ---------------------------------------------------------------------------------------
+# One investigation retold as four moments for a reviewer. Every number is read from the API records shown
+# elsewhere in the workbench; this page only selects and arranges them, and says so when a moment is absent.
+
+def evidence_rows(ctx: Ctx, d: dict, kind: str, subject: str | None = None) -> list[dict]:
+    e = next((e for e in d.get("evidence") or [] if e.get("kind") == kind and (subject is None or e.get("subject") == subject)), None)
+    if not e:
+        return []
+    r = ctx.api.get(f"/v1/evidence/{e['id']}")
+    return (r.body["data"].get("rows") or []) if r.ok else []
+
+
+def trial_result(ctx: Ctx, trial: dict) -> dict:
+    r = ctx.api.get(f"/v1/trials/{trial['id']}")
+    return (r.body["data"].get("result") or {}) if r.ok else {}
+
+
+def story_trap(ctx: Ctx, d: dict, s: dict) -> None:
+    st.markdown("### 1 · The tempting change that would have hurt production")
+    p = s["trap"]
+    if not p:
+        if s["not_repeated"]:
+            st.info("Not proposed in this run: memory recalled that this change already failed (see moment 4).",
+                    icon=":material/psychology:")
+        else:
+            st.caption("This run did not screen a candidate that failed on peak CPU.")
+        return
+    key = p["target_key"]
+    provider, project, resource = key.split("/", 2)
+    peak, stress, policy = P.check(p, "CHK-CPU-PEAK"), P.check(p, "CHK-CPU-STRESS"), P.check(p, "CHK-POLICY")
+    inv = next((r for r in evidence_rows(ctx, d, "inventory") if r.get("resource_id") == resource and r.get("project_id") == project), {})
+    summ = next((r for r in evidence_rows(ctx, d, "telemetry_summary") if r.get("resource_id") == resource
+                 and r.get("project_id") == project), {})
+    vcpu = inv.get("vcpu")
+    avg_vcpu = float(summ["avg_cpu_percent"]) * float(vcpu) / 100 if vcpu and summ.get("avg_cpu_percent") else None
+    sig = (p.get("screening") or {}).get("signature", "")
+    st.markdown(f"The agent proposed **{resource}** → `{sig.rsplit(':', 1)[-1]}`. On average the worker looks idle, so the "
+                "cheaper machine type looks safe. The deterministic screen checks the **recorded peak** instead.")
+    c = st.columns(4)
+    c[0].metric("Average CPU", f"{P.fmt_num(summ.get('avg_cpu_percent'), 1)}%",
+                help="Mean over the investigation interval (telemetry_summary evidence)")
+    c[1].metric("Peak demand", f"{P.fmt_num(peak.get('measured'), 2)} vCPU", help=peak.get("detail"))
+    c[2].metric("Allowed on candidate", f"{P.fmt_num(peak.get('limit'), 2)} vCPU", help="80% of the candidate's vCPU")
+    imp = p.get("impacts") or {}
+    c[3].metric("Saving refused", f"{P.fmt_num(imp.get('gross_saving'), 2)} {imp.get('currency', '')}",
+                help=f"{P.impact_basis(imp)} over {P.fmt_num(imp.get('horizon_hours'), 0)} h; not achieved savings")
+    rows = evidence_rows(ctx, d, "telemetry_series", key)
+    if rows and vcpu:
+        import altair as alt  # ships with streamlit; no extra dependency
+        pts = P.vcpu_points(rows, vcpu)
+        lines = alt.Chart(alt.Data(values=pts)).mark_line(strokeWidth=1).encode(
+            x=alt.X("observed_at:T", title=None), y=alt.Y("vcpu:Q", title="vCPU in use"))
+        rules = [{"y": float(peak["limit"]), "label": "allowed on candidate"}] + \
+                ([{"y": avg_vcpu, "label": "average"}] if avg_vcpu is not None else [])
+        rule = alt.Chart(alt.Data(values=rules)).mark_rule(strokeDash=[6, 4]).encode(
+            y="y:Q", color=alt.Color("label:N", title=None, scale=alt.Scale(range=["#d62728", "#7f7f7f"])))
+        st.altair_chart(lines + rule, width="stretch")
+        st.caption(f"{len(pts)} of {summ.get('row_count', '?')} observations shown (the API returns at most 500 rows); "
+                   "the checks used every observation.")
+    verdict = [x for x in (peak, stress, policy) if x and x.get("status") == "FAIL"]
+    st.error("**Rejected.** " + " · ".join(f"{x['check_id']}: {x['detail']}" for x in verdict), icon=":material/block:")
+
+
+def story_revision(ctx: Ctx, d: dict, s: dict) -> None:
+    st.markdown("### 2 · The evidence-driven revision that passed a matched trial")
+    p = s["revision"]
+    if not p:
+        for q in s["not_judged"]:
+            st.warning(f"`{(q.get('screening') or {}).get('signature')}`: the trial could not deliver comparable load, so the "
+                       "candidate was not judged. It stays a draft — re-run its trial from the Investigations page.",
+                       icon=":material/replay:")
+        if not s["not_judged"]:
+            st.caption("No cloud candidate passed a matched trial in this run.")
+        return
+    first = s["rejected_first"]
+    sig = (p.get("screening") or {}).get("signature", "")
+    if first:
+        fp = P.check(first, "CHK-CPU-PEAK") or {}
+        st.markdown(f"First try on the same target, `{(first.get('screening') or {}).get('signature', '').rsplit(':', 1)[-1]}`, "
+                    f"was rejected ({fp.get('detail', 'failed screening')}). The revision `{sig.rsplit(':', 1)[-1]}` "
+                    "keeps headroom over the recorded peak.")
+    trial = next(t for t in d.get("trials") or [] if t.get("plan_id") == p["id"])
+    res = trial_result(ctx, trial)
+    summ = res.get("summary") or {}
+    imp = p.get("impacts") or {}
+    c = st.columns(4)
+    c[0].metric("Baseline p95", f"{P.fmt_num(summ.get('baseline_p95_ms'), 1)} ms")
+    c[1].metric("Candidate p95", f"{P.fmt_num(summ.get('candidate_p95_ms'), 1)} ms")
+    c[2].metric("New failures", f"{summ.get('candidate_failures', '—')}", help=f"baseline {summ.get('baseline_failures', '—')}")
+    c[3].metric("Projected saving", f"{P.fmt_num(imp.get('gross_saving'), 2)} {imp.get('currency', '')}",
+                help=f"{P.impact_basis(imp)} over {P.fmt_num(imp.get('horizon_hours'), 0)} h; not achieved savings")
+    table([{"Trial check": x.get("check_id"), "Result": P.glyph(x.get("status")), "Detail": x.get("detail")}
+           for x in res.get("checks") or []])
+    if res.get("limitations"):
+        st.caption("Limits: " + "; ".join(res["limitations"]))
+
+
+def story_ai(ctx: Ctx, d: dict, s: dict) -> None:
+    st.markdown("### 3 · AI workflow: the cheaper prompt that dropped a policy exception")
+    if not (s["ai_fail"] or s["ai_pass"]):
+        st.caption("No AI candidate was trialled in this run.")
+        return
+    results = {k: trial_result(ctx, s[k][1]) for k in ("ai_fail", "ai_pass") if s[k]}
+    base = next(iter(results.values())).get("baseline") or {}
+    c = st.columns(3)
+    c[0].metric("Baseline accepted", f"{base.get('accepted')}/{base.get('cases')}")
+    if "ai_fail" in results:
+        cf = results["ai_fail"].get("candidate") or {}
+        c[1].metric("Truncated context", f"{cf.get('accepted')}/{cf.get('cases')}",
+                    delta=f"{cf.get('critical_failures')} critical failures", delta_color="inverse")
+    if "ai_pass" in results:
+        cp = results["ai_pass"].get("candidate") or {}
+        red = results["ai_pass"].get("cost_per_accepted_reduction")
+        c[2].metric("Relevant sections", f"{cp.get('accepted')}/{cp.get('cases')}",
+                    delta=f"-{P.pct(red)} cost per accepted task" if red is not None else None, delta_color="inverse")
+    if "ai_fail" in results:
+        lost = P.lost_categories(results["ai_fail"])
+        if lost:
+            st.error("**Rejected by the independent verifier.** Lost cases: " + " · ".join(
+                f"{x['category'].replace('_', ' ')} {x['candidate']}/{x['total']} (baseline {x['baseline']}/{x['total']})"
+                for x in lost), icon=":material/block:")
+    if "ai_pass" in results:
+        st.success(f"**Revision kept every required outcome** at lower cost per accepted task. Cost basis: "
+                   f"{results['ai_pass'].get('cost_basis', 'unknown')}.", icon=":material/check_circle:")
+
+
+def story_memory(d: dict, s: dict) -> None:
+    st.markdown("### 4 · Memory: the agent does not repeat a known failure")
+    if s["memory_status"] == "off":
+        st.info("Memory was off for this run, so every option was screened from scratch. Start the same investigation "
+                "with memory on to see prior failures recalled and skipped.", icon=":material/psychology:")
+        return
+    if not s["recalled"]:
+        st.caption("No applicable prior failure was recalled for this run.")
+        return
+    st.markdown(f"Meterless H-MEM recalled **{len(s['recalled'])}** applicable prior failure(s); "
+                f"**{len(s['not_repeated'])}** of them were not proposed again.")
+    table([{"Prior finding": m.get("finding"), "Kind": m.get("kind"), "Skipped this run": "yes" if m in s["not_repeated"] else "no",
+            "Policy": (m.get("applicability") or {}).get("policy_version"), "Original run": m.get("source_ref")}
+           for m in s["recalled"]])
+    if s["historical"]:
+        st.warning(f"{len(s['historical'])} older memory record(s) no longer match the current versions and were shown "
+                   "as historical — retest required, not used.", icon=":material/history:")
+    emb = (d.get("memory") or {}).get("embedding_profile") or {}
+    if emb and not emb.get("semantic"):
+        st.caption(f"Embedder: {emb.get('model_id')} ({emb.get('kind')}) — conformance path, not semantic-recall evidence.")
+
+
+def story_next(ctx: Ctx, s: dict, d: dict) -> None:
+    st.markdown("### What is left for a human")
+    if not s["awaiting"]:
+        st.caption("Nothing is waiting for approval in this run.")
+    for p in s["awaiting"]:
+        r = ctx.api.get(f"/v1/plans/{p['id']}")
+        blockers = (r.body.get("blockers") or []) if r.ok else []
+        sig = (p.get("screening") or {}).get("signature")
+        if blockers:
+            st.warning(f"`{sig}` — awaiting approval, blocked: {'; '.join(blockers)}", icon=":material/block:")
+        else:
+            st.info(f"`{sig}` — ready for an exact-scope approval on the Investigations page.", icon=":material/how_to_reg:")
+    for a in d.get("actions") or []:
+        badge(f"Action {P.short_id(a.get('id'))}: {a.get('status')}", a.get("status"))
+
+
+def page_story(ctx: Ctx) -> None:
+    st.title("Story")
+    st.caption("One investigation, retold as the decisions that matter. Open any record on the Investigations page.")
+    items, lst = list_investigations(ctx)
+    if not lst.ok:
+        show_error(lst)
+        return
+    if not items:
+        st.info("No investigations yet. Start one on the Investigations page.")
+        return
+    inv_id = investigation_picker(ctx, items, "story")
+    r = ctx.api.get(f"/v1/investigations/{inv_id}")
+    if not r.ok:
+        show_error(r)
+        return
+    res = r.body
+    d = res["data"]
+    if res["status"] in ("QUEUED", "RUNNING"):
+        st.info("Still running — press Refresh when it finishes.", icon=":material/hourglass_top:")
+        st.button("Refresh", key="story_refresh", icon=":material/refresh:")
+        return
+    s = P.story(d)
+    n = s["counts"]
+    c = st.columns(5)
+    c[0].metric("Candidates screened", n["screened"])
+    c[1].metric("Rejected with evidence", n["rejected"])
+    c[2].metric("Passed matched trial", n["trials_passed"])
+    c[3].metric("Awaiting approval", n["awaiting"])
+    c[4].metric("Prior failures recalled", n["recalled"])
+    st.caption(f"Mode {P.mode_label(res.get('runtime_mode'))} · data origin {res.get('data_origin') or 'unknown'} · "
+               "savings are projections at dated rates, never achieved savings.")
+    for fn in (story_trap, story_revision, story_ai):
+        with st.container(border=True):
+            fn(ctx, d, s)
+    with st.container(border=True):
+        story_memory(d, s)
+    with st.container(border=True):
+        story_next(ctx, s, d)
+
+
 # ---- AI Lab --------------------------------------------------------------------------------------
 
 def page_ai_lab(ctx: Ctx) -> None:
@@ -1202,8 +1406,9 @@ def main() -> None:
         return
     ctx = build_ctx(token)
     pages = [
+        st.Page(lambda: guarded(page_story, ctx), title="Story", icon=":material/auto_stories:", url_path="story", default=True),
         st.Page(lambda: guarded(page_investigations, ctx), title="Investigations", icon=":material/search:",
-                url_path="investigations", default=True),
+                url_path="investigations"),
         st.Page(lambda: guarded(page_ai_lab, ctx), title="AI Lab", icon=":material/science:", url_path="ai-lab"),
         st.Page(lambda: guarded(page_actions, ctx), title="Actions & reports", icon=":material/task_alt:", url_path="actions"),
         st.Page(lambda: guarded(page_operations, ctx), title="Operations", icon=":material/monitor_heart:", url_path="operations"),

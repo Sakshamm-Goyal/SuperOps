@@ -52,7 +52,7 @@ The implemented variables are in [.env.example](../.env.example), the canonical 
 | APP_ENV, RUNTIME_MODE | `sandbox` and `sample` initially; `connected_demo` only with real sponsors configured |
 | DATABASE_URL, SAMPLE_SOURCE_URL, POSTGRES_PASSWORD | Authority DB; labelled single-DB sample sources; Compose DB password |
 | ZETARIS_API_BASE_URL, ZETARIS_ORG_ID, ZETARIS_AUTH_MODE, ZETARIS_API_KEY / ZETARIS_USERNAME+PASSWORD, ZETARIS_SOURCE_{CLOUD,REF,AI} | One explicit auth profile; two distinct physical datasources |
-| MODEL_BASE_URL, MODEL_ID, MODEL_API_KEY, MODEL_STRUCTURED_OUTPUT, MODEL_MAX_OUTPUT_TOKENS | NVIDIA OpenAI-compatible endpoint via ADK/LiteLLM; generation ceiling bounds per-request spend |
+| MODEL_BASE_URL, MODEL_ID, MODEL_API_KEY, MODEL_STRUCTURED_OUTPUT, MODEL_MAX_OUTPUT_TOKENS, MODEL_REASONING (default off) | NVIDIA OpenAI-compatible endpoint via ADK/LiteLLM; generation ceiling bounds per-request spend |
 | MEMORY_BASE_URL, MEMORY_AUTH_TOKEN, HMEM_DATA_DIR, EMBEDDING_MODE, EMBEDDING_* | Private H-MEM wrapper; `connected_demo` refuses a non-semantic embedder |
 | SANDBOX_WRITES_ENABLED, ALLOWED_TARGET_IDS, SANDBOX_DIR | Writes off by default; exact allowlist, re-checked by the worker before the first write |
 | POLICY_VERSION, DATA_MANIFEST_ID | Immutable run inputs; changes make plans/approvals stale and memories historical |
