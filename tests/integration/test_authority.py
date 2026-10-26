@@ -353,11 +353,15 @@ def test_critic_asking_for_trial_evidence_sends_an_eligible_candidate_to_its_tri
     candidates (26 Oct). The trial is that evidence: the candidate must reach it, not be rejected before it."""
     rt = make_runtime(db_url, sandbox, scripts={"critic": lambda payload, tools: {"reviews": [
         {"candidate_ref": c["candidate_ref"], "verdict": "NEEDS_EVIDENCE", "check_ids": ["AI-TRIAL-REQUIRED"],
-         "note": "development-suite trial results are required before validation"} for c in payload["candidates"]]}})
+         "note": "development-suite trial results are required before validation",
+         # live shape (26 Oct, run a721458e): an unfulfillable telemetry request for the AI path
+         "evidence_requests": [{"template_id": "telemetry_series", "resource_key": "ai"}] if c["path"] == "ai" else []}
+        for c in payload["candidates"]]}})
     client = TestClient(create_app_for(rt))
     iid = start_investigation(client, trials=False)
     drain(rt)
     plans = client.get(f"/v1/investigations/{iid}", headers=auth("lead", False)).json()["data"]["plans"]
     eligible = [p for p in plans if p["screening"]["outcome"] == "ELIGIBLE_FOR_TRIAL"]
     assert eligible and all(p["status"] == "DRAFT" for p in eligible), [(p["screening"]["signature"], p["status"]) for p in eligible]
+    assert any(p["path"] == "ai" for p in eligible)
     assert all(p["status"] == "REJECTED" for p in plans if p["screening"]["outcome"] == "REJECTED")  # failed checks still decide
