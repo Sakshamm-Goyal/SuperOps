@@ -357,6 +357,11 @@ def _critic_pass(rt, inv, gateway, budget, ctx, plan_ids, versions, depth: int =
         else:  # eligible for trial
             if rv and rv.verdict == "VALIDATED" and set(rv.check_ids) & real_checks:
                 status = "DRAFT"
+            elif rv and rv.verdict == "NEEDS_EVIDENCE" and not rv.evidence_requests:
+                # Every deterministic check passed and the critic named no data to fetch: the evidence it wants is the
+                # matched trial itself (live Nemotron critics say so for AI candidates). Run it; trial checks decide.
+                status = "DRAFT"
+                critic["enforcement"] = "NEEDS_EVIDENCE without a data request on a screened-eligible candidate: the trial is that evidence"
             else:
                 status, reason = "REJECTED", f"critic {critic['verdict']}: {critic.get('note', '')}"
                 if rv and rv.verdict == "REVISE":

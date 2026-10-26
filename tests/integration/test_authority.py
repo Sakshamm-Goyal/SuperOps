@@ -346,3 +346,18 @@ def test_automation_actor_starts_investigations_but_holds_no_change_authority(db
                           (f"/v1/approvals/{pid}/revoke", {"reason": "x"}), (f"/v1/investigations/{pid}/cancel", {"reason": "x"})):
         r = client.post(path, headers=auth("autopilot"), json=payload)
         assert r.status_code == 403 and r.json()["error"]["code"] == "FORBIDDEN", (path, r.text)
+
+
+def test_critic_asking_for_trial_evidence_sends_an_eligible_candidate_to_its_trial(db_url, sandbox):
+    """Live Nemotron critics answer NEEDS_EVIDENCE ('development-suite results are required') for screened-eligible AI
+    candidates (26 Oct). The trial is that evidence: the candidate must reach it, not be rejected before it."""
+    rt = make_runtime(db_url, sandbox, scripts={"critic": lambda payload, tools: {"reviews": [
+        {"candidate_ref": c["candidate_ref"], "verdict": "NEEDS_EVIDENCE", "check_ids": ["AI-TRIAL-REQUIRED"],
+         "note": "development-suite trial results are required before validation"} for c in payload["candidates"]]}})
+    client = TestClient(create_app_for(rt))
+    iid = start_investigation(client, trials=False)
+    drain(rt)
+    plans = client.get(f"/v1/investigations/{iid}", headers=auth("lead", False)).json()["data"]["plans"]
+    eligible = [p for p in plans if p["screening"]["outcome"] == "ELIGIBLE_FOR_TRIAL"]
+    assert eligible and all(p["status"] == "DRAFT" for p in eligible), [(p["screening"]["signature"], p["status"]) for p in eligible]
+    assert all(p["status"] == "REJECTED" for p in plans if p["screening"]["outcome"] == "REJECTED")  # failed checks still decide
