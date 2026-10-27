@@ -112,3 +112,18 @@ def test_action_states_for_aws_plans_are_instance_types():
     from greenops.services.approvals import _state
     plan = {"core": PLAN["core"]}
     assert _state(plan, "before") == {"instance_type": "c7g.xlarge"} and _state(plan, "after") == {"instance_type": "c7g.large"}
+
+
+def test_only_a_bounded_rejection_loop_earns_a_fresh_session_retry(monkeypatch):
+    """Autopilot run 998db355: Nemotron re-sent a schema-rejected set_model_response until the 90 s cap, twice."""
+    from greenops.adapters.model import AdkGateway, ModelError
+    g = AdkGateway.__new__(AdkGateway)
+    calls = []
+
+    async def loop(*a):
+        calls.append(1)
+        raise ModelError("MODEL_OUTPUT_INVALID", "typed answer rejected 3 times", fresh_retry=True)
+    monkeypatch.setattr(g, "_run", loop)
+    with pytest.raises(ModelError):
+        g.run("investigator", "", {}, None, timeout_s=1)
+    assert len(calls) == 2

@@ -21,9 +21,10 @@ SCRIPTED_MODEL_ID = "scripted-sample-v1"
 
 
 class ModelError(Exception):
-    def __init__(self, code: str, message: str):
+    def __init__(self, code: str, message: str, fresh_retry: bool = False):
         super().__init__(message)
         self.code = code
+        self.fresh_retry = fresh_retry  # a sampling loop, not the input: one fresh session may succeed
 
 
 class BudgetExceeded(ModelError):
@@ -137,8 +138,8 @@ class AdkGateway:
             try:
                 return asyncio.run(self._run(role, instruction, payload, output_model, tools or [], budget, before_tool, timeout_s))
             except ModelError as e:
-                # A fresh session also gets one retry after a bounded schema-rejection loop: sampling, not the input, caused it.
-                if e.code not in ("DEPENDENCY_UNAVAILABLE", "MODEL_OUTPUT_INVALID") or attempt == 2:
+                # Schema violations are not retried, except a bounded typed-answer rejection loop (fresh_retry).
+                if not (e.code == "DEPENDENCY_UNAVAILABLE" or e.fresh_retry) or attempt == 2:
                     raise
                 logging.getLogger(__name__).warning("%s: %s, retrying once in a fresh session: %s", role, e.code, e)
 
@@ -185,7 +186,7 @@ class AdkGateway:
                         rejected.append(str(fr.response["error"]).split("Recall the set_model_response")[0].strip()[:400])
                         if len(rejected) >= 3:
                             raise ModelError("MODEL_OUTPUT_INVALID", f"{role}: typed answer rejected {len(rejected)} times by the "
-                                                                     f"output schema; last: {rejected[-1]}")
+                                                                     f"output schema; last: {rejected[-1]}", fresh_retry=True)
                     if p.function_call and p.function_call.name == "set_model_response":
                         continue  # ADK's typed-final-answer tool, not a data tool call
                     if p.function_call:
