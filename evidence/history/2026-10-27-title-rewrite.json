@@ -1,0 +1,80 @@
+{
+  "recorded_on": "2026-10-27",
+  "scope": "Remove date text only from four commit subjects; preserve actual provenance, bodies and timestamps.",
+  "old_remote_head": "f3931459256b19274a76569e42c059852c9f7021",
+  "rewritten_remote_head": "bec0a2fee211d4133770c03bdbc4f17b474deac0",
+  "commits_verified": 39,
+  "targets": [
+    {
+      "old": "aa9a068fcd82d61f986966e588ab7e13f8f8277b",
+      "old_title": "Pre-event planning baseline (documentation only, 16 Oct 2026)",
+      "new_title": "Pre-event planning baseline (documentation only)",
+      "new": "dfe986ed916bdfd6c54a25b4cd2c9d8d7669afed"
+    },
+    {
+      "old": "a22b23dff54b12d99d8663e0407d9262cbc9ac72",
+      "old_title": "Pre-event implementation of GreenOps Verify (16 Oct 2026, declared pre-existing)",
+      "new_title": "Pre-event implementation of GreenOps Verify (declared pre-existing)",
+      "new": "4069069216b9411d1be1d5a251333a5837594328"
+    },
+    {
+      "old": "8b7565d0d9d478d894faf37dade44a13ad56bb75",
+      "old_title": "Add 17 Oct implementation audit; keep upstream inspiration review local",
+      "new_title": "Add implementation audit; keep upstream inspiration review local",
+      "new": "3a2b8cd3c1ad18cf75655e1beff464c8c18f6af5"
+    },
+    {
+      "old": "15d6c49b578982470345bb99a724b1b3b89142e7",
+      "old_title": "Remediate 17 Oct implementation audit findings A01-A22",
+      "new_title": "Remediate implementation audit findings A01-A22",
+      "new": "c90f2b13ac2555f4fc8291866f0eecd47d98e579"
+    }
+  ],
+  "mapping": {
+    "aa9a068fcd82d61f986966e588ab7e13f8f8277b": "dfe986ed916bdfd6c54a25b4cd2c9d8d7669afed",
+    "a22b23dff54b12d99d8663e0407d9262cbc9ac72": "4069069216b9411d1be1d5a251333a5837594328",
+    "8b7565d0d9d478d894faf37dade44a13ad56bb75": "3a2b8cd3c1ad18cf75655e1beff464c8c18f6af5",
+    "15d6c49b578982470345bb99a724b1b3b89142e7": "c90f2b13ac2555f4fc8291866f0eecd47d98e579",
+    "ea551cc5fad489a972515247a51b7a16a065ebd1": "2c03ed71c9a4c18c104a71d720a51b58840844f0",
+    "4fa0b55f78e97e6e37112aecd8bd2bd5a5143254": "614fc40c5cafa75b80faf16d41af9a310202d824",
+    "422e4bc247825deb4a0281690d4db75de0e26772": "f4324d06d1ce99aab3da39bffc2aeb36c1d4dbbb",
+    "cfe4a2077505439092423403cbb942b356168cd2": "36a73b52fbad4e51e7ee3fc19b07af81fe15fc8d",
+    "030b158a5e7f0c15d69ae7b059bb6a751602b31c": "60b71b1200a5f0d2c9be552829830117ddd862e8",
+    "34bddee7ce5955414b1710e9d31596b5cf8d6c6e": "ae37090a13d8f889265d60af9ec39c0cb82c9012",
+    "1a951525ac5e83ee4a1b7b3fdc9379efcab9fda7": "5a8a9d4aeb02afa95aa83fa412fbdc2ea926d173",
+    "96b4e959598c5b30a7558b10cc43e0e92cc3b743": "53e0c6cbc2b8435d7db0704cb685bac34b9d0848",
+    "3446a5e5472374529e7dae74f2d2a14ec5d62dea": "032d528ba8d97dc9278074620a06f5f0faded260",
+    "8c35ae8d1c7c65b92f2015869a66ce745faf0e24": "c7d7f7f5f23a6eb67d1f210677102d2dc34f4d6a",
+    "1daff34bb527fdfc9b3c69141550e8fd91cd4ab6": "0c735e098a9a4db281e75b362e45fa35656eeb87",
+    "47577897ff84990ed965ce8b18fc93d8bd369b6c": "73ce97323d62f56320d225981f7816b943f362bf",
+    "d8e99270ce4bdc995f71c9205aae20b7909ed650": "e92f97ce367ef31880bed9ba9b99a587212a7983",
+    "48024ef85252e5a15e89283e4307d491a25d9ac9": "718f8ad42d1a37a10570d6a26b4c3a3c85d25bb1",
+    "5fd81cf06a673681a516c386550a73e118d8fd53": "4c5c2203cdf4f48c6905e8def2d9fa4b43c2e6f3",
+    "d39adcfa3191afacd749337bd9de81111a7eb6ec": "dbc1d76ac9be5a0d155c1b61c695d3c3cac3ce6f",
+    "4867b2660a10d0419c5b5ca136186ae132506d45": "d41b138fde7e1af92d7a687337add01e7d4ea5c5",
+    "21ed282a7234c65db42c7fc4c059b866a5b082ba": "16ddd500b366234b219ad9308094d5268f3594b0",
+    "4f617b4b26c94e1e8e0f69b4ee39d41ed320aa15": "bbd4f916e22fb988d3f9a2be7a6074116022aa64",
+    "b8ff1983eec7b4e70bad7da9082487f19e2a9801": "81dd0ce60c701975e5e89672d725b0b6b9703f07",
+    "a54235558d88fd7c72df853d1413e22ec84a46cf": "2b35aa0bea70b7ea4e54de6ec7dde6908a5bd938",
+    "db41b1bab49c61b3d37df14025514823c3b0e87e": "74a6b3edd2648bce95ad6a0770fcbc6b446a8508",
+    "706906a51c3a26f52fb28cce3f1e424100785529": "d6a274a3fc021b9580c22b9cb27dda700a2f88b6",
+    "e965633d08cba9baf6293a9dfb44f15b8a397540": "1b15d72bfda67c3f69c120b6b3fef6f6b479d69a",
+    "9e0f9e982af236b543f1a1c496bb800353566789": "33c598bcebe464f843b51716ef38056cad3b501a",
+    "a3f0ca8dbae66668aff86ddb9b05ab189d257eb6": "08ae605fe984e6872858464bdf86a9f561e615c4",
+    "df6c463bcfc0dcd46c52b4096907b9dd4ec48ff6": "8b238d3ae3cef634a9b2df384abce1aaf84ba17f",
+    "b34b21e30c145ad66439fa79bc23d8b932e4796a": "ed184edc27f3d269aa90e41cff567cd1f0d4abe5",
+    "58de1579efe07d7a2bddfff5409c83bf5bda1226": "8a821c1dacafde44ba166a4d6cf92505fc0ff1d1",
+    "18f72dc904561437d12980f01345deea69bfdd6d": "d09a2aee42cf926c9d9f840c94ae2bb0c0e2a7e8",
+    "81f3f60a74db8c4cd6a7574b38248a63a97e9a80": "5fad3b10eab2c6d84b87eaa51a664f5ea4ea4368",
+    "63953e569202eb33bdd611b792c062771bcbbf2c": "70b1d260c61b3c7a30be014d23db1cb79b421866",
+    "555be067c8c9689a91dede3d2b7e719c93ac9a95": "e9e35f17386a008442e65d3c127eeb06079d45e4",
+    "e1d86344adf0fd2921331ad707565fff91f6fda3": "637a29a7d88ba157d7f3b17b37a0ce89fb025b7b",
+    "f3931459256b19274a76569e42c059852c9f7021": "bec0a2fee211d4133770c03bdbc4f17b474deac0"
+  },
+  "verification": {
+    "all_existing_trees_unchanged": true,
+    "all_commit_bodies_unchanged": true,
+    "all_timestamps_unchanged": true,
+    "merge_topology_preserved": true
+  }
+}

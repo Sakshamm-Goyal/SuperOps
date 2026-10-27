@@ -1,6 +1,6 @@
 # Implementation plan and backlog
 
-Repository history maintenance, 27 October 2026: five original baseline/audit commits now carry user-requested 24 October Git timestamps. Actual creation remains 16–17 October and pre-existing. Original/revised IDs and verification are recorded in [PREEXISTING.md](../PREEXISTING.md) and [rewrite evidence](../evidence/history/2026-10-27-date-rewrite.json); historical commit references below use the original IDs.
+Repository history maintenance, 27 October 2026: five original baseline/audit commits now carry user-requested 24 October Git timestamps. Actual creation remains 16–17 October and pre-existing. Original/revised IDs and verification are recorded in [PREEXISTING.md](../PREEXISTING.md) and [rewrite evidence](../evidence/history/2026-10-27-date-rewrite.json); historical commit references below use the original IDs. A subsequent title-only cleanup removed dates from four subjects; apply the [title-rewrite mapping](../evidence/history/2026-10-27-title-rewrite.json) after the date-rewrite mapping.
 
 Status: updated 16 October 2026. **At the user's instruction, the work packages were implemented pre-event** (ADR-18; declared in PREEXISTING.md). Live sponsor gates remain BLOCKED pending credentials. The table below records the current status; the original plan text follows unchanged.
 
