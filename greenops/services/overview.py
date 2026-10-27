@@ -64,7 +64,9 @@ def build(rt: Runtime, tenant_id: str) -> dict:
         "runtime_mode": s.runtime_mode.value, "service_id": "support-demo", "generated_at": now(),
         "investigations": {"total": sum(inv_by.values()), "by_status": inv_by},
         "plans": {"total": sum(plan_by.values()), "by_status": plan_by},
-        "savings": {"proposed_monthly_usd": _sum(gross(p) for p in live), "blocked_monthly_usd": _sum(gross(p) for p in blocked),
+        # only tempting candidates count as risk avoided: a refused upsize "saving" is negative and saves nothing
+        "savings": {"proposed_monthly_usd": _sum(g for p in live if (g := gross(p)) is not None and g > 0),
+                    "blocked_monthly_usd": _sum(g for p in blocked if (g := gross(p)) is not None and g > 0),
                     "verified_monthly_usd": _sum(_d((v["impacts"] or {}).get("gross_saving")) for v in verified),
                     "latest_investigation_id": latest and str(latest["id"]),
                     "basis": "projected gross saving over a 720 h horizon at dated synthetic rates for the latest investigation's live candidates; "
