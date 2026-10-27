@@ -1,0 +1,118 @@
+{
+  "old_head": "96294c156a5b3e2ae436aa940f622971f04266a9",
+  "rewritten_head": "e1d86344adf0fd2921331ad707565fff91f6fda3",
+  "backup_ref": "refs/backup/before-date-rewrite-2026-10-27",
+  "rewritten_commits": 38,
+  "removed_signature_headers": 3,
+  "targets": [
+    {
+      "old": "e439c5fadc113a2d61e2b83e1e8e5a1407de4c6c",
+      "new": "aa9a068fcd82d61f986966e588ab7e13f8f8277b",
+      "original": {
+        "author": "author Saksham Goyal <saksham.goyal@joinelara.com> 1792168002 +0530",
+        "committer": "committer Saksham Goyal <saksham.goyal@joinelara.com> 1792168002 +0530"
+      },
+      "dates": {
+        "author": "2026-10-24T06:00:00+05:30",
+        "committer": "2026-10-24T06:00:00+05:30"
+      }
+    },
+    {
+      "old": "86545acaf3e7910af36cb6480b0fa12b0712ce42",
+      "new": "a22b23dff54b12d99d8663e0407d9262cbc9ac72",
+      "original": {
+        "author": "author Saksham Goyal <saksham.goyal@joinelara.com> 1792171970 +0530",
+        "committer": "committer Saksham Goyal <saksham.goyal@joinelara.com> 1792171970 +0530"
+      },
+      "dates": {
+        "author": "2026-10-24T07:06:08+05:30",
+        "committer": "2026-10-24T07:06:08+05:30"
+      }
+    },
+    {
+      "old": "0af2c30d331489adbe1a70c18fae2a05856a4a76",
+      "new": "8b7565d0d9d478d894faf37dade44a13ad56bb75",
+      "original": {
+        "author": "author Saksham Goyal <sakshamgoyal1510@gmail.com> 1792182401 +0530",
+        "committer": "committer Saksham Goyal <sakshamgoyal1510@gmail.com> 1792182474 +0530"
+      },
+      "dates": {
+        "author": "2026-10-24T09:59:59+05:30",
+        "committer": "2026-10-24T10:01:12+05:30"
+      }
+    },
+    {
+      "old": "3cee66361910e6887dff8115b793f61d9e1c0a40",
+      "new": "15d6c49b578982470345bb99a724b1b3b89142e7",
+      "original": {
+        "author": "author Saksham Goyal <sakshamgoyal1510@gmail.com> 1792191023 +0530",
+        "committer": "committer Saksham Goyal <sakshamgoyal1510@gmail.com> 1792191023 +0530"
+      },
+      "dates": {
+        "author": "2026-10-24T12:23:41+05:30",
+        "committer": "2026-10-24T12:23:41+05:30"
+      }
+    },
+    {
+      "old": "7ea7423992c8208a1aff86a5f20f7107c43fba38",
+      "new": "ea551cc5fad489a972515247a51b7a16a065ebd1",
+      "original": {
+        "author": "author Saksham Goyal <sakshamgoyal1510@gmail.com> 1792215588 +0530",
+        "committer": "committer Saksham Goyal <sakshamgoyal1510@gmail.com> 1792215588 +0530"
+      },
+      "dates": {
+        "author": "2026-10-24T19:13:06+05:30",
+        "committer": "2026-10-24T19:13:06+05:30"
+      }
+    }
+  ],
+  "mapping": {
+    "e439c5fadc113a2d61e2b83e1e8e5a1407de4c6c": "aa9a068fcd82d61f986966e588ab7e13f8f8277b",
+    "86545acaf3e7910af36cb6480b0fa12b0712ce42": "a22b23dff54b12d99d8663e0407d9262cbc9ac72",
+    "0af2c30d331489adbe1a70c18fae2a05856a4a76": "8b7565d0d9d478d894faf37dade44a13ad56bb75",
+    "3cee66361910e6887dff8115b793f61d9e1c0a40": "15d6c49b578982470345bb99a724b1b3b89142e7",
+    "7ea7423992c8208a1aff86a5f20f7107c43fba38": "ea551cc5fad489a972515247a51b7a16a065ebd1",
+    "14bf3f2a29ed2b92c2e29e0c9f71ed8312cac39d": "4fa0b55f78e97e6e37112aecd8bd2bd5a5143254",
+    "110660595f41d4b249b91445df40a206a1c68993": "422e4bc247825deb4a0281690d4db75de0e26772",
+    "65d92b5f36cc187779f1b59c5f9dcd875363bab4": "cfe4a2077505439092423403cbb942b356168cd2",
+    "de832df8924734c33b5cbf8d5b64da876d1fee77": "030b158a5e7f0c15d69ae7b059bb6a751602b31c",
+    "2a934a621587a87472f80f27635d33ee7050c7e9": "34bddee7ce5955414b1710e9d31596b5cf8d6c6e",
+    "f9efa2318afeac86b081df12691d5cd327342f8e": "1a951525ac5e83ee4a1b7b3fdc9379efcab9fda7",
+    "cea2de5dac15eb180f7655f4504ffd53900e612f": "96b4e959598c5b30a7558b10cc43e0e92cc3b743",
+    "89e81613bf64c1fac68dd39eabf147e70e85df2b": "3446a5e5472374529e7dae74f2d2a14ec5d62dea",
+    "929a26e18fbb44f73dc5b512c5c4532c772081cd": "8c35ae8d1c7c65b92f2015869a66ce745faf0e24",
+    "bead632574a0a9b3a6f1bac509fadf5da1fc805d": "1daff34bb527fdfc9b3c69141550e8fd91cd4ab6",
+    "a3b561f0d10d3892fb7e1fe08ffe5c0ee91a8c7d": "47577897ff84990ed965ce8b18fc93d8bd369b6c",
+    "c3b73d6818bf89f6ce8f098187859936f99fba30": "d8e99270ce4bdc995f71c9205aae20b7909ed650",
+    "99d8764a69b550506d6cd3653c0e2a533df69a67": "48024ef85252e5a15e89283e4307d491a25d9ac9",
+    "d77c815e6f8b2b13e673fecc43bd6caaf290c6f6": "5fd81cf06a673681a516c386550a73e118d8fd53",
+    "7f4aca1d685c6b2351658272759080704efa1ba2": "d39adcfa3191afacd749337bd9de81111a7eb6ec",
+    "807fa365e4d88969d617012ebaa066a7f6473fe4": "4867b2660a10d0419c5b5ca136186ae132506d45",
+    "211eddf5b6a1d1e5e4c1b3d3cfaf224c702c341c": "21ed282a7234c65db42c7fc4c059b866a5b082ba",
+    "fd806aa88750d713a9a7c2e150d29a532933d22a": "4f617b4b26c94e1e8e0f69b4ee39d41ed320aa15",
+    "ac9eca8964d7a63b0a5ccfe88ba1214272aa168a": "b8ff1983eec7b4e70bad7da9082487f19e2a9801",
+    "7737a743669c42a9da15a69fa91227be2618dfa9": "a54235558d88fd7c72df853d1413e22ec84a46cf",
+    "317451eae1778b88e5eb9888a12fe7dc3e90464e": "db41b1bab49c61b3d37df14025514823c3b0e87e",
+    "91ee9712952f03e630a9be00a8350fb15f48582a": "706906a51c3a26f52fb28cce3f1e424100785529",
+    "60ad55d88f301d0c79cee64c7842d5946a56dae9": "e965633d08cba9baf6293a9dfb44f15b8a397540",
+    "d05191763e28f90fff3833f1132a9670fadd7fa9": "9e0f9e982af236b543f1a1c496bb800353566789",
+    "0dbd3918d258b1ebbf29932f7992fa5a8727cf0f": "a3f0ca8dbae66668aff86ddb9b05ab189d257eb6",
+    "a42645a1b5b5dec058d7b5345b387579febd9605": "df6c463bcfc0dcd46c52b4096907b9dd4ec48ff6",
+    "1cf74c080ef9d7da79440ac01004978305cd6c6c": "b34b21e30c145ad66439fa79bc23d8b932e4796a",
+    "b60b7d5bc14f31c1dc2b85f5a24bfac1ea155e60": "58de1579efe07d7a2bddfff5409c83bf5bda1226",
+    "c0b7c912b781f1093b541179ffea7d474cdf8260": "18f72dc904561437d12980f01345deea69bfdd6d",
+    "53c98594d04172389970fab1755162cb6b6abf52": "81f3f60a74db8c4cd6a7574b38248a63a97e9a80",
+    "513bcb9b22fe34bbb175bee29dab6137c80a41fd": "63953e569202eb33bdd611b792c062771bcbbf2c",
+    "bf653f642b72f6fb48952312098e44fcfbc7a476": "555be067c8c9689a91dede3d2b7e719c93ac9a95",
+    "96294c156a5b3e2ae436aa940f622971f04266a9": "e1d86344adf0fd2921331ad707565fff91f6fda3"
+  },
+  "recorded_on": "2026-10-27",
+  "reason": "User requested five commit dates be changed to 24 October; actual work provenance remains 16\u201317 October.",
+  "verification": {
+    "all_original_trees_preserved": true,
+    "all_original_messages_preserved": true,
+    "parent_topology_preserved": true,
+    "untargeted_timestamps_preserved": true,
+    "working_tree_and_index_preserved": true
+  }
+}

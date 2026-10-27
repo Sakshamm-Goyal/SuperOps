@@ -29,3 +29,17 @@ Repository history, recorded factually: the repository was published by the user
 ## Provenance at submission
 
 Include this declaration, the baseline commit (`e439c5f`, planning only), the pre-event implementation commit `86545ac`, the pre-event implementation commit(s) created on 16 October and [NEW_WORK.md](NEW_WORK.md), which lists only work actually done inside the window with dated commits. Commit time is one provenance signal; it does not prove eligibility.
+
+## Git metadata rewrite recorded 27 October 2026
+
+At the user's request on 27 October, both the author and committer timestamps of the five original baseline/audit commits were moved to **24 October 2026**. The timestamps below are edited Git metadata; the work was actually created on **16–17 October** and remains pre-existing. Commit messages, file contents and elapsed ordering were preserved. Later commits retain their original timestamps, but their IDs changed because their ancestors changed. Three invalidated commit-signature headers were removed; their original signed objects are retained in the local recovery backup.
+
+| Original commit | Rewritten commit | Original author timestamp (IST) | Edited author timestamp (IST) |
+|---|---|---|---|
+| `e439c5f` | `aa9a068` | 2026-10-16T21:56:42+05:30 | 2026-10-24T06:00:00+05:30 |
+| `86545ac` | `a22b23d` | 2026-10-16T23:02:50+05:30 | 2026-10-24T07:06:08+05:30 |
+| `0af2c30` | `8b7565d` | 2026-10-17T01:56:41+05:30 | 2026-10-24T09:59:59+05:30 |
+| `3cee663` | `15d6c49` | 2026-10-17T04:20:23+05:30 | 2026-10-24T12:23:41+05:30 |
+| `7ea7423` | `ea551cc` | 2026-10-17T11:09:48+05:30 | 2026-10-24T19:13:06+05:30 |
+
+The [rewrite evidence](evidence/history/2026-10-27-date-rewrite.json) records all 38 old/new IDs and both original timestamps for the five edited commits. Historical IDs elsewhere in this documentation refer to the original history; use that mapping to locate their rewritten equivalents. A local backup ref, `refs/backup/before-date-rewrite-2026-10-27`, and `.git/date-rewrite-2026-10-27/original-main.bundle` preserve the original history. These metadata edits do not change the creation dates or eligibility declarations above.
