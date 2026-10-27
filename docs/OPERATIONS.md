@@ -80,6 +80,38 @@ Budgets are not hardcoded invented sponsor allowances. Before each charged opera
 
 Only publish the UI/API through a TLS reverse proxy. Keep DB, sidecar and worker ports private. One worker and one sidecar writer are the supported topology. Durable disk persists across process/container restarts, not necessarily host loss; backups and restore tests are still needed. Cloud Run stateless components are optional later; don't put authoritative memory solely on ephemeral filesystems.
 
+## Server deployment (single host, Docker Compose)
+
+The `web` service (Caddy) is the only public component: it serves the built React workbench and reverse-proxies `/v1`, `/health`, `/docs` and `/openapi.json` to the API on the same origin (no CORS). `api` and `ui` publish only on `127.0.0.1`; `db`, `sidecar` and `worker` have no published ports. `restart: unless-stopped` keeps services up across reboots. `docker compose` builds all images on the host — no registry needed.
+
+On a fresh host (as a user who can run Docker):
+
+```sh
+command -v docker >/dev/null || curl -fsSL https://get.docker.com | sh
+git clone https://github.com/Sakshamm-Goyal/SuperOps.git app && cd app
+cat > .env <<EOF
+APP_ENV=hosted
+RUNTIME_MODE=sample
+TENANT_ID=sandbox-tenant
+POSTGRES_PASSWORD=$(openssl rand -hex 16)
+MEMORY_AUTH_TOKEN=$(openssl rand -hex 16)
+EMBEDDING_MODE=hash_conformance
+SANDBOX_WRITES_ENABLED=false
+ALLOWED_TARGET_IDS=local/sandbox/support-worker-stg,local/sandbox/support-ai-workflow
+POLICY_VERSION=pol-v1
+DATA_MANIFEST_ID=support-demo-data-v1
+DEMO_LOGINS=judge,lead,admin
+SITE_ADDRESS=:80
+EOF
+docker compose up -d --build
+```
+
+The `bootstrap` service migrates the authority DB and regenerates the deterministic sample dataset and actors on first start, so a sample-mode host shows the same data as local development without copying any files. `connected_demo` additionally needs real Zetaris, NVIDIA and (optionally) AWS credentials in `.env` and is blocked until those are supplied — a sample-mode host must not be presented as sponsor-integration evidence.
+
+- **TLS / domain:** point a DNS A record at the host and set `SITE_ADDRESS=your.domain`; Caddy obtains and renews a certificate automatically on ports 80/443. `SITE_ADDRESS=:80` serves plain HTTP for an IP-only or local host.
+- **Demo logins:** `DEMO_LOGINS` is a comma list of actor ids whose sandbox tokens the sign-in page surfaces as one-click buttons (`GET /v1/demo-logins`). Empty disables it. It exposes those sandbox credentials to anyone with the URL; it is safe only because the tenant is sandbox and `SANDBOX_WRITES_ENABLED=false`. Drop `admin`/`lead` from the list for view-only review.
+- **Secrets:** `POSTGRES_PASSWORD` and `MEMORY_AUTH_TOKEN` are generated above and live only in the host `.env` (git-ignored, excluded from images by `.dockerignore`). Never commit a real `.env`.
+
 ## Failure handling
 
 | Failure | Required response |
