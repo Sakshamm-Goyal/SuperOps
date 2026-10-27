@@ -11,6 +11,20 @@
 
 Pre-event work is declared in [PREEXISTING.md](PREEXISTING.md); event-window work is listed in [NEW_WORK.md](NEW_WORK.md). The executed change is a **local analogue**: the real `max_concurrency` of a sandbox worker process stands in for an e2-standard-8 → e2-standard-4 resize. It is never reported as a GCP resize. Cost and carbon figures are projections and estimates at synthetic, dated rates.
 
+## For judges: a five-minute tour
+
+| What to check | Where |
+|---|---|
+| The live connected run: 3 proposals, 2 refused with reasons, matched trial PASSED, exact-hash approval, VERIFIED action, memory written | [docs/DEMO_AND_SUBMISSION.md §3a](docs/DEMO_AND_SUBMISSION.md) (run IDs) · [NEW_WORK.md](NEW_WORK.md) |
+| Sponsor integration proof: ZET-01..04, NIM-01/02, HMEM-07 8/8 PASS | [evidence/connected/](evidence/connected/) · [tests/connected/test_sponsors.py](tests/connected/test_sponsors.py) · [§8a sponsor table](docs/DEMO_AND_SUBMISSION.md) |
+| Why a model can never authorize a write | [greenops/services/approvals.py](greenops/services/approvals.py) · [greenops/services/execution.py](greenops/services/execution.py) · [tests/integration/test_authority.py](tests/integration/test_authority.py) |
+| Deterministic screening (peaks and forecast stress, not averages) | [greenops/domain/screening.py](greenops/domain/screening.py) · [greenops/domain/capacity.py](greenops/domain/capacity.py) |
+| Zetaris adapter (paging, receipts, UTC handling, fail-closed) and two-source setup | [greenops/adapters/evidence.py](greenops/adapters/evidence.py) · [scripts/zetaris_setup.py](scripts/zetaris_setup.py) |
+| Meterless H-MEM sidecar (outbox, applicability, corrections) | [memory-sidecar/](memory-sidecar/) · [greenops/services/memory_service.py](greenops/services/memory_service.py) |
+| Ops Copilot (read-only tools, caller-scoped) and Autopilot (start-only role) | [greenops/copilot.py](greenops/copilot.py) · [scripts/autopilot.py](scripts/autopilot.py) |
+| Bugs the live sponsors exposed, each fixed reproducer-first | [NEW_WORK.md](NEW_WORK.md) · [EVALUATION_SPEC amendments](docs/EVALUATION_SPEC.md) |
+| Honest limits: synthetic data, local sandbox analogue, projected savings | [docs/DECISIONS_AND_RISKS.md](docs/DECISIONS_AND_RISKS.md) · the status note above |
+
 ## What it does
 
 One engineering lead investigates one service (`support-demo`):
