@@ -1,4 +1,4 @@
-// Thin typed client over the GreenOps Verify v1 API (docs/API_REFERENCE.md).
+// Thin typed client over the SuperOps v1 API (docs/API_REFERENCE.md).
 // The browser never decides authority: it sends the bearer token, an Idempotency-Key per user action, and
 // renders whatever the server says (next_allowed_actions, blockers, labels).
 

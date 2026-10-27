@@ -1,4 +1,4 @@
-# GreenOps Verify agent instructions
+# SuperOps agent instructions
 
 ## Purpose and current phase
 

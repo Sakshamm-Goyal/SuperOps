@@ -1,4 +1,4 @@
-# GreenOps Verify — workbench UX specification
+# SuperOps — workbench UX specification
 
 Status: implemented pre-event in `greenops/ui/` (16 Oct 2026), verified with Streamlit AppTest against the live sample-mode API. The approval and execute controls have not yet been exercised against a connected-mode action. Keyboard and screen-reader behavior has not been checked manually.
 Use [PRODUCT_SPEC.md](PRODUCT_SPEC.md) for scope and product acceptance IDs. This document specifies visible behavior; the API remains authoritative for authorization and state.

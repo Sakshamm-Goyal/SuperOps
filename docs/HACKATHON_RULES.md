@@ -1,6 +1,6 @@
 # Hackathon rules, evidence and decision gates
 
-**Project:** GreenOps Verify  
+**Project:** SuperOps  
 **Reviewed:** 16 October 2026  
 **Status:** Pre-event planning; no registration, organizer approval, sponsor access, implementation or submission is asserted by this document.  
 **Owners to assign:** Team lead (rules), submission owner (packaging), sponsor owner (integration evidence).
@@ -46,7 +46,7 @@ The advertised “144 hours” is rounded: the stated start and end span **143 h
 
 Nothing in the status column is a claim that the team has completed a requirement. The implementation team fills the evidence reference and records an owner before submission.
 
-| ID | Requirement / guidance | Classification and source | GreenOps Verify proof required | Current state |
+| ID | Requirement / guidance | Classification and source | SuperOps proof required | Current state |
 |---|---|---|---|---|
 | R01 | Participants at least 16 when building begins; one account each; organizer/judging-sponsor employees excluded from cash prizes | Official §§1.1–1.3; FAQ §2 | Team lead checks eligibility privately; no identity documents in repository | Unverified |
 | R02 | One to five people; each participant belongs to one team | Official §§2.1/2.3; FAQ §3 | Final roster and responsibilities | User confirmed 4–5 builders; exact roster and one-team membership still unverified |
@@ -140,7 +140,7 @@ Do not treat silence as approval. Continue independent design and permitted prep
 
 ### Draft organizer clarification — not sent
 
-> We are planning GreenOps Verify, inspired by the public niksm7/GreenOps project. We will independently author our implementation and will not reuse the upstream code, prompts or assets. We have pre-event research, architecture documents and a proposed dataset/test plan, which we will declare. Does this qualify for Track 02, or should an existing concept enter Wildcard? Please also confirm the conflicting registration and judging dates, any selected-track requirements beyond public rule §6, judge repository-access requirements, and current sponsor-access instructions.
+> We are planning SuperOps, inspired by the public niksm7/GreenOps project. We will independently author our implementation and will not reuse the upstream code, prompts or assets. We have pre-event research, architecture documents and a proposed dataset/test plan, which we will declare. Does this qualify for Track 02, or should an existing concept enter Wildcard? Please also confirm the conflicting registration and judging dates, any selected-track requirements beyond public rule §6, judge repository-access requirements, and current sponsor-access instructions.
 
 The official contact is stated in rule 10.3 and FAQ §10; outreach requires the user's explicit instruction. This document prepares the question and does not send it.
 

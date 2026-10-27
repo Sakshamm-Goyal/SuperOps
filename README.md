@@ -1,4 +1,6 @@
-# GreenOps Verify
+# SuperOps
+
+*Formerly GreenOps Verify; the Python package and database names keep the `greenops` identifier.*
 
 **Prove it *before* you change it.** An engineering workbench that finds cloud and AI waste, refuses the tempting changes the evidence says are unsafe, tests the rest, binds a human approval to the exact plan, executes once, verifies the outcome, and remembers what happened so the next investigation starts smarter.
 
@@ -39,6 +41,68 @@ One engineering lead investigates one service (`support-demo`):
 9. **Ops Copilot.** **Claude Haiku 4.5** explains any of it in plain language, citing the records it read.
 
 A justified rejection is a success. The headline example: `worker-prod-01 → e2-standard-2` averages 10.4% CPU but peaks at 6.4 vCPU against 1.6 allowed, so it is refused.
+
+## Architecture
+
+```mermaid
+flowchart LR
+  subgraph SRC["Evidence sources · read-only roles"]
+    A[("Source A · PostgreSQL 16<br/>inventory · telemetry · billing · rates")]
+    B[("Source B · PostgreSQL 17 container<br/>AI runs · model calls")]
+  end
+  Z["Zetaris 2.4 federation<br/>reviewed SQL templates · paging · query receipts"]
+  subgraph AG["Autonomous agent team · NVIDIA Nemotron 3.5 Super via Google ADK"]
+    C["Coordinator<br/>scopes the run"] --> I["Investigator<br/>reads evidence · recalls memory"]
+    I --> O["Optimizer<br/>≤3 candidates per path"]
+    O --> K["Critic<br/>evidence or revision"]
+    K -- "revise" --> O
+  end
+  subgraph CP["Deterministic control plane · FastAPI + durable worker"]
+    S["Screening<br/>peak · stress · memory · policy · cost"]
+    T["Matched trials<br/>A/B load · 40-case AI suite + verifier"]
+    P["Approval<br/>exact plan + trial hash · 15 min"]
+    E["Executor<br/>lock · intent · read-back · recovery"]
+  end
+  DB[("PostgreSQL · the only authority<br/>plans · approvals · actions · events · outbox · budgets")]
+  M["Meterless H-MEM sidecar<br/>Nemotron Embed · scoped, versioned recall"]
+  X["Target<br/>sandbox worker (local analogue)"]
+  H(("Human operator"))
+  UI["React workbench"]
+  CO["Ops Copilot · Claude Haiku 4.5<br/>read-only tools"]
+  AP["Autopilot · automation role<br/>drift-triggered runs"]
+  A --> Z
+  B --> Z
+  Z --> I
+  M -- "recall" --> I
+  O --> S --> K
+  K --> T --> P
+  H -- "approves exact hash" --> P
+  P --> E --> X
+  E -- "outcome + verification" --> DB
+  DB -- "transactional outbox" --> M
+  UI --> CP
+  CO -. "reads with caller's token" .-> CP
+  AP -. "fingerprints" .-> Z
+  AP -. "starts investigations" .-> CP
+```
+
+**The agents.** The investigation runs autonomously from scoping to a decision that waits for a human; the only human step is the write.
+
+| Agent | Model | What it does on its own | Tools | Hard limits |
+|---|---|---|---|---|
+| Coordinator | Nemotron 3.5 Super | Picks the cloud and/or AI path and the focus | none | Typed output; budget per run |
+| Investigator | Nemotron 3.5 Super | Reads federated evidence, recalls prior outcomes, asks for telemetry series | `recall_prior_experiments` (H-MEM) | Read-only tools; untrusted text never parsed for authority |
+| Optimizer | Nemotron 3.5 Super | Proposes and revises candidates | none | ≤3 candidates per path; every one screened deterministically |
+| Critic | Nemotron 3.5 Super | Requests evidence, a revision or a trial; reviews trial results | none | Cannot validate failed checks; an outage is never a verdict |
+| Support agent | Nemotron 3.5 Super | Answers support tickets inside AI-workflow trials | `lookup_order`, `lookup_customer` | Authorization before data; tool-call caps; independent verifier |
+| Ops Copilot | Claude Haiku 4.5 | Explains runs, plans, evidence and memory to operators | 7 read-only tools | Caller's permissions; no mutating tool |
+| Autopilot | Deterministic loop | Detects evidence drift through Zetaris and starts investigations | Zetaris receipts, public API | `automation` role: can start runs only |
+
+**Production properties already enforced in code:**
+- **Every request:** idempotency keys on every mutation, tenant-scoped lookups, and an OpenAPI schema generated from typed models and tested against the live routes.
+- **Jobs and writes:** a durable job queue with leases; a transactional outbox to memory; a per-target lock with intent persisted before the provider call.
+- **Failure handling:** read-back verification and scoped recovery; fail-closed adapters; bounded retries for reads only; per-run model budgets.
+- **Hygiene:** a secret scan, and CI running unit, contract, sidecar, web build and real-PostgreSQL integration suites.
 
 ## Quick start: connected demo (live sponsors)
 

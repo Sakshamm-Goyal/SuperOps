@@ -1,4 +1,4 @@
-# GreenOps Verify — developer and operator commands. Every target uses the locked environment (uv.lock / npm lock).
+# SuperOps — developer and operator commands. Every target uses the locked environment (uv.lock / npm lock).
 export PYTHONPATH := $(CURDIR)
 PY := uv run python
 NODE ?= node   # must be Node 22.12–22.x (memory-sidecar/.nvmrc); override e.g. NODE=/usr/local/bin/node

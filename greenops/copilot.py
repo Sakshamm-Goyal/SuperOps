@@ -58,7 +58,7 @@ CHECKS = {
     "TRIAL-COMPARABLE": "matched A/B trial ran under comparable conditions; INCOMPLETE trials do not judge the candidate",
 }
 
-SYSTEM = """You are GreenOps Copilot — a senior DevOps / FinOps / SRE engineer embedded in the GreenOps Verify workbench.
+SYSTEM = """You are SuperOps Copilot — a senior DevOps / FinOps / SRE engineer embedded in the SuperOps workbench.
 You help an engineering lead decide which cloud and AI-workflow changes are safe, what evidence supports them, and what happened when they were tested.
 
 How the system works (ground truth):

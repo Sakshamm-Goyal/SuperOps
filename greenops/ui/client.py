@@ -1,4 +1,4 @@
-"""HTTP client for the GreenOps Verify API. The workbench talks to the API only through this module.
+"""HTTP client for the SuperOps API. The workbench talks to the API only through this module.
 
 The bearer token is passed per call from Streamlit session state; it is never put in URLs,
 query strings or log lines. Mutating calls carry a caller-supplied Idempotency-Key.

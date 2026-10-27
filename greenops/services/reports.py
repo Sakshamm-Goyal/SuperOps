@@ -80,10 +80,10 @@ def to_html(r: dict) -> str:
     mem = r["memory"] or {}
     mem_items = "".join(f"<li>[{'applicable' if m.get('applicable') else 'historical — retest required'}] {e(m['finding'])}</li>"
                         for m in (mem.get("applicable") or []) + (mem.get("historical") or [])) or "<li>None recalled.</li>"
-    return f"""<!doctype html><html lang="en"><head><meta charset="utf-8"><title>GreenOps Verify report {e(r['investigation']['id'])}</title>
+    return f"""<!doctype html><html lang="en"><head><meta charset="utf-8"><title>SuperOps report {e(r['investigation']['id'])}</title>
 <style>body{{font:16px/1.5 system-ui,sans-serif;max-width:1100px;margin:2rem auto;padding:0 1rem;color:#1b1f23;background:#fff}}
 table{{border-collapse:collapse;width:100%}}td,th{{border:1px solid #ccc;padding:.4rem;vertical-align:top}}.lab{{background:#fff4d6;padding:.5rem;border:1px solid #e0c060}}</style></head>
-<body><h1>GreenOps Verify — evidence report</h1>
+<body><h1>SuperOps — evidence report</h1>
 <p class="lab">Runtime mode: <b>{e(r['labels']['runtime_mode'])}</b> · Data origin: <b>{e(r['labels']['data_origin'])}</b> · Executor: {e(r['labels']['executor'])} · Model: {e(r['labels']['model_id'])} · Memory: {e(r['labels']['memory_mode'])}</p>
 <p><b>Question:</b> {e(r['question'])}</p><p><b>Outcome:</b> {e((r['outcome'] or {}).get('status'))} · Investigation {e(r['investigation']['id'])} · policy {e(r['investigation']['policy_version'])} · generated {e(r['generated_at'])}</p>
 <h2>Candidates (including rejections)</h2><table><tr><th>Candidate</th><th>Signature</th><th>Status</th><th>Screening</th><th>Failed / unknown checks</th><th>Projected net (720 h)</th></tr>{rows}</table>

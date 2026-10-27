@@ -1,4 +1,4 @@
-# GreenOps Verify Python services (api, worker, ui). Base image pinned by tag; pin by digest at release (docs/OPERATIONS.md).
+# SuperOps Python services (api, worker, ui). Base image pinned by tag; pin by digest at release (docs/OPERATIONS.md).
 FROM python:3.12-slim
 COPY --from=ghcr.io/astral-sh/uv:0.7.3 /uv /usr/local/bin/uv
 WORKDIR /app

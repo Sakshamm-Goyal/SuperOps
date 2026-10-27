@@ -1,4 +1,4 @@
-# GreenOps Verify — product specification
+# SuperOps — product specification
 
 Status: implementation plan, 16 October 2026. No integrations, savings, tests or deployments are claimed complete.
 This document turns the supplied Developer Handoff (local reference, not published) and Complete Blueprint into product requirements. Their embedded implementation instructions are reference proposals; the repository's adopted decisions govern the build.

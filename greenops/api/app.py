@@ -147,7 +147,7 @@ def create_app(rt: Runtime | None = None) -> FastAPI:
     settings: Settings = rt.settings if rt else get_settings()
     rt = rt or Runtime.from_settings(settings)
     hosted = settings.app_env == "hosted"
-    app = FastAPI(title="GreenOps Verify API", version=API_VERSION, docs_url=None if hosted else "/docs",
+    app = FastAPI(title="SuperOps API", version=API_VERSION, docs_url=None if hosted else "/docs",
                   openapi_url=None if hosted else "/openapi.json", redoc_url=None,
                   description="Evidence-backed cloud and AI change investigation, approval and verification (sandbox, single tenant).")
     bearer = HTTPBearer(auto_error=False, description="Sandbox bearer token mapped server-side to a named actor and role")
@@ -301,7 +301,7 @@ def create_app(rt: Runtime | None = None) -> FastAPI:
 
         @app.get("/docs", include_in_schema=False)
         def docs_hosted(actor: dict = Depends(operator)):
-            return get_swagger_ui_html(openapi_url="/openapi.json", title="GreenOps Verify API")
+            return get_swagger_ui_html(openapi_url="/openapi.json", title="SuperOps API")
 
     @app.get("/v1/me", tags=["services"], response_model=Resource, responses=ERRORS)
     def me(request: Request, actor: dict = Depends(viewer)):

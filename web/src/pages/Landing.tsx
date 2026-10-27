@@ -119,7 +119,7 @@ export default function Landing() {
               Prove it <em>before</em> you change&nbsp;it.
             </h1>
             <p className="mx-auto mt-6 max-w-xl text-[17px] leading-relaxed text-muted lg:mx-0">
-              GreenOps Verify hunts cloud and AI waste in a live support service. Agents propose. Deterministic checks, matched
+              SuperOps hunts cloud and AI waste in a live support service. Agents propose. Deterministic checks, matched
               trials and a human-approved plan hash decide — and every rejection is remembered so it isn't proposed twice.
             </p>
             <div className="mt-8 flex flex-wrap items-center justify-center gap-3 lg:justify-start">

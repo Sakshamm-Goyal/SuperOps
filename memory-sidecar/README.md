@@ -1,7 +1,7 @@
 # GreenOps memory sidecar (private)
 
 A private HTTP sidecar that wraps the **vendored Meterless H-MEM reference engine**
-(`@meterless/hmem-reference` 0.1.0, Apache-2.0) for GreenOps Verify. On top of the engine it adds:
+(`@meterless/hmem-reference` 0.1.0, Apache-2.0) for SuperOps. On top of the engine it adds:
 
 - receipt idempotency
 - tenant/service scope, enforced before ranking

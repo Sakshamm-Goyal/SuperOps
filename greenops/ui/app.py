@@ -1,4 +1,4 @@
-"""GreenOps Verify investigation workbench (Streamlit).
+"""SuperOps investigation workbench (Streamlit).
 
 Contract: docs/UX_SPEC.md for visible behavior, docs/API_REFERENCE.md for routes. The workbench talks to the
 API only over HTTP (greenops.ui.client); it never imports services, the database, adapters or executor code.
@@ -166,7 +166,7 @@ def guarded(fn: Callable[[Ctx], None], ctx: Ctx) -> None:
 # ---- login, context, banner --------------------------------------------------------------------------
 
 def login_page() -> None:
-    st.title("GreenOps Verify")
+    st.title("SuperOps")
     st.write("Sign in with a sandbox bearer token. The token is held only in this session's server memory, "
              "never in the page address, and is sent to the API in the Authorization header.")
     for kind, text in st.session_state.pop("flash", []):
@@ -1399,7 +1399,7 @@ def page_operations(ctx: Ctx) -> None:
 # ---- entry point --------------------------------------------------------------------------------
 
 def main() -> None:
-    st.set_page_config(page_title="GreenOps Verify", page_icon=":material/fact_check:", layout="wide")
+    st.set_page_config(page_title="SuperOps", page_icon=":material/fact_check:", layout="wide")
     token = st.session_state.get("token")
     if not token:
         st.navigation([st.Page(login_page, title="Sign in", icon=":material/login:", url_path="signin")], position="hidden").run()

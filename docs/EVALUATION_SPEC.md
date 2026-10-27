@@ -106,7 +106,7 @@ If the support trial includes only read-only tools, report action *recommendatio
 
 ## 4. Cloud comparison protocol
 
-Baseline B0 is deliberately simple and frozen: if average CPU <20%, recommend the next smaller permitted size. Record its inputs and omitted checks so comparison is fair; do not caricature it as an industry-standard optimizer. B1 is GreenOps Verify with peak/stress CPU, absolute memory, completeness, compatibility, policy, window and matched trial constraints. Both evaluate the same six resources at the same origins/rates.
+Baseline B0 is deliberately simple and frozen: if average CPU <20%, recommend the next smaller permitted size. Record its inputs and omitted checks so comparison is fair; do not caricature it as an industry-standard optimizer. B1 is SuperOps with peak/stress CPU, absolute memory, completeness, compatibility, policy, window and matched trial constraints. Both evaluate the same six resources at the same origins/rates.
 
 Report candidate count, known-unsafe proposals, feasible candidates retained, unsupported/needs-evidence cases, and no-change outcomes. Score against the independent constraint ledger before model-generated explanations. The ledger's binary rule compliance is separate from real workload performance. No unsafe acceptance is allowed in the fixed regression suite; this is an invariant over these fixtures, not a measured universal error rate.
 

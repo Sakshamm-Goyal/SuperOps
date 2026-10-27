@@ -120,7 +120,7 @@ export function Logo({ className, mono }: { className?: string; mono?: boolean }
         <path d="m12.6 16.4 2.2 2.2 4.6-4.7" fill="none" stroke="#fff" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />
       </svg>
       <span className="font-display text-[17px] font-bold tracking-tight text-ink">
-        GreenOps <em className="font-extrabold italic text-accent">Verify</em>
+        Super<em className="font-extrabold italic text-accent">Ops</em>
       </span>
     </span>
   );

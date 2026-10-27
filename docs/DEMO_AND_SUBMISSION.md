@@ -9,7 +9,7 @@ Our competitive strategy is to make one useful result easy to inspect and hard t
 
 ## 1. Product promise and demonstration boundary
 
-**Working pitch to validate:** “GreenOps Verify helps a cloud operator decide which efficiency change is justified. It combines fragmented evidence, tests proposals, remembers prior outcomes and verifies one approved sandbox action.”
+**Working pitch to validate:** “SuperOps helps a cloud operator decide which efficiency change is justified. It combines fragmented evidence, tests proposals, remembers prior outcomes and verifies one approved sandbox action.”
 
 The core demo is one service, six small VM histories, one investigation and one bounded target action. The data is synthetic unless a reviewed manifest explicitly establishes otherwise. The AI Efficiency Lab is a committed P0 capability using the same evidence/approval infrastructure: build the cloud path end to end first, then complete the bounded support-workflow experiment. Removing the Lab requires an explicit scope decision recorded in [decisions and risks](DECISIONS_AND_RISKS.md); it must not quietly disappear from the delivered product. Its short demo segment can show a clearly labelled prior experiment while the full reproducible evidence remains available.
 
