@@ -115,18 +115,31 @@ class AdkGateway:
 
         self.model_id = settings.model_id
         self.structured = os.environ.get("MODEL_STRUCTURED_OUTPUT", "json_schema")
-        # Generation ceiling so the conservative per-request reservation bounds actual spend (audit A08).
+        # Generation ceiling so the conservative per-request reservation bounds actual spend (audit A08). It must fit the
+        # largest schema-valid output: an InvestigatorReport at its caps (12 observations × 10 evidence UUIDs) is ~3.5k
+        # tokens, so 1024 truncated real reports once memory gave the model more to cite (json_invalid, 26 Oct).
         # Nemotron reasoning tokens count against max_tokens and truncated typed JSON in a real call (25 Oct), so
         # reasoning is off unless MODEL_REASONING=on; deterministic checks, not model reasoning, decide outcomes.
         reasoning = os.environ.get("MODEL_REASONING", "off") == "on"
         self._llm = NimLiteLlm(model=f"openai/{settings.model_id}", api_base=settings.model_base_url,
-                            api_key=settings.model_api_key, temperature=0, max_tokens=int(os.environ.get("MODEL_MAX_OUTPUT_TOKENS", "1024")),
-                            extra_body={"chat_template_kwargs": {"enable_thinking": reasoning}})
+                            api_key=settings.model_api_key, temperature=0, max_tokens=int(os.environ.get("MODEL_MAX_OUTPUT_TOKENS", "4096")),
+                            extra_body={"chat_template_kwargs": {"enable_thinking": reasoning}},
+                            # A single hung NVIDIA request consumed whole 90 s role budgets (26 Oct, twice); a per-request
+                            # ceiling with one provider retry recovers inside the role timeout. Reads only; budget reserved per request.
+                            timeout=float(os.environ.get("MODEL_REQUEST_TIMEOUT_S", "40")), num_retries=1)
 
     def run(self, role, instruction, payload, output_model, *, tools=None, budget=None, before_tool=None, timeout_s=None):
         # Per-turn ceiling; 45 s was too tight for a 120B hosted model writing a typed report plus one correction.
         timeout_s = timeout_s or float(os.environ.get("MODEL_ROLE_TIMEOUT_S", "90"))
-        return asyncio.run(self._run(role, instruction, payload, output_model, tools or [], budget, before_tool, timeout_s))
+        # One fresh-session retry for a transient provider failure (a single >90 s or HTTP 500 response failed whole
+        # investigations on 25 and 26 Oct). Role calls are read-only proposals; every request still reserves budget.
+        for attempt in (1, 2):
+            try:
+                return asyncio.run(self._run(role, instruction, payload, output_model, tools or [], budget, before_tool, timeout_s))
+            except ModelError as e:
+                if e.code != "DEPENDENCY_UNAVAILABLE" or attempt == 2:
+                    raise
+                logging.getLogger(__name__).warning("%s: transient provider failure, retrying once: %s", role, e)
 
     async def _run(self, role, instruction, payload, output_model, tools, budget, before_tool, timeout_s):
         from google.adk.agents import LlmAgent
@@ -180,9 +193,13 @@ class AdkGateway:
                     + ". Reply again with ONLY the corrected JSON object."), timeout_s)
                 out = output_model.model_validate_json(_strip_fence(text))
         except ValidationError as e:
-            raise ModelError("MODEL_OUTPUT_INVALID", f"{role}: schema violation after corrective attempt: {e.error_count()} errors")
+            first = e.errors()[0] if e.errors() else {}
+            raise ModelError("MODEL_OUTPUT_INVALID", f"{role}: schema violation after corrective attempt: {e.error_count()} errors "
+                                                     f"(first: {first.get('type')} at {'.'.join(map(str, first.get('loc', ())))}; "
+                                                     f"output tokens {totals['out']})")
         except asyncio.TimeoutError:
-            raise ModelError("DEPENDENCY_UNAVAILABLE", f"{role}: model call exceeded {timeout_s}s")
+            raise ModelError("DEPENDENCY_UNAVAILABLE", f"{role}: model call exceeded {timeout_s}s after {totals['requests']} model "
+                                                       f"requests and {totals['tools']} tool calls ({', '.join(t['tool'] for t in tool_log[-6:]) or 'none'})")
         except BudgetExceeded:
             raise
         except ModelError:

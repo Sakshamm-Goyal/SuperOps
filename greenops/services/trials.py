@@ -250,13 +250,14 @@ def _ai_trial(rt: Runtime, trial: dict, plan: dict, doc: dict, policy: ServicePo
                       "input_tokens": sum(r["input_tokens"] or 0 for r in results), "output_tokens": sum(r["output_tokens"] or 0 for r in results),
                       "model_requests": sum(r["model_requests"] for r in results), "tool_calls": sum(r["tool_calls"] for r in results),
                       "deduped_lookups": sum(r["deduped_lookups"] for r in results), "errors": sum(1 for r in results if r["error"]),
+                      "provider_unavailable_cases": sorted(cs["case_id"] for cs, r in zip(cases, results) if r["error"] == "DEPENDENCY_UNAVAILABLE"),
                       "latency_ms_p50": median(r["latency_ms"] for r in results), "latency_ms_max": max(r["latency_ms"] for r in results),
                       "total_cost_usd": None if total is None else str(total), "usage_completeness": str(completeness), "usage_basis": basis,
                       "cost_per_accepted_usd": None if (cpa := acc.cost_per_accepted(total, accepted)) is None else str(cpa),
                       "per_case": [{"case_id": v["case_id"], "category": v["category"], "accepted": v["accepted"], "critical": v["critical_failure"],
                                     "checks": v["checks"], "expected": v["expected"], "observed": v.get("observed")} for v in verdicts],
                       "wall_ms": int((time.perf_counter() - t0) * 1000)}
-        if label == "baseline":
+        if label == "baseline" and not out[label]["provider_unavailable_cases"]:  # never reuse an outage-damaged baseline
             inv["summary"].setdefault("ai_baseline_cache", {})[out[label]["config_hash"] + "|" + gateway.model_id] = out[label]
             I.save_summary(rt, inv["id"], inv["summary"])
     b, cnd = out["baseline"], out["candidate"]
@@ -274,8 +275,14 @@ def _ai_trial(rt: Runtime, trial: dict, plan: dict, doc: dict, policy: ServicePo
          "detail": f"cost/accepted {cpa_c} vs baseline {cpa_b} USD ({cnd['usage_basis']} usage)"}]
     disc = {"both_pass": len(bpass & cpass), "baseline_only": len(bpass - cpass), "candidate_only": len(cpass - bpass),
             "neither": b["cases"] - len(bpass | cpass)}
-    quality_ok = all(c["status"] == "PASS" for c in checks[:3])
-    outcome = "PASSED" if quality_ok and cost_ok else "FAILED"
+    # Cases the provider never answered (outage, 26 Oct) were not judged; scoring them as wrong answers would turn
+    # instrument failure into a quality verdict. Like TRIAL-COMPARABLE for cloud, the trial is then INCOMPLETE.
+    unanswered = sorted(set(b.get("provider_unavailable_cases", [])) | set(cnd.get("provider_unavailable_cases", [])))
+    checks.insert(0, {"check_id": "AI-COMPARABLE", "status": "FAIL" if unanswered else "PASS",
+                      "detail": (f"provider unavailable for {len(unanswered)} case(s) {unanswered[:8]}; candidate not judged" if unanswered
+                                 else "every case answered on both sides (no provider outages)")})
+    quality_ok = all(c["status"] == "PASS" for c in checks[:4])
+    outcome = "INCOMPLETE" if unanswered else "PASSED" if quality_ok and cost_ok else "FAILED"
     reduction = None
     if cpa_b and cpa_c and Decimal(cpa_b) > 0:
         reduction = str(((Decimal(cpa_b) - Decimal(cpa_c)) / Decimal(cpa_b)).quantize(Decimal("0.0001")))
@@ -356,7 +363,10 @@ def _post_trial(rt, inv, plan, trial_id, status, result, trial_hash) -> None:
     validated = status == "PASSED" and critic.get("verdict") == "VALIDATED" and bool(set(critic.get("check_ids", [])) & real)
     # INCOMPLETE: the instrument (load, budget, execution) failed, so the candidate was never judged. It stays DRAFT and
     # can be re-trialled; rejecting it would turn instrument noise into a verdict (EVALUATION_SPEC 2026-10-17 amendment).
-    new_status = "AWAITING_APPROVAL" if validated else "DRAFT" if status == "INCOMPLETE" else "REJECTED"
+    # The critic could not review a PASSED trial (provider outage, 26 Oct): that is not a verdict either. The plan stays
+    # DRAFT for re-trial and no outcome memory is written, so an outage cannot become a remembered "failure".
+    review_unavailable = status == "PASSED" and critic.get("verdict") in ("ERROR", "MISSING")
+    new_status = "AWAITING_APPROVAL" if validated else "DRAFT" if status == "INCOMPLETE" or review_unavailable else "REJECTED"
     sig = plan["screening"].get("signature")
     reason = "; ".join(f"{c['check_id']}: {c['detail']}" for c in result["checks"] if c["status"] != "PASS") or f"critic {critic.get('verdict')}"
     versions = I.current_versions(rt, inv, None)
@@ -382,7 +392,7 @@ def _post_trial(rt, inv, plan, trial_id, status, result, trial_hash) -> None:
         c.execute("UPDATE plans SET status=%s, critic=%s, updated_at=now() WHERE id=%s",
                   (new_status, J({**(plan["critic"] or {}), "trial": {"trial_id": str(trial_id), "status": status, "critic": critic}}), plan["id"]))
         append_event(c, inv["id"], "plan.post_trial", "agent:critic", {"plan_id": str(plan["id"]), "status": new_status, "critic": critic, "reason": reason})
-        if inv["memory_mode"] == "on" and status in ("PASSED", "FAILED"):
+        if inv["memory_mode"] == "on" and status in ("PASSED", "FAILED") and not review_unavailable:
             kind = "validated_plan" if validated else "rejected_trial"
             finding = (f"Trial {trial_id} for {sig} {'passed' if validated else 'failed'} under policy {inv['policy_version']}: "
                        + ("; ".join(f"{c['check_id']}: {c['detail']}" for c in result["checks"])))
@@ -393,6 +403,7 @@ def _post_trial(rt, inv, plan, trial_id, status, result, trial_hash) -> None:
         inv2 = I.load(c, inv["id"])
     summ = inv2["summary"]
     if not validated:
-        summ.setdefault("feedback", []).append({"signature": sig, "outcome": "INCOMPLETE" if status == "INCOMPLETE" else "FAILED",
+        summ.setdefault("feedback", []).append({"signature": sig, "outcome": "INCOMPLETE" if status == "INCOMPLETE"
+                                                else "REVIEW_UNAVAILABLE" if review_unavailable else "FAILED",
                                                 "reasons": reason, "trial_id": str(trial_id)})
         I.save_summary(rt, inv["id"], summ)

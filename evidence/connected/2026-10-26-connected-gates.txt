@@ -1,0 +1,10 @@
+# make test-connected, 2026-10-26T22:04Z, local Zetaris 2.4.3 + NVIDIA + H-MEM sidecar
+PASSED tests/connected/test_sponsors.py::test_zet01_two_physical_sources_federated_with_reconciled_totals
+PASSED tests/connected/test_sponsors.py::test_zet02_pagination_205_rows_exactly_once
+PASSED tests/connected/test_sponsors.py::test_zet03_billing_and_dated_prices_exact
+PASSED tests/connected/test_sponsors.py::test_zet04_bad_credentials_bounded_and_redacted
+PASSED tests/connected/test_sponsors.py::test_nim01_real_model_typed_role_output_with_usage
+PASSED tests/connected/test_sponsors.py::test_nim01_real_tool_cycle_support_case
+PASSED tests/connected/test_sponsors.py::test_nim02_injection_text_stays_data
+PASSED tests/connected/test_sponsors.py::test_hmem07_sp07_real_embeddings_paraphrase_restart_and_versions
+8 passed, 1 warning in 25.20s

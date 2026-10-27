@@ -357,3 +357,54 @@ def test_incomplete_cloud_trial_does_not_judge_the_candidate(env, monkeypatch):
     r = client.post(f"/v1/plans/{p['id']}/trials", headers=auth("lead"), json={
         "plan_hash": p["plan_hash"], "approved_trial_profile_id": "sandbox-trials-v1", "suite_id": "workload-wl-v1"})
     assert r.status_code == 202, r.text
+
+
+def test_post_trial_critic_outage_does_not_reject_a_passed_trial(db_url, sandbox):
+    """26 Oct (connected run 298a9c62): NVIDIA returned HTTP 500 for the post-trial critic and the plan whose matched
+    trial PASSED was REJECTED. A provider outage is not a verdict: the plan stays DRAFT, can be re-trialled, and no
+    failure memory is written."""
+    from greenops.adapters.model import ModelError
+    from greenops.agents.roles import SCRIPTS
+
+    def critic(payload, tools):
+        if any(c.get("stage") == "post_trial" for c in payload["candidates"]):
+            raise ModelError("DEPENDENCY_UNAVAILABLE", "critic: model provider error InternalServerError")
+        return SCRIPTS["critic"](payload, tools)
+    rt = make_runtime(db_url, sandbox, scripts={"critic": critic})
+    client = TestClient(create_app_for(rt))
+    iid = start_investigation(client)
+    drain(rt)
+    inv = client.get(f"/v1/investigations/{iid}", headers=auth("lead", False)).json()
+    passed = {t["plan_id"] for t in inv["data"]["trials"] if t["status"] == "PASSED"}
+    assert passed, inv["data"]["trials"]
+    plans = [p for p in inv["data"]["plans"] if p["id"] in passed]
+    assert all(p["status"] == "DRAFT" for p in plans), [(p["status"], p["screening"]["signature"]) for p in plans]
+    p = client.get(f"/v1/plans/{plans[0]['id']}", headers=auth("lead", False)).json()
+    assert "run_trial" in p["next_allowed_actions"], p
+    with connect(rt.db) as c:
+        tids = [f"trial:{t['id']}" for t in inv["data"]["trials"] if t["status"] == "PASSED"]
+        assert not c.execute("SELECT 1 FROM memory_outbox WHERE source_ref = ANY(%s)", (tids,)).fetchone()
+
+
+def test_ai_trial_with_provider_outages_is_incomplete_not_failed(db_url, sandbox):
+    """26 Oct (run a721458e): six candidate cases hit NVIDIA HTTP 500s and were scored as wrong answers, so outages
+    counted against quality. Cases the provider never answered were not judged: the AI trial is INCOMPLETE."""
+    from experiments.support.workflow import scripted_support
+    from greenops.adapters.model import ModelError
+    calls = {"n": 0}
+
+    def flaky_support(payload, tools):
+        calls["n"] += 1
+        if calls["n"] % 13 == 0:
+            raise ModelError("DEPENDENCY_UNAVAILABLE", "support: model provider error InternalServerError")
+        return scripted_support(payload, tools)
+    rt = make_runtime(db_url, sandbox, scripts={"support": flaky_support})
+    client = TestClient(create_app_for(rt))
+    iid = start_investigation(client)
+    drain(rt)
+    inv = client.get(f"/v1/investigations/{iid}", headers=auth("lead", False)).json()
+    ai = [t for t in inv["data"]["trials"] if t["suite_id"] == "support-dev-v1"]
+    assert ai and all(t["status"] == "INCOMPLETE" for t in ai), ai
+    checks = client.get(f"/v1/trials/{ai[0]['id']}", headers=auth("lead", False)).json()["data"]["result"]["checks"]
+    assert next(c for c in checks if c["check_id"] == "AI-COMPARABLE")["status"] == "FAIL"
+    assert all(p["status"] == "DRAFT" for p in inv["data"]["plans"] if p["id"] in {t["plan_id"] for t in ai})

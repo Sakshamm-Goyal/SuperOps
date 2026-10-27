@@ -105,3 +105,57 @@ def test_holdout_never_in_agent_readable_templates():
     for t in TEMPLATES.values():
         if "ai_calls" in t.sql or "ai_runs" in t.sql:
             assert "evaluation_partition = 'development'" in t.sql and "access_class = 'agent_readable'" in t.sql, t.id
+
+
+def test_model_gateway_retries_one_transient_failure_only():
+    from greenops.adapters.model import AdkGateway, ModelError
+    calls = []
+
+    async def flaky(*a):
+        calls.append(1)
+        if len(calls) == 1:
+            raise ModelError("DEPENDENCY_UNAVAILABLE", "investigator: model call exceeded 90.0s")
+        return "ok"
+
+    g = object.__new__(AdkGateway)  # no provider construction: this checks the retry policy only
+    g._run = flaky
+    assert g.run("investigator", "", {}, None, timeout_s=1) == "ok" and len(calls) == 2
+
+    async def always(*a):
+        calls.append(1)
+        raise ModelError("DEPENDENCY_UNAVAILABLE", "down")
+    g._run, calls[:] = always, []
+    with pytest.raises(ModelError):
+        g.run("investigator", "", {}, None, timeout_s=1)
+    assert len(calls) == 2
+
+    async def invalid(*a):
+        calls.append(1)
+        raise ModelError("MODEL_OUTPUT_INVALID", "schema")
+    g._run, calls[:] = invalid, []
+    with pytest.raises(ModelError):
+        g.run("investigator", "", {}, None, timeout_s=1)
+    assert len(calls) == 1  # schema violations are not retried
+
+
+def _ts_zetaris(tz: str):
+    """Spark renders timestamptz as zone-less strings in the session time zone (observed on local Zetaris, 26 Oct)."""
+    def handler(req: httpx.Request):
+        if req.url.path.endswith("/sql/start"):
+            sql = json.loads(req.content)["select"]
+            recs = [{"tz": tz}] if "current_timezone" in sql else [{"SKU": "e2-standard-2", "EFFECTIVE_FROM": "2026-08-31 00:00:00.0", "EFFECTIVE_TO": None,
+                                                                    "PRICE": "0.067", "NOTE": "2026-08-31 00:00:00 is not a time"}]
+            return httpx.Response(200, json={"pageNumber": 1, "pageLimit": 100, "totalCount": len(recs), "totalPages": 1, "queryToken": "qt", "records": recs})
+        if "/sql/close/" in req.url.path:
+            return httpx.Response(200)
+        return httpx.Response(404)
+    return httpx.Client(base_url="https://zetaris.invalid", transport=httpx.MockTransport(handler))
+
+
+def test_zetaris_spark_timestamps_become_rfc3339_utc_only_in_a_utc_session():
+    rows = ZetarisClient(settings(), http=_ts_zetaris("GMT")).query("prices", {"region": "us-central1"}).rows
+    assert rows[0]["effective_from"] == "2026-08-31T00:00:00Z" and rows[0]["effective_to"] is None
+    assert rows[0]["note"] == "2026-08-31 00:00:00 is not a time"
+    with pytest.raises(ZetarisError) as e:
+        ZetarisClient(settings(), http=_ts_zetaris("Australia/Sydney")).query("prices", {"region": "us-central1"})
+    assert e.value.code == "EVIDENCE_QUERY_FAILED" and "Australia/Sydney" in str(e.value)

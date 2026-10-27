@@ -167,8 +167,11 @@ Before accepting a release, map every advertised capability to at least one pass
 | Audit A01–A22 regressions (unit) | `tests/unit/test_audit_regressions.py` | T0 | PASS |
 | Audit A01–A03, A06–A08, A12, A13, A15, A22 + trial-fidelity regressions; INCOMPLETE trial leaves plan DRAFT (ADR-24, 25 Oct) | `tests/integration/test_audit_authority.py` | T1 | PASS |
 | Story page moment selection (absent moments stay absent; not-judged trial is not a revision) | `tests/unit/test_story.py` | T0 | PASS |
-| NIM-01 (typed role output, real tool cycle), NIM-02, HMEM-07/SP-07 | `tests/connected/test_sponsors.py` | T2 | PASS 25 Oct (real NVIDIA; paraphrase top-1 9/10) |
-| ZET-01..04 | `tests/connected/test_sponsors.py` | T2 | **BLOCKED** (no Zetaris credentials or reachable sources) |
+| Ops Copilot safety (read-only tool set, route allowlist, input validation); Zetaris Spark-timestamp normalization; model-gateway retry policy | `tests/unit/test_copilot.py`, `tests/unit/test_adapters_contract.py` | T0 | PASS 26 Oct (64 unit) |
+| Automation role holds no change authority; critic NEEDS_EVIDENCE (incl. an unfulfillable data request) on an eligible candidate reaches its trial; post-trial reviewer outage keeps a passed plan DRAFT with no outcome memory; AI provider outages make the trial INCOMPLETE | `tests/integration/test_authority.py`, `tests/integration/test_audit_authority.py` | T1 | **PASS 26 Oct: full integration suite 44/44** (14 min) |
+| Sidecar embedding retry (one retry on timeout/5xx, none on 4xx) | `memory-sidecar/test/embedding-retry.test.ts` | T1 | 27/27 PASS 26 Oct |
+| NIM-01 (typed role output, real tool cycle), NIM-02, HMEM-07/SP-07 | `tests/connected/test_sponsors.py` | T2 | PASS 25 and 26 Oct (real NVIDIA; paraphrase top-1 9/10) |
+| ZET-01..04 | `tests/connected/test_sponsors.py` | T2 | **PASS 26 Oct** (local Zetaris 2.4.3; two physical PostgreSQL sources; `evidence/connected/2026-10-26-connected-gates.txt`) |
 | Holdout evaluation | `make eval` (`experiments/support/evaluate.py`) | T4 | NOT_RUN (needs a frozen candidate from a real-model trial) |
 
 Latest full session (17 Oct): 93 PASS, 0 FAIL, 8 BLOCKED (`evidence/audits/2026-10-17/remediation/full-suite-after-fix.log`). `var/test-results/latest.json` records PASS/FAIL/BLOCKED/NOT_RUN for each pytest session (`make test` prints the counts). Not yet implemented: ACT-10 (recovery operation itself fails), ACT-11 as a dedicated test (the AI action verification checks the runner-loaded config hash), ACT-12 (process kill while holding the lock: reconciliation is covered by ACT-07), E2E-03 browser-level degraded run, and T5 clean-install exercise on a second machine.

@@ -26,7 +26,7 @@ from greenops.services import approvals as A, reports
 from greenops.services.common import AppError, Runtime, append_event, enqueue, now
 
 API_VERSION = "1.0.0"
-ROLE_RANK = {"viewer": 0, "operator": 1, "admin": 2}
+ROLE_RANK = {"viewer": 0, "automation": 1, "operator": 2, "admin": 3}  # automation: start investigations only
 
 
 # ---- schemas --------------------------------------------------------------------------
@@ -75,6 +75,22 @@ class RevokeRequest(Req):
 class ExecuteRequest(Req):
     approval_id: uuid.UUID
     plan_hash: str
+
+
+class CopilotMessage(Req):
+    message: str = Field(min_length=1, max_length=4000)
+    conversation_id: uuid.UUID | None = None
+    investigation_id: uuid.UUID | None = None
+
+
+class CopilotReply(BaseModel):
+    conversation_id: str
+    message_id: str
+    reply: str
+    model_id: str
+    tool_calls: list[dict[str, Any]]
+    citations: list[dict[str, Any]]
+    suggested_prompts: list[str]
 
 
 class ErrorBody(BaseModel):
@@ -180,7 +196,7 @@ def create_app(rt: Runtime | None = None) -> FastAPI:
             return a
         return dep
 
-    viewer, operator, admin = actor_dep("viewer"), actor_dep("operator"), actor_dep("admin")
+    viewer, automation, operator, admin = actor_dep("viewer"), actor_dep("automation"), actor_dep("operator"), actor_dep("admin")
 
     def idempotent(request: Request, actor: dict, key: str | None, route: str, body: dict, handler) -> JSONResponse:
         if key is None:
@@ -305,7 +321,7 @@ def create_app(rt: Runtime | None = None) -> FastAPI:
         return {"items": rows, "next_cursor": None, "request_id": request.state.request_id}
 
     @app.post("/v1/investigations", tags=["investigations"], status_code=202, response_model=Accepted, responses=ERRORS)
-    def create_investigation(request: Request, body: CreateInvestigation, actor: dict = Depends(operator),
+    def create_investigation(request: Request, body: CreateInvestigation, actor: dict = Depends(automation),
                              idempotency_key: str | None = Header(None, alias="Idempotency-Key")):
         def handler(c):
             if body.runtime_mode != settings.runtime_mode.value:
@@ -365,8 +381,9 @@ def create_app(rt: Runtime | None = None) -> FastAPI:
     def plan_actions(p: dict, trial: dict | None, ap: dict | None, inv: dict, verdict: dict | None = None) -> tuple[list[str], list[str]]:
         acts, blockers = [], []
         connected = inv["runtime_mode"] == "connected_demo"
-        if p["status"] == "DRAFT" and p["core"]["executor"] != "none" and not trial:
-            acts.append("run_trial")
+        rerun = trial and (trial["status"] == "INCOMPLETE" or ((p.get("critic") or {}).get("trial") or {}).get("critic", {}).get("verdict") in ("ERROR", "MISSING"))
+        if p["status"] == "DRAFT" and p["core"]["executor"] != "none" and (not trial or rerun):
+            acts.append("run_trial")  # first trial, or a re-trial after an INCOMPLETE instrument or an unavailable reviewer
         if p["core"]["executor"] == "none":
             blockers.append("no executor enabled for this action type (projection only)")
         if p["status"] == "AWAITING_APPROVAL":
@@ -448,16 +465,20 @@ def create_app(rt: Runtime | None = None) -> FastAPI:
                 p = c.execute("SELECT * FROM plans WHERE id=%s", (p["id"],)).fetchone()
             inv = c.execute("SELECT * FROM investigations WHERE id=%s", (p["investigation_id"],)).fetchone()
             trials = c.execute("SELECT id, status, trial_hash, suite_id, finished_at FROM trials WHERE plan_id=%s ORDER BY created_at", (p["id"],)).fetchall()
-            ap = c.execute("SELECT id, status, expires_at, actor_id, consumed_action_id FROM approvals WHERE plan_id=%s ORDER BY created_at DESC LIMIT 1", (p["id"],)).fetchone()
+            ap = c.execute("SELECT id, status, expires_at, actor_id, consumed_action_id, plan_hash, trial_id, trial_hash, created_at FROM approvals WHERE plan_id=%s ORDER BY created_at DESC LIMIT 1", (p["id"],)).fetchone()
             verdict = A.holdout_verdict(c, p) if p["path"] == "ai" else None
+            executed = c.execute("SELECT id, status, memory_sync_status, updated_at FROM actions WHERE plan_id=%s ORDER BY created_at DESC LIMIT 1",
+                                 (p["id"],)).fetchone()
         acts, blockers = plan_actions(p, trials[-1] if trials else None, ap, inv, verdict)
+        if executed:
+            blockers.append(f"already executed: action {executed['id']} is {executed['status']}; a new change needs a new investigation and approval")
         ok, why = A.versions_current(rt, p) if p["status"] in ("AWAITING_APPROVAL", "APPROVED") else (True, None)
         if not ok:
             blockers.append(f"current state differs: {why}; approval would be rejected")
         data = {**{k: p[k] for k in ("id", "investigation_id", "path", "candidate_no", "revision", "target_key", "action_type", "plan_hash",
                                       "screening", "critic", "impacts", "memory_refs", "stale_reason", "created_at", "updated_at")},
                 "core": p["core"], "canonical_json": p["canonical_json"], "rationale_untrusted_model_text": p["rationale"], "trials": trials,
-                "latest_approval": ap, "recovery_scope": RECOVERY_SCOPE,
+                "latest_approval": ap, "executed_action": executed, "recovery_scope": RECOVERY_SCOPE,
                 "holdout_verdict": verdict and {k: verdict[k] for k in ("decision", "run_id", "freeze_hash", "created_at")}}
         return res(request, p["id"], p["status"], data, runtime_mode=inv["runtime_mode"], data_origin=inv["data_origin"],
                    result_kind=(p["impacts"] or {}).get("result_kind"), next_allowed_actions=acts, blockers=blockers)
@@ -539,9 +560,20 @@ def create_app(rt: Runtime | None = None) -> FastAPI:
             r = c.execute("SELECT * FROM query_receipts WHERE id=%s", (e["receipt_id"],)).fetchone()
         rows = e["data"]["rows"]
         receipt = {k: v for k, v in r["receipt"].items()}
+        hourly = None
+        if e["kind"] == "telemetry_series":  # peak-preserving view of the whole interval for charts (raw rows stay capped at 500)
+            buckets: dict[str, dict] = {}
+            for row in rows:
+                h = str(row.get("observed_at", ""))[:13] + ":00:00Z"
+                b = buckets.setdefault(h, {"hour": h, "cpu_percent_max": None, "memory_bytes_max": None, "samples": 0})
+                b["samples"] += 1
+                for k, out in (("cpu_percent", "cpu_percent_max"), ("memory_bytes", "memory_bytes_max")):
+                    if row.get(k) is not None and (b[out] is None or float(row[k]) > float(b[out])):
+                        b[out] = row[k]
+            hourly = [buckets[k] for k in sorted(buckets)]
         return res(request, e["id"], r["completeness"], {**{k: e[k] for k in ("id", "kind", "subject", "observed_from", "observed_to", "retrieved_at",
                    "quality_flags")}, "receipt": receipt, "source_system": r["source_system"], "rows": rows[:500], "rows_truncated": len(rows) > 500,
-                   "row_count": len(rows)}, result_kind=e["result_kind"], data_origin=e["data_origin"], runtime_mode=r["runtime_mode"])
+                   "row_count": len(rows), "series_hourly_peak": hourly}, result_kind=e["result_kind"], data_origin=e["data_origin"], runtime_mode=r["runtime_mode"])
 
     @app.get("/v1/memories/{memory_id}", tags=["memory"], response_model=Resource, responses=ERRORS)
     def get_memory(request: Request, memory_id: str, actor: dict = Depends(viewer)):
@@ -566,6 +598,44 @@ def create_app(rt: Runtime | None = None) -> FastAPI:
                    "engine_memory_id": m["engine_memory_id"], "sync_status": m["status"], "audit": audit, "audit_error": audit_error,
                    "current_policy_applicability": reasons or ["APPLICABLE_TO_CURRENT_POLICY"],
                    "note": "memory informs investigations; it never authorizes an action"})
+
+    # ---- overview / copilot ---------------------------------------------------------------------
+
+    @app.get("/v1/overview", tags=["services"], responses=ERRORS)
+    def overview(request: Request, actor: dict = Depends(viewer)):
+        from greenops.services import overview as O
+        return {**json.loads(dumps(O.build(rt, actor["tenant_id"]))), "request_id": request.state.request_id}
+
+    def caller_get(request: Request):
+        """In-process GET with the caller's own token: the copilot sees exactly what the caller may see."""
+        from fastapi.testclient import TestClient
+        tc = TestClient(app, raise_server_exceptions=False)
+        auth = request.headers.get("authorization", "")
+
+        def get(path: str):
+            r = tc.get(path, headers={"Authorization": auth})
+            try:
+                return r.status_code, r.json()
+            except ValueError:
+                return r.status_code, {"error": {"code": "NON_JSON"}}
+        return get
+
+    @app.post("/v1/copilot/messages", tags=["copilot"], response_model=CopilotReply, responses=ERRORS)
+    def copilot_message(request: Request, body: CopilotMessage, actor: dict = Depends(viewer),
+                        idempotency_key: str | None = Header(None, alias="Idempotency-Key")):
+        from greenops import copilot
+        get = caller_get(request)
+
+        def handler(c):
+            out = copilot.converse(rt, actor, body.message, body.conversation_id and str(body.conversation_id),
+                                   body.investigation_id and str(body.investigation_id), get)
+            return 200, out
+        return idempotent(request, actor, idempotency_key, "POST /v1/copilot/messages", body.model_dump(mode="json"), handler)
+
+    @app.get("/v1/copilot/conversations/{conversation_id}", tags=["copilot"], responses=ERRORS)
+    def copilot_conversation(request: Request, conversation_id: str, actor: dict = Depends(viewer)):
+        from greenops import copilot
+        return {**copilot.conversation(rt, actor, conversation_id), "request_id": request.state.request_id}
 
     @app.get("/v1/reports/{investigation_id}", tags=["reports"], responses={**ERRORS, 200: {"content": {"application/json": {}, "text/html": {}}}})
     def report(request: Request, investigation_id: str, actor: dict = Depends(viewer), format: Literal["json", "html"] = "json"):
