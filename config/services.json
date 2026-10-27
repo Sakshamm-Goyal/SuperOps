@@ -1,0 +1,16 @@
+{
+  "support-demo": {
+    "display_name": "Support demo service (synthetic GCP scenario)",
+    "region": "us-central1",
+    "paths": ["cloud", "ai"],
+    "data_origin": "synthetic",
+    "sources": null
+  },
+  "superops-aws": {
+    "display_name": "SuperOps live AWS sandbox (ap-south-1)",
+    "region": "ap-south-1",
+    "paths": ["cloud"],
+    "data_origin": "real_permitted",
+    "sources": {"cloud": "aws_pg", "ref": "aws_ref", "ai": "ai_pg"}
+  }
+}

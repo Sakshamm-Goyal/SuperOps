@@ -29,7 +29,7 @@ def as_bool(v) -> bool:
 
 def collect(rt: Runtime, inv: dict, template_id: str, params: dict, *, subject: str | None = None,
             client=None, max_rows: int = 5000) -> tuple[str, EvidenceResult]:
-    client = client or rt.evidence_factory()
+    client = client or _client(rt, inv["service_id"])
     try:
         res = client.query(template_id, params, max_rows=max_rows)
     except (ZetarisError, DomainError) as e:
@@ -48,6 +48,13 @@ def collect(rt: Runtime, inv: dict, template_id: str, params: dict, *, subject: 
                    min(observed) if observed else None, max(observed) if observed else None, now(),
                    RESULT_KIND.get(template_id, "measured"), inv["data_origin"], J(res.warnings), J({"rows": res.rows})))
     return str(eid), res
+
+
+def _client(rt: Runtime, service_id: str):
+    try:
+        return rt.evidence_factory(service_id)
+    except TypeError:  # test runtimes inject a zero-argument factory
+        return rt.evidence_factory()
 
 
 def resource_key(r: dict) -> str:

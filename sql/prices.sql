@@ -1,9 +1,9 @@
 -- id: prices
--- version: 1
+-- version: 2
 -- key: sku,effective_from
 -- sources: ref
 -- params: region:identifier
 SELECT provider, region, sku, unit, currency, price, effective_from, effective_to, rate_version, price_basis
 FROM {ref}.prices
-WHERE provider = 'gcp' AND region = :region
+WHERE region = :region
 ORDER BY sku, effective_from

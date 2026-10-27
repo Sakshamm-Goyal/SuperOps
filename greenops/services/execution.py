@@ -32,7 +32,14 @@ def _set(rt, action_id, status: str, stage: str, detail: dict, **fields) -> None
         _journal(c, action_id, stage, detail)
 
 
-def _store(rt, plan) -> ConfigStore:
+def _is_aws(plan) -> bool:
+    return plan["core"]["action"]["action_type"] == "AWS_INSTANCE_TYPE_UPDATE"
+
+
+def _store(rt, plan):
+    if _is_aws(plan):
+        from greenops.adapters.aws import AwsInstanceStore
+        return AwsInstanceStore(plan["target_key"])
     return ConfigStore(rt.settings.sandbox_dir, plan["target_key"])
 
 
@@ -42,11 +49,15 @@ def op_id(action_id) -> str:
 
 def _change(plan) -> dict:
     a = plan["core"]["action"]
+    if _is_aws(plan):
+        return {"instance_type": a["new_instance_type"]}
     return {"max_concurrency": a["after"]["max_concurrency"]} if a["action_type"] == "LOCAL_WORKER_CONFIG_UPDATE" else {"config": a["after"]}
 
 
 def _restore(plan) -> dict:
     a = plan["core"]["action"]
+    if _is_aws(plan):
+        return {"instance_type": a["expected_instance_type"]}
     return {"max_concurrency": a["before"]["max_concurrency"]} if a["action_type"] == "LOCAL_WORKER_CONFIG_UPDATE" else {"config": a["before"]}
 
 
@@ -61,8 +72,42 @@ def _apply(rt, plan, expected_version: int, action_id) -> dict:
     return new
 
 
+def _verify_aws(rt, plan, expected_version: int) -> dict:
+    """Real read-back plus a fresh measured window: the instance runs the new type, passes EC2 status checks, and its
+    workload is back and inside the policy CPU limit on the new capacity (CloudWatch 1-minute data after restart)."""
+    import time
+    from datetime import datetime, timezone
+    from greenops.adapters.aws import status_ok, wait_measured
+    from greenops.services.investigation import context
+    a = plan["core"]["action"]
+    with connect(rt.db) as c:
+        inv = c.execute("SELECT * FROM investigations WHERE id=%s", (plan["investigation_id"],)).fetchone()
+    limit_pct = float(context(rt, inv)["policy"].cpu_max_utilization) * 100
+    since = datetime.now(timezone.utc)
+    st = _store(rt, plan).read()
+    deadline = time.time() + 300
+    healthy = status_ok(a["region"], a["instance_id"])
+    while not healthy and time.time() < deadline:
+        time.sleep(15)
+        healthy = status_ok(a["region"], a["instance_id"])
+    m = wait_measured(a["region"], a["instance_id"], since, min_points=5, max_wait_s=600)
+    cpu_max = [v for _, v in m["cpu_max"]]
+    checks = {"readback_version": st["version"] == expected_version,
+              "readback_instance_type": st["instance_type"] == a["new_instance_type"],
+              "instance_running": st["state"] == "running",
+              "ec2_status_checks_ok": healthy,
+              "workload_resumed": len(cpu_max) >= 5 and max(cpu_max) > 2.0,
+              "workload_within_cpu_limit": bool(cpu_max) and max(cpu_max) <= limit_pct}
+    return {"checks": checks, "readback": st, "ok": all(checks.values()),
+            "measurement": {"window_start": since.isoformat(), "datapoints": len(cpu_max), "cpu_max_pct": max(cpu_max) if cpu_max else None,
+                            "cpu_avg_pct": (sum(v for _, v in m["cpu"]) / len(m["cpu"])) if m["cpu"] else None, "limit_pct": limit_pct,
+                            "source": "CloudWatch AWS/EC2 CPUUtilization, 1-minute detailed monitoring"}}
+
+
 def _verify(rt, plan, policy_slo_ms: int, expected_version: int) -> dict:
     a = plan["core"]["action"]
+    if _is_aws(plan):
+        return _verify_aws(rt, plan, expected_version)
     if a["action_type"] == "LOCAL_WORKER_CONFIG_UPDATE":
         w = LocalWorker(rt.settings.sandbox_dir, plan["target_key"])
         st = w.status()
@@ -177,7 +222,7 @@ def run(rt: Runtime, action_id) -> str:
             _finish(rt, action, plan, "FAILED", {"error": "DEPENDENCY_UNAVAILABLE", "writes": 0, "summary": str(e)}, inv)
             return "FAILED"
         _set(rt, action_id, "EXECUTING", "INTENT", {"expected_version": expected, "before_config_hash": config_hash(before),
-             "change": a["after"], "operation_id": op_id(action_id), "approval_id": str(ap["id"]), "plan_hash": plan["plan_hash"]})
+             "change": _change(plan), "operation_id": op_id(action_id), "approval_id": str(ap["id"]), "plan_hash": plan["plan_hash"]})
         try:
             new = _apply(rt, plan, expected, action_id)
         except VersionConflict as e:
@@ -190,7 +235,7 @@ def run(rt: Runtime, action_id) -> str:
         with connect(rt.db) as c:
             c.execute("UPDATE actions SET operation_ids=%s WHERE id=%s", (J([f"cas:{plan['target_key']}:v{new['version']}:{op_id(action_id)}"]), action_id))
         _set(rt, action_id, "PENDING_VERIFICATION", "WRITE_APPLIED", {"new_version": new["version"], "config_hash": config_hash(new),
-             "operation_id": op_id(action_id)})
+             "operation_id": op_id(action_id), **({"downtime_seconds": new["downtime_seconds"]} if "downtime_seconds" in new else {})})
         status = "PENDING_VERIFICATION"
     if status in ("EXECUTING", "RECOVERING"):
         return reconcile(rt, action_id)
@@ -205,7 +250,9 @@ def _verify_and_finish(rt, action, plan, inv, new_version: int, slo: int) -> str
     except TargetUnavailable as e:
         v = {"checks": {"target_reachable": False}, "ok": False, "error": str(e)}
     if v["ok"]:
-        _finish(rt, action, plan, "VERIFIED", {**v, "executor": "local_analogue", "summary": "configuration read back and fresh workload passed"}, inv)
+        _finish(rt, action, plan, "VERIFIED", {**v, "executor": plan["core"]["executor"],
+                "summary": ("instance type read back, EC2 status checks passed and the measured workload fits the new capacity" if _is_aws(plan)
+                            else "configuration read back and fresh workload passed")}, inv)
         return "VERIFIED"
     failing = [k for k, ok in v["checks"].items() if not ok]
     _set(rt, action["id"], "RECOVERING", "VERIFICATION_FAILED", {"failing_checks": failing})
@@ -225,6 +272,8 @@ def _recover(rt, action, plan, inv, new_version: int, verification: dict, slo: i
         if plan["core"]["action"]["action_type"] == "LOCAL_WORKER_CONFIG_UPDATE":
             st = LocalWorker(rt.settings.sandbox_dir, plan["target_key"]).reload()
             ok = st["loaded_config"]["max_concurrency"] == plan["core"]["action"]["before"]["max_concurrency"]
+        elif _is_aws(plan):
+            ok = store.read()["instance_type"] == plan["core"]["action"]["expected_instance_type"]
         else:
             ok = store.read()["config"] == plan["core"]["action"]["before"]
         status = "RECOVERED" if ok else "RECOVERY_REQUIRED"
@@ -269,6 +318,10 @@ def reconcile(rt: Runtime, action_id) -> str:
         _set(rt, action_id, "PENDING_VERIFICATION", "RECONCILED", {"observed_version": cur["version"], "write": "observed (operation identity matches)"})
         return _verify_and_finish(rt, action, plan, inv, expected + 1, slo)
     if cur["version"] == expected:
+        if _is_aws(plan) and cur.get("state") == "stopped" and cur["instance_type"] == plan["core"]["action"]["expected_instance_type"]:
+            # interrupted after the stop, before the change: bring the unchanged instance back (no configuration write)
+            from greenops.adapters.aws import _ec2
+            _ec2(plan["core"]["action"]["region"]).start_instances(InstanceIds=[plan["core"]["action"]["instance_id"]])
         _finish(rt, action, plan, "FAILED", {"error": "WRITE_NOT_OBSERVED", "writes": 0,
                 "summary": "interrupted before the write took effect; not retried — a new approval is required"}, inv)
         return "FAILED"

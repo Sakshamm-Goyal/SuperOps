@@ -50,6 +50,10 @@ def create_trial(conn, rt: Runtime, plan: dict, profile_id: str, actor_id: str, 
     if plan["path"] == "ai":
         if suite_id not in doc["ai_dev_suite"]["allowed_suites"] or suite_id not in DEV_SUITES:
             raise AppError("VALIDATION_ERROR", 422, "only allowlisted development suites can be trialled")
+    elif plan["core"]["action"]["action_type"] == "AWS_INSTANCE_TYPE_UPDATE":
+        canary = doc.get("aws_canary") or {}
+        if suite_id != "aws-canary-v1" or plan["core"]["action"]["new_instance_type"] not in canary.get("allowed_instance_types", []):
+            raise AppError("VALIDATION_ERROR", 422, "AWS plans trial on an allowlisted canary instance type (suite aws-canary-v1)")
     elif plan["core"]["action"]["action_type"] != "LOCAL_WORKER_CONFIG_UPDATE":
         raise AppError("UNSUPPORTED_ACTION", 422, "no trial fixture exists for this action type")
     tid = uuid.uuid4()
@@ -199,6 +203,49 @@ def _cloud_trial(rt: Runtime, trial: dict, plan: dict, doc: dict, policy: Servic
             "short matched trial; not a long-term SLA"], "experiment_cost": {"amount": "0", "currency": "USD", "basis": "local compute, not billed"}}
 
 
+def _aws_canary_trial(rt: Runtime, trial: dict, plan: dict, doc: dict, policy: ServicePolicy) -> dict:
+    """Matched trial on real AWS: a disposable instance of the CANDIDATE type runs the target's own workload profile;
+    CloudWatch 1-minute data decides whether that workload fits the candidate within policy headroom. The canary is
+    always terminated (and stops itself regardless). Missing measurements make the trial INCOMPLETE, never PASS."""
+    from datetime import timedelta
+    import boto3
+    from greenops.adapters.aws import launch_canary, terminate, wait_measured
+    cfg, a = doc["aws_canary"], plan["core"]["action"]
+    minutes = int(cfg.get("measure_minutes", 8))
+    canary = launch_canary(plan["target_key"], a["new_instance_type"], minutes)
+    try:
+        ec2 = boto3.client("ec2", region_name=a["region"])
+        ec2.get_waiter("instance_running").wait(InstanceIds=[canary], WaiterConfig={"Delay": 5, "MaxAttempts": 60})
+        since = now() + timedelta(minutes=2)  # boot + workload start, excluded from the measured window
+        if cancelled(rt, trial):
+            raise CancelledRun("investigation cancelled")
+        m = wait_measured(a["region"], canary, since, min_points=minutes, max_wait_s=minutes * 60 + 420)
+    finally:
+        terminate(a["region"], canary)
+    cpu_max, cpu_avg, mem = [v for _, v in m["cpu_max"]], [v for _, v in m["cpu"]], [v for _, v in m["mem_pct"]]
+    cpu_lim, mem_lim = float(policy.cpu_max_utilization) * 100, float(policy.memory_max_utilization) * 100
+    measured = len(cpu_max) >= minutes - 1 and len(mem) >= minutes - 1
+    active = bool(cpu_avg) and sum(cpu_avg) / len(cpu_avg) > 2.0
+    checks = [
+        {"check_id": "TRIAL-CANARY-MEASURED", "status": "PASS" if measured else "FAIL",
+         "detail": f"{len(cpu_max)} CPU and {len(mem)} memory 1-minute datapoints from canary {canary} ({a['new_instance_type']}); need {minutes - 1}"},
+        {"check_id": "TRIAL-WORKLOAD-ACTIVE", "status": "PASS" if active else "FAIL",
+         "detail": f"canary ran the target's workload profile: mean CPU {round(sum(cpu_avg) / len(cpu_avg), 1) if cpu_avg else None}%"},
+        {"check_id": "TRIAL-CPU-HEADROOM", "status": "PASS" if cpu_max and max(cpu_max) <= cpu_lim else "FAIL",
+         "detail": f"peak 1-minute CPU {round(max(cpu_max), 1) if cpu_max else None}% on {a['new_instance_type']} vs policy limit {cpu_lim:.0f}%"},
+        {"check_id": "TRIAL-MEM-HEADROOM", "status": "PASS" if mem and max(mem) <= mem_lim else "FAIL",
+         "detail": f"peak memory {round(max(mem), 1) if mem else None}% vs policy limit {mem_lim:.0f}%"}]
+    outcome = "INCOMPLETE" if not (measured and active) else ("PASSED" if all(c["status"] == "PASS" for c in checks) else "FAILED")
+    return {"kind": "aws_canary", "suite_id": trial["suite_id"], "executor": "aws", "result_kind": "measured", "data_origin": "real_permitted",
+            "canary_instance_id": canary, "candidate_instance_type": a["new_instance_type"], "window_start": since.isoformat(),
+            "measure_minutes": minutes, "summary": {"cpu_max_pct": max(cpu_max) if cpu_max else None,
+                                                    "cpu_avg_pct": sum(cpu_avg) / len(cpu_avg) if cpu_avg else None,
+                                                    "mem_max_pct": max(mem) if mem else None, "datapoints": len(cpu_max)},
+            "checks": checks, "outcome": outcome,
+            "limitations": ["canary measures the same synthetic workload profile on the candidate type for a short window",
+                            "not a production load test; peaks outside the window are covered by screening, not by this trial"]}
+
+
 def _ai_cost(results: list[dict], rates: acc.TokenRates) -> tuple[Decimal | None, Decimal, str]:
     from experiments.support.workflow import TOOL_COST_USD
     calls = [{"input_tokens": r["input_tokens"], "output_tokens": r["output_tokens"], "tool_cost": Decimal(TOOL_COST_USD) * r["tool_calls"]} for r in results]
@@ -318,7 +365,10 @@ def run(rt: Runtime, trial_id) -> str:
         c.execute("UPDATE trials SET status='RUNNING', started_at=COALESCE(started_at, now()) WHERE id=%s", (trial_id,))
     policy = I.context(rt, inv)["policy"]
     try:
-        result = _cloud_trial(rt, trial, plan, prof["document"], policy) if mutating else _ai_trial(rt, trial, plan, prof["document"], policy, inv)
+        if plan["core"]["executor"] == "aws":
+            result = _aws_canary_trial(rt, trial, plan, prof["document"], policy)
+        else:
+            result = _cloud_trial(rt, trial, plan, prof["document"], policy) if mutating else _ai_trial(rt, trial, plan, prof["document"], policy, inv)
     except BudgetExceeded as e:
         result = {"outcome": "INCOMPLETE", "checks": [{"check_id": "BUDGET", "status": "FAIL", "detail": str(e)}]}
     except CancelledRun as e:

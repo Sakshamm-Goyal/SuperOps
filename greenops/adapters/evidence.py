@@ -24,7 +24,7 @@ SQL_DIR = ROOT / "sql"
 _PATTERNS = {
     "service_id": re.compile(r"^[a-z0-9][a-z0-9-]{0,62}$"),
     "identifier": re.compile(r"^[A-Za-z0-9._-]{1,64}$"),
-    "resource_key": re.compile(r"^(gcp)/([a-z0-9-]{1,63})/([a-z0-9-]{1,63})$"),
+    "resource_key": re.compile(r"^(gcp|aws)/([a-z0-9-]{1,63})/([a-z0-9-]{1,63})$"),
 }
 _SOURCE_NAME = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*){0,2}$")
 
@@ -335,8 +335,14 @@ class ZetarisClient:
         return EvidenceResult(rows, receipt, self.source_system, completeness, warnings)
 
 
-def evidence_client(settings: Settings) -> EvidenceClient:
-    """Mode is server configuration. connected_demo never silently falls back to the sample DB."""
+def evidence_client(settings: Settings, service_id: str | None = None) -> EvidenceClient:
+    """Mode is server configuration. connected_demo never silently falls back to the sample DB.
+    A service may name its own Zetaris datasources (config/services.json), e.g. the live AWS source."""
     if settings.runtime_mode.value == "connected_demo":
+        if service_id:
+            from dataclasses import replace
+            from greenops.config import service_config
+            if sources := service_config(service_id).get("sources"):
+                settings = replace(settings, source_names={**settings.source_names, **sources})
         return ZetarisClient(settings)
     return SampleSqlClient(settings.sample_source_url)

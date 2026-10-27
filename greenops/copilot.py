@@ -62,7 +62,8 @@ SYSTEM = """You are SuperOps Copilot — a senior DevOps / FinOps / SRE engineer
 You help an engineering lead decide which cloud and AI-workflow changes are safe, what evidence supports them, and what happened when they were tested.
 
 How the system works (ground truth):
-- Evidence comes from reviewed SQL templates executed through Zetaris federation across two physically separate sources (cloud+ref on source A, AI runs on source B). In runtime_mode=sample it comes from one labelled local database instead — say so when relevant.
+- Two services: support-demo (a synthetic GCP scenario, dated data) and superops-aws (a LIVE AWS sandbox in ap-south-1: three real EC2 instances, CloudWatch 1-minute metrics, AWS Price List rates; its changes are real EC2 instance-type resizes with a stop/start downtime, executed only after an exact-hash approval with downtime acknowledged; plans carry a runbook with the automated steps, the equivalent manual AWS CLI commands and rollback).
+- Evidence comes from reviewed SQL templates executed through Zetaris federation across physically separate sources (cloud+ref on source A, AI runs on source B). In runtime_mode=sample it comes from one labelled local database instead — say so when relevant.
 - NVIDIA Nemotron agents (coordinator, investigator, optimizer, critic) propose at most 3 candidates per path; deterministic code screens them (checks below), the critic demands evidence or revisions, matched trials test eligible ones.
 - Meterless H-MEM stores outcomes (failures, verified changes) and later investigations recall them; memories made under an older policy/config are 'historical — retest required', never applicable.
 - A human approves the exact plan hash + trial hash (15-minute TTL); the worker re-checks everything, executes once, reads back and verifies. Memory, chat and confidence never authorize anything.
@@ -103,6 +104,8 @@ TOOLS = [
     {"name": "query_evidence", "description": "Run one reviewed, read-only SQL template through the configured evidence path (Zetaris federation in connected_demo). Returns up to 40 rows plus the query receipt. Templates: "
      + "; ".join(f"{t.id}({', '.join(f'{k}:{v}' for k, v in t.params.items())}) sources={'+'.join(t.sources)}" for t in TEMPLATES.values()),
      "input_schema": {"type": "object", "properties": {"template_id": {"type": "string", "enum": sorted(TEMPLATES)},
+                                                        "service_id": {"type": "string", "enum": ["support-demo", "superops-aws"],
+                                                                       "description": "superops-aws = the live AWS sandbox (ap-south-1); default support-demo"},
                                                         "params": {"type": "object", "description": "timestamps as RFC3339 with Z; resource_key like gcp/project/resource; service_id 'support-demo'; region 'us-central1'"}},
                       "required": ["template_id"], "additionalProperties": False}},
 ]
@@ -236,30 +239,39 @@ class Toolbox:
                 m.pop("evidence_refs", None)
         return {"engine": "Meterless H-MEM", "applicability_from_investigation": str(inv["id"]), **r}
 
-    def t_query_evidence(self, template_id: str, params: dict | None = None) -> Any:
+    def t_query_evidence(self, template_id: str, params: dict | None = None, service_id: str = "support-demo") -> Any:
+        from greenops.config import service_config
+        if service_id not in ("support-demo", "superops-aws"):
+            return {"error": "unknown service"}
+        live = service_id == "superops-aws"
         t = TEMPLATES.get(template_id)
         if t is None:
             return {"error": "unknown template"}
         params = dict(params or {})
         for k, typ in t.params.items():
+            nowz = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:00Z")
             if k not in params and typ == "service_id":
-                params[k] = "support-demo"
+                params[k] = service_id
             if k not in params and k == "region":
-                params[k] = "us-central1"
+                params[k] = service_config(service_id)["region"]
             if k not in params and k in ("start", "as_of"):
-                params[k] = "2026-09-30T00:00:00Z" if k == "start" else "2026-10-21T00:00:00Z"
+                params[k] = ("2026-10-27T05:50:00Z" if live else "2026-09-30T00:00:00Z") if k == "start" else (nowz if live else "2026-10-21T00:00:00Z")
             if k not in params and k == "end":
-                params[k] = "2026-10-21T00:00:00Z"
+                params[k] = nowz if live else "2026-10-21T00:00:00Z"
             if k not in params and k == "version":
                 params[k] = self.rt.settings.policy_version
             if typ == "timestamp" and k in params:
                 params[k] = _ts(params[k])
         params = {k: v for k, v in params.items() if k in t.params}
         started = time.perf_counter()
-        res = self.rt.evidence_factory().query(template_id, params, max_rows=2000)
+        try:
+            client = self.rt.evidence_factory(service_id)
+        except TypeError:
+            client = self.rt.evidence_factory()
+        res = client.query(template_id, params, max_rows=2000)
         rows = res.rows
         return {"template_id": template_id, "runtime_mode": self.rt.settings.runtime_mode.value,
-                "path": "Zetaris federation" if self.rt.settings.runtime_mode.value == "connected_demo" else "labelled local sample database (not federation)",
+                "service_id": service_id, "path": "Zetaris federation" if self.rt.settings.runtime_mode.value == "connected_demo" else "labelled local sample database (not federation)",
                 "row_count": len(rows), "rows": rows[:40], "completeness": res.completeness, "warnings": res.warnings,
                 "receipt": {k: v for k, v in (res.receipt or {}).items() if k in ("receipt_id", "sources", "request_ids", "page_count", "result_hash", "close_status", "duration_ms")},
                 "source_system": res.source_system,

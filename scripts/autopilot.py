@@ -21,24 +21,42 @@ from datetime import datetime, timedelta, timezone
 
 import httpx
 
-from greenops.config import ROOT, get_settings
+from greenops.config import ROOT, get_settings, service_config
 from greenops.domain.quantities import canonical_hash
 from greenops.services.common import Runtime
 
-STATE = ROOT / "var" / "autopilot.json"
+SERVICE = os.environ.get("AUTOPILOT_SERVICE", "support-demo")
+LIVE = service_config(SERVICE)["data_origin"] == "real_permitted"  # live sources: drift = material change, as_of = now
+STATE = ROOT / "var" / f"autopilot-{SERVICE}.json"
 API = os.environ.get("GREENOPS_API_URL", "http://127.0.0.1:8000")
 WATCH = ("inventory", "telemetry_summary", "billing_rows", "prices", "policy")
 INTERVAL_DAYS = 21
 
 
-def fingerprint(rt: Runtime, as_of: datetime) -> dict:
+def _bands(rows: list[dict]) -> list:
+    """Live telemetry changes every minute; drift is a MATERIAL change: peak CPU in 10-point bands, average in 5-point bands."""
+    band = lambda v, w: None if v is None else int(float(v) // w)
+    return sorted([r["resource_id"], band(r.get("peak_cpu_percent"), 10), band(r.get("avg_cpu_percent"), 5)] for r in rows)
+
+
+def fingerprint(rt: Runtime, as_of: datetime, start: datetime) -> dict:
     s = rt.settings
-    start = as_of - timedelta(days=INTERVAL_DAYS)
-    params = {"inventory": {"service_id": "support-demo", "as_of": as_of}, "telemetry_summary": {"start": start, "end": as_of},
-              "billing_rows": {"start": start, "end": as_of}, "prices": {"region": "us-central1"},
-              "policy": {"service_id": "support-demo", "version": s.policy_version}}
-    client = rt.evidence_factory()
-    hashes = {t: client.query(t, params[t], max_rows=20000).receipt["result_hash"] for t in WATCH}
+    cfg = service_config(SERVICE)
+    params = {"inventory": {"service_id": SERVICE, "as_of": as_of}, "telemetry_summary": {"start": start, "end": as_of},
+              "billing_rows": {"start": start, "end": as_of}, "prices": {"region": cfg["region"]},
+              "policy": {"service_id": SERVICE, "version": s.policy_version}}
+    client = rt.evidence_factory(SERVICE)
+    hashes = {}
+    for t in WATCH:
+        if LIVE and t == "billing_rows":
+            continue  # estimated hourly rows grow every hour by construction
+        res = client.query(t, params[t], max_rows=20000)
+        if LIVE and t == "inventory":
+            hashes[t] = canonical_hash(sorted([r["resource_id"], r["machine_type"], r["config_version"]] for r in res.rows))
+        elif LIVE and t == "telemetry_summary":
+            hashes[t] = canonical_hash(_bands(res.rows))
+        else:
+            hashes[t] = res.receipt["result_hash"]
     return {"hash": canonical_hash(hashes), "templates": hashes, "source_system": client.source_system}
 
 
@@ -47,21 +65,24 @@ def log(event: str, **kw) -> None:
 
 
 def cycle(rt: Runtime, token: str, as_of: datetime) -> None:
+    if LIVE:
+        as_of = datetime.now(timezone.utc).replace(second=0, microsecond=0)
+    start = datetime.fromisoformat(os.environ.get("AUTOPILOT_START", "2026-10-27T05:50:00+00:00")) if LIVE else as_of - timedelta(days=INTERVAL_DAYS)
     state = json.loads(STATE.read_text()) if STATE.exists() else {}
-    fp = fingerprint(rt, as_of)
+    fp = fingerprint(rt, as_of, start)
     changed = sorted(t for t, h in fp["templates"].items() if state.get("templates", {}).get(t) != h)
     if fp["hash"] == state.get("hash"):
         log("no_drift", source=fp["source_system"], fingerprint=fp["hash"][:19])
         return
     h = {"Authorization": f"Bearer {token}"}
-    busy = httpx.get(f"{API}/v1/investigations", headers=h, params={"limit": 20}, timeout=30).json()["items"]
+    busy = httpx.get(f"{API}/v1/investigations", headers=h, params={"limit": 20, "service_id": SERVICE}, timeout=30).json()["items"]
     if any(i["status"] in ("QUEUED", "RUNNING") for i in busy):
         log("drift_deferred", reason="an investigation is already queued or running", changed=changed)
         return
     mode = httpx.get(f"{API}/v1/me", headers=h, timeout=30).json()["data"]["runtime_mode"]
     why = "first baseline" if not state else "evidence drift in " + ", ".join(changed)
-    body = {"service_id": "support-demo", "question": f"Autopilot ({why}): find a testable saving while preserving service and support policy",
-            "interval": {"start": (as_of - timedelta(days=INTERVAL_DAYS)).isoformat().replace("+00:00", "Z"),
+    body = {"service_id": SERVICE, "question": f"Autopilot ({why}): find a testable saving while preserving service and support policy",
+            "interval": {"start": start.isoformat().replace("+00:00", "Z"),
                          "end": as_of.isoformat().replace("+00:00", "Z")},
             "runtime_mode": mode, "budget_profile_id": "sandbox-approved-budget-v1", "approved_trial_profile_id": "sandbox-trials-v1",
             "memory_mode": "on"}

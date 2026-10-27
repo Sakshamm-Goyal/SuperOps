@@ -96,7 +96,9 @@ def screen_cloud(facts: ResourceFacts | None, target: MachineType | None, policy
     c = screen_capacity("CHK-CPU-PEAK", peak_vcpu, target.vcpu, policy.cpu_max_utilization, "vCPU")
     checks.append(Check(c.check_id, "UNKNOWN" if c.demand is None else ("PASS" if c.passed else "FAIL"), c.reason,
                         _fmt(c.demand), _fmt(c.allowed)))
-    if facts.stress_peak_cpu_pct is None:
+    if facts.stress_peak_cpu_pct is None and policy.stress_forecast_waiver:
+        checks.append(Check("CHK-CPU-STRESS", "WAIVED", f"waived by policy {policy.version}: {policy.stress_forecast_waiver}"))
+    elif facts.stress_peak_cpu_pct is None:
         checks.append(Check("CHK-CPU-STRESS", "UNKNOWN", "forecast stress envelope not computed"))
     else:
         stress = vcpu_demand(min(facts.stress_peak_cpu_pct, Decimal(100)), facts.vcpu)

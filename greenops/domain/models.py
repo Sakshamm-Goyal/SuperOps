@@ -88,6 +88,9 @@ class ServicePolicy(Strict):
     approval_ttl_minutes: int = 15
     trial_validity_hours: int = 24
     max_candidates_per_path: int = 3
+    # A service whose telemetry history is shorter than the forecast protocol may waive the stress envelope only by
+    # stating why in its policy; the check is then WAIVED (never PASS) and the matched or canary trial carries the load.
+    stress_forecast_waiver: str | None = None
 
 
 # ---- evidence ------------------------------------------------------------------
@@ -154,7 +157,17 @@ class GcpMachineTypeUpdate(Strict):
     new_machine_type: str
 
 
-Action = Annotated[Union[LocalWorkerConfigUpdate, AiConfigUpdate, GcpMachineTypeUpdate], Field(discriminator="action_type")]
+class AwsInstanceTypeUpdate(Strict):
+    """A real EC2 instance-type change: stop, modify, start, read back (downtime: one stop/start cycle)."""
+    action_type: Literal["AWS_INSTANCE_TYPE_UPDATE"] = "AWS_INSTANCE_TYPE_UPDATE"
+    region: str
+    instance_id: str
+    expected_config_version: int
+    expected_instance_type: str
+    new_instance_type: str
+
+
+Action = Annotated[Union[LocalWorkerConfigUpdate, AiConfigUpdate, GcpMachineTypeUpdate, AwsInstanceTypeUpdate], Field(discriminator="action_type")]
 
 RECOVERY_SCOPE = "restore_exact_pre_change_config_if_no_intervening_change"
 
@@ -188,7 +201,7 @@ class PlanCore(Strict):
     action: Action
     recovery_scope: str = RECOVERY_SCOPE
     requires_downtime: bool
-    executor: Literal["local_analogue", "gcp", "none"]
+    executor: Literal["local_analogue", "gcp", "aws", "none"]
     versions: PlanVersions
     projection: CloudProjection | None
     evidence_ids: list[str]

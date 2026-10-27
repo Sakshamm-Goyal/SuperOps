@@ -18,7 +18,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field
 
-from greenops.config import Settings, get_settings
+from greenops.config import Settings, get_settings, service_config
 from greenops.db import J, connect, dumps
 from greenops.domain.models import RECOVERY_SCOPE
 from greenops.domain.quantities import canonical_hash
@@ -342,11 +342,11 @@ def create_app(rt: Runtime | None = None) -> FastAPI:
                     raise AppError("VALIDATION_ERROR", 422, "trial profile missing, revoked or expired")
             iid = uuid.uuid4()
             c.execute("INSERT INTO investigations (id, tenant_id, service_id, actor_id, question, interval_start, interval_end, as_of, runtime_mode, "
-                      "policy_version, data_manifest_id, budget_profile_id, budget_snapshot, trial_profile_id, memory_mode, status, stage) "
-                      "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'QUEUED','SCOPE')",
+                      "policy_version, data_manifest_id, budget_profile_id, budget_snapshot, trial_profile_id, memory_mode, status, stage, data_origin) "
+                      "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,'QUEUED','SCOPE',%s)",
                       (iid, actor["tenant_id"], body.service_id, actor["actor_id"], body.question, body.interval.start, body.interval.end,
                        body.interval.end, body.runtime_mode, settings.policy_version, settings.data_manifest_id, b["id"], J(b),
-                       body.approved_trial_profile_id, body.memory_mode))
+                       body.approved_trial_profile_id, body.memory_mode, service_config(body.service_id)["data_origin"]))
             append_event(c, iid, "investigation.created", actor["actor_id"], {"question": body.question, "memory_mode": body.memory_mode,
                          "runtime_mode": body.runtime_mode, "policy_version": settings.policy_version})
             jid = enqueue(c, "investigation", iid)
@@ -469,6 +469,8 @@ def create_app(rt: Runtime | None = None) -> FastAPI:
             verdict = A.holdout_verdict(c, p) if p["path"] == "ai" else None
             executed = c.execute("SELECT id, status, memory_sync_status, updated_at FROM actions WHERE plan_id=%s ORDER BY created_at DESC LIMIT 1",
                                  (p["id"],)).fetchone()
+            from greenops.services.plans import runbook
+            book = runbook(c, p)
         acts, blockers = plan_actions(p, trials[-1] if trials else None, ap, inv, verdict)
         if executed:
             blockers.append(f"already executed: action {executed['id']} is {executed['status']}; a new change needs a new investigation and approval")
@@ -478,7 +480,7 @@ def create_app(rt: Runtime | None = None) -> FastAPI:
         data = {**{k: p[k] for k in ("id", "investigation_id", "path", "candidate_no", "revision", "target_key", "action_type", "plan_hash",
                                       "screening", "critic", "impacts", "memory_refs", "stale_reason", "created_at", "updated_at")},
                 "core": p["core"], "canonical_json": p["canonical_json"], "rationale_untrusted_model_text": p["rationale"], "trials": trials,
-                "latest_approval": ap, "executed_action": executed, "recovery_scope": RECOVERY_SCOPE,
+                "latest_approval": ap, "executed_action": executed, "runbook": book, "recovery_scope": RECOVERY_SCOPE,
                 "holdout_verdict": verdict and {k: verdict[k] for k in ("decision", "run_id", "freeze_hash", "created_at")}}
         return res(request, p["id"], p["status"], data, runtime_mode=inv["runtime_mode"], data_origin=inv["data_origin"],
                    result_kind=(p["impacts"] or {}).get("result_kind"), next_allowed_actions=acts, blockers=blockers)
@@ -495,7 +497,8 @@ def create_app(rt: Runtime | None = None) -> FastAPI:
                 raise AppError("INVALID_STATE", 409, f"plan is {p['status']} / {(p['screening'] or {}).get('outcome')}; not ready for trial")
             if "holdout" in body.suite_id:
                 raise AppError("FORBIDDEN", 403, "held-out suites are evaluator-only")
-            expected_suite = "support-dev-v1" if p["path"] == "ai" else "workload-wl-v1"
+            from greenops.services.investigation import suite_for
+            expected_suite = suite_for(p)
             if body.suite_id != expected_suite:
                 raise AppError("VALIDATION_ERROR", 422, f"suite must be {expected_suite} for this plan")
             if c.execute("SELECT 1 FROM trials WHERE plan_id=%s AND status IN ('QUEUED','RUNNING')", (p["id"],)).fetchone():

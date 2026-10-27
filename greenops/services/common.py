@@ -51,7 +51,7 @@ class Runtime:
             from experiments.support.workflow import scripted_support
             return ScriptedGateway({**SCRIPTS, "support": scripted_support})
 
-        return cls(settings, lambda: evidence_client(settings), model, lambda: MemoryClient(settings))
+        return cls(settings, lambda service_id=None: evidence_client(settings, service_id), model, lambda: MemoryClient(settings))
 
 
 def append_event(conn, investigation_id, kind: str, actor: str, payload: dict) -> int:

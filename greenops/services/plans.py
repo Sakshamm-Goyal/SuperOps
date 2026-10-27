@@ -9,7 +9,7 @@ from decimal import Decimal
 from greenops.adapters.sandbox import REGISTRY, ConfigStore, LocalWorker, TargetUnavailable, file_hash, WORKLOAD_PATH
 from greenops.db import J
 from greenops.domain import accounting as acc
-from greenops.domain.models import (AiConfigUpdate, AiWorkflowConfig, CloudProjection, GcpMachineTypeUpdate, LocalWorkerConfigUpdate,
+from greenops.domain.models import (AiConfigUpdate, AiWorkflowConfig, AwsInstanceTypeUpdate, CloudProjection, GcpMachineTypeUpdate, LocalWorkerConfigUpdate,
                                     PlanCore, PlanVersions, WorkerConfig)
 from greenops.domain.quantities import DomainError, canonical_bytes, canonical_hash
 from greenops.domain.screening import SCREENING_VERSION, Check, ScreeningResult
@@ -69,12 +69,28 @@ def ai_current(rt: Runtime) -> tuple[int, AiWorkflowConfig]:
     return cur["version"], AiWorkflowConfig(**cur["config"])
 
 
+def cloud_workload_version(executor: str) -> str:
+    """What the trial's offered load is defined by: the AWS sandbox workload script, or the local workload manifest."""
+    from greenops.config import ROOT
+    return file_hash(ROOT / "scripts" / "aws_sandbox.py") if executor == "aws" else file_hash(WORKLOAD_PATH)
+
+
 def build_core(rt: Runtime, inv: dict, path: str, candidate_no: int, revision: int, cand, facts=None, evidence_ids=()) -> PlanCore:
     s = rt.settings
     if path == "cloud":
         target = analogue_for(cand.resource_key)
         projection = CloudProjection(resource_key=cand.resource_key, from_machine_type=facts.machine_type, to_machine_type=cand.to_machine_type)
-        if target:
+        if cand.resource_key.startswith("aws/"):
+            from greenops.adapters.aws import AwsInstanceStore
+            region, instance_id = cand.resource_key.split("/")[1:]
+            try:
+                version = AwsInstanceStore(cand.resource_key).read()["version"]
+            except TargetUnavailable:
+                version = 0
+            action = AwsInstanceTypeUpdate(region=region, instance_id=instance_id, expected_config_version=version,
+                                           expected_instance_type=facts.machine_type, new_instance_type=cand.to_machine_type)
+            executor, target_key, cfg_version, downtime = "aws", cand.resource_key, str(version), True
+        elif target:
             catalog = {m["machine_type"]: m for m in inv["_catalog"]}
             try:
                 cur = LocalWorker(s.sandbox_dir, target).store.read()
@@ -90,7 +106,7 @@ def build_core(rt: Runtime, inv: dict, path: str, candidate_no: int, revision: i
             action = GcpMachineTypeUpdate(project_id=proj, zone="us-central1-a", instance_id=res,
                                           expected_machine_type=facts.machine_type, new_machine_type=cand.to_machine_type)
             executor, target_key, cfg_version, downtime = "none", cand.resource_key, "inventory-1", True
-        versions = PlanVersions(policy_version=inv["policy_version"], workload_version=file_hash(WORKLOAD_PATH),
+        versions = PlanVersions(policy_version=inv["policy_version"], workload_version=cloud_workload_version(executor),
                                 config_version=cfg_version, model_version=None, test_version=SCREENING_VERSION,
                                 data_manifest_id=inv["data_manifest_id"])
     else:
@@ -203,3 +219,55 @@ def finalize_cloud_net(impacts: dict | None, *, experiment_cost: Decimal | None,
         net = Decimal(impacts["gross_saving"]) - sum(parts.values())
         out.update({"net_saving": str(net), "net_status": "computed: gross minus one-time costs, each counted once"})
     return out
+
+
+def runbook(conn, plan: dict) -> dict:
+    """A deterministic change runbook from the plan's immutable core: what changes, expected downtime, the automated path
+    (only after a human approves the exact hash) and the equivalent manual commands, plus rollback. No model writes this."""
+    core, a = plan["core"], plan["core"]["action"]
+    if a["action_type"] == "AWS_INSTANCE_TYPE_UPDATE":
+        r, i, old, new = a["region"], a["instance_id"], a["expected_instance_type"], a["new_instance_type"]
+        last = conn.execute(
+            "SELECT (j.detail->>'downtime_seconds')::int AS s, j.at FROM action_journal j JOIN actions x ON x.id=j.action_id "
+            "JOIN plans p ON p.id=x.plan_id WHERE j.stage='WRITE_APPLIED' AND j.detail ? 'downtime_seconds' AND p.tenant_id=%s "
+            "ORDER BY j.at DESC LIMIT 1", (plan["tenant_id"],)).fetchone()
+        downtime = ({"expected": True, "estimate_seconds": last["s"], "basis": f"measured on the last AWS stop/start ({last['at']:%d %b %H:%M} UTC)"}
+                    if last else {"expected": True, "estimate_seconds": 120, "basis": "estimate: one EC2 stop/start cycle; replaced by a measurement after the first run"})
+        aws = f"aws ec2 --region {r}"
+        return {
+            "title": f"Resize {i} from {old} to {new}",
+            "downtime": downtime,
+            "preconditions": [f"instance is still {old} at config version {a['expected_config_version']}",
+                              f"policy {core['versions']['policy_version']} still current; target in ALLOWED_TARGET_IDS",
+                              "a matched canary trial on the candidate type passed"],
+            "automated": {"who": "SuperOps executor, after a human approves the exact plan hash and trial hash",
+                          "steps": ["Re-check approval, authority, policy, trial and target versions", "Take the target lock and record intent",
+                                    f"Stop {i}", f"Change instance type to {new}", "Tag the new config version and this operation's identity",
+                                    f"Start {i}", "Read back the type and wait for EC2 status checks",
+                                    "Measure 5+ minutes of CloudWatch CPU against the policy limit on the new capacity",
+                                    f"If verification fails and nothing else changed, restore {old} the same way"]},
+            "manual": {"note": "Doing this by hand makes the plan stale (its version tag no longer matches); the next investigation records the new state.",
+                       "steps": [{"title": "Stop the instance", "command": f"{aws} stop-instances --instance-ids {i}"},
+                                 {"title": "Wait until stopped", "command": f"{aws} wait instance-stopped --instance-ids {i}"},
+                                 {"title": "Change the type", "command": f"{aws} modify-instance-attribute --instance-id {i} --instance-type Value={new}"},
+                                 {"title": "Start it", "command": f"{aws} start-instances --instance-ids {i}"},
+                                 {"title": "Read back", "command": f"{aws} describe-instances --instance-ids {i} --query 'Reservations[].Instances[].[InstanceType,State.Name]'"},
+                                 {"title": "Check status", "command": f"{aws} describe-instance-status --instance-ids {i}"}]},
+            "rollback": {"steps": [{"title": "Restore the previous type", "command":
+                                    f"{aws} stop-instances --instance-ids {i} && {aws} wait instance-stopped --instance-ids {i} && "
+                                    f"{aws} modify-instance-attribute --instance-id {i} --instance-type Value={old} && {aws} start-instances --instance-ids {i}"}]}}
+    if a["action_type"] == "LOCAL_WORKER_CONFIG_UPDATE":
+        return {"title": f"Set {a['worker_id']} max_concurrency {a['before']['max_concurrency']} → {a['after']['max_concurrency']} (local analogue)",
+                "downtime": {"expected": False, "estimate_seconds": 0, "basis": "hot reload of the worker configuration"},
+                "automated": {"who": "SuperOps executor, after a human approves the exact plan hash and trial hash",
+                              "steps": ["Re-check approval and versions", "Compare-and-set the config", "Reload and read back", "Run a fresh workload against the SLO"]},
+                "manual": {"note": "Local sandbox analogue of a machine-type change; manual edits make the plan stale.", "steps": []},
+                "rollback": {"steps": [{"title": "Restore", "command": f"previous max_concurrency {a['before']['max_concurrency']} (automatic when verification fails)"}]}}
+    if a["action_type"] == "AI_CONFIG_UPDATE":
+        return {"title": "Update the support workflow configuration", "downtime": {"expected": False, "estimate_seconds": 0, "basis": "new runs load the new config"},
+                "automated": {"who": "SuperOps executor, after a ROLLOUT_ELIGIBLE holdout verdict and a human approval",
+                              "steps": ["Re-check model, workflow and test versions", "Write the config", "Run smoke cases"]},
+                "manual": {"note": "Manual edits make the plan stale.", "steps": []}, "rollback": {"steps": []}}
+    return {"title": "Projection only", "downtime": {"expected": True, "estimate_seconds": None, "basis": "no executor configured"},
+            "automated": {"who": "not available: no executor for this action type", "steps": []},
+            "manual": {"note": "Projection only; no executor is configured for this target.", "steps": []}, "rollback": {"steps": []}}

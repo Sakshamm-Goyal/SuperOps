@@ -16,6 +16,7 @@ from greenops.adapters.memory import MemoryUnavailable
 from greenops.adapters.model import BudgetExceeded, ModelError
 from greenops.agents.roles import (INSTRUCTIONS, PROMPT_VERSION, AiCandidate, CloudCandidate, CoordinatorScope, CriticReview,
                                    InvestigatorReport, OptimizerProposal)
+from greenops.config import service_config
 from greenops.db import J, connect
 from greenops.domain.models import AiWorkflowConfig, ServicePolicy
 from greenops.domain.quantities import GIB, DomainError, canonical_hash
@@ -81,8 +82,8 @@ def _params(inv: dict, t: str) -> dict:
     s, e = inv["interval_start"], inv["interval_end"]
     return {"policy": {"service_id": inv["service_id"], "version": inv["policy_version"]},
             "inventory": {"service_id": inv["service_id"], "as_of": inv["as_of"]}, "telemetry_summary": {"start": s, "end": e},
-            "billing_rows": {"start": s, "end": e}, "prices": {"region": "us-central1"}, "machine_types": {},
-            "carbon_factors": {"region": "us-central1"}, "model_prices": {}, "ai_usage_by_run": {"service_id": inv["service_id"]},
+            "billing_rows": {"start": s, "end": e}, "prices": {"region": service_config(inv["service_id"])["region"]}, "machine_types": {},
+            "carbon_factors": {"region": service_config(inv["service_id"])["region"]}, "model_prices": {}, "ai_usage_by_run": {"service_id": inv["service_id"]},
             "ai_duplicate_lookups": {"service_id": inv["service_id"]},
             "service_cost_rollup": {"service_id": inv["service_id"], "start": s, "end": e}}[t]
 
@@ -130,7 +131,8 @@ def _collect_series(rt: Runtime, inv: dict, summ: dict, key: str, client=None) -
 
 
 def _scope(rt: Runtime, inv: dict, gateway, budget: Budget) -> None:
-    client = rt.evidence_factory()
+    from greenops.services.evidence_service import _client
+    client = _client(rt, inv["service_id"])
     summ = inv["summary"]
     summ["model_id"] = gateway.model_id
     summ["evidence"] = {}
@@ -155,8 +157,8 @@ def _scope(rt: Runtime, inv: dict, gateway, budget: Budget) -> None:
         raise AppError("EVIDENCE_INCOMPLETE", 422, "policy version from source does not match the server policy")
 
     scope = call_role(rt, inv, gateway, "coordinator", {"question": inv["question"], "service_id": inv["service_id"],
-                      "available_paths": ["cloud", "ai"], "resources": len(ctx["facts"])}, CoordinatorScope, budget)
-    summ["paths"] = sorted(set(scope.paths))
+                      "available_paths": service_config(inv["service_id"])["paths"], "resources": len(ctx["facts"])}, CoordinatorScope, budget)
+    summ["paths"] = sorted(set(scope.paths) & set(service_config(inv["service_id"])["paths"]))  # model choice bounded by service config
     summ["focus"] = scope.focus
 
     summ["memory"] = {"status": "off" if inv["memory_mode"] == "off" else "pending", "applicable": [], "historical": [], "queries": []}
@@ -227,7 +229,8 @@ def _screen_plan(rt, inv, ctx, cand, path):
         facts = ctx["facts"].get(cand.resource_key)
         mt = next((m for m in ctx["catalog"] if m["machine_type"] == cand.to_machine_type), None)
         target = MachineType(mt["machine_type"], Decimal(mt["vcpu"]), Decimal(mt["memory_gib"]), mt["architecture"]) if mt else None
-        action_type = "LOCAL_WORKER_CONFIG_UPDATE" if P.analogue_for(cand.resource_key) else "GCP_MACHINE_TYPE_UPDATE"
+        action_type = ("AWS_INSTANCE_TYPE_UPDATE" if cand.resource_key.startswith("aws/") else
+                       "LOCAL_WORKER_CONFIG_UPDATE" if P.analogue_for(cand.resource_key) else "GCP_MACHINE_TYPE_UPDATE")
         impacts = P.cloud_impacts(facts, mt, ctx["prices"], ctx["carbon"], inv["as_of"], facts.region) if facts and mt else None
         # Economics compares horizon cost over every effective rate interval (audit A05); unknown coverage stays UNKNOWN.
         known = impacts is not None and impacts.get("gross_saving") is not None
@@ -397,6 +400,10 @@ def _critic_pass(rt, inv, gateway, budget, ctx, plan_ids, versions, depth: int =
     return revise
 
 
+def suite_for(plan: dict) -> str:
+    return "support-dev-v1" if plan["path"] == "ai" else "aws-canary-v1" if plan["core"]["executor"] == "aws" else "workload-wl-v1"
+
+
 def _dispatch_trials(rt: Runtime, inv: dict) -> int:
     if not inv["trial_profile_id"]:
         return 0
@@ -408,7 +415,7 @@ def _dispatch_trials(rt: Runtime, inv: dict) -> int:
             if c.execute("SELECT 1 FROM trials WHERE plan_id=%s AND plan_hash=%s", (p["id"], p["plan_hash"])).fetchone():
                 continue
             from greenops.services.trials import create_trial
-            create_trial(c, rt, p, inv["trial_profile_id"], inv["actor_id"], "support-dev-v1" if p["path"] == "ai" else "workload-wl-v1")
+            create_trial(c, rt, p, inv["trial_profile_id"], inv["actor_id"], suite_for(p))
             n += 1
     return n
 

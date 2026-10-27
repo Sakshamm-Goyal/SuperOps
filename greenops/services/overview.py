@@ -22,6 +22,12 @@ def _sum(vals) -> str | None:
     return format(sum(vals, Decimal(0)).quantize(Decimal("0.001")), "f") if vals else None
 
 
+def _service_sources() -> dict:
+    import json
+    from greenops.config import ROOT
+    return {sid: c["sources"] for sid, c in json.loads((ROOT / "config" / "services.json").read_text()).items() if c.get("sources")}
+
+
 def build(rt: Runtime, tenant_id: str) -> dict:
     s = rt.settings
     with connect(rt.db) as c:
@@ -69,7 +75,9 @@ def build(rt: Runtime, tenant_id: str) -> dict:
         "memory": {**mem, "engine": "Meterless H-MEM", "records": outbox["sent"], "pending": outbox["total"] - outbox["sent"],
                    "recalls": mem_use["recalls"], "applicable_hits": mem_use["hits"]},
         "federation": {"mode": "zetaris" if connected else "sample_local_db (not federation)",
-                       "sources": [{"group": g, "name": n} for g, n in s.source_names.items()] if connected else [],
+                       "sources": ([{"group": g, "name": n} for g, n in s.source_names.items()] +
+                                   [{"group": f"{g} ({sid})", "name": n} for sid, cfg in _service_sources().items() for g, n in cfg.items()
+                                    if n not in s.source_names.values()]) if connected else [],
                        "receipts": receipts["n"], "last_receipt_at": receipts["last"]},
         "model": {"agent_model_id": s.model_id if (connected or os.environ.get("SAMPLE_MODEL") == "nvidia") else "scripted-sample-roles",
                   "copilot_model_id": os.environ.get("COPILOT_MODEL_ID", "claude-haiku-4-5-20251001") if os.environ.get("ANTHROPIC_API_KEY") else None},

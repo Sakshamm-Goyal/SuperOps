@@ -1,0 +1,8 @@
+{"policy_id": "superops-aws-ops-policy", "version": "pol-v1", "service_id": "superops-aws", "effective_from": "2026-10-27T00:00:00Z",
+ "cpu_max_utilization": "0.80", "memory_max_utilization": "0.80", "telemetry_max_age_minutes": 30, "required_critical_coverage": "1",
+ "allowed_action_types": ["AWS_INSTANCE_TYPE_UPDATE"], "executable_environments": ["staging", "prod"],
+ "frozen_resources": ["aws/ap-south-1/i-05a6f032525dd0cf9"], "unsupported_features": ["stateful", "local_ssd", "gpu"],
+ "workload": {"p95_regression_max": "0.10", "slo_p95_ms": 800, "max_error_rate": "0"},
+ "ai": {"min_accepted": 38, "total_cases": 40, "efficiency_aspiration": "0.15"},
+ "approval_ttl_minutes": 15, "trial_validity_hours": 24, "max_candidates_per_path": 3,
+ "stress_forecast_waiver": "live sandbox history is shorter than the 17-day forecast protocol; a canary of the candidate type running the same workload is measured instead"}

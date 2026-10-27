@@ -29,6 +29,8 @@ def main() -> None:
     with connect(s.database_url) as c:
         c.execute("INSERT INTO services (tenant_id, service_id, display_name, runtime_modes) VALUES (%s,'support-demo','Support demo service',%s) "
                   "ON CONFLICT DO NOTHING", (s.tenant_id, ["sample", "connected_demo", "replay"]))
+        c.execute("INSERT INTO services (tenant_id, service_id, display_name, runtime_modes) VALUES (%s,'superops-aws',%s,%s) ON CONFLICT DO NOTHING",
+                  (s.tenant_id, "SuperOps live AWS sandbox (ap-south-1)", ["connected_demo"]))  # live AWS evidence only exists through Zetaris
         if s.runtime_mode.value == "connected_demo" and s.max_run_cost_usd is None:
             print("WARNING: MAX_RUN_COST_USD not set; connected budget profile not created (charged runs blocked: BUDGET_NOT_CONFIGURED)")
         else:

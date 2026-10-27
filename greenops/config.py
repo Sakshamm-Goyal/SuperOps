@@ -112,6 +112,13 @@ class Settings:
         return bool(self.model_id and self.model_api_key)
 
 
+def service_config(service_id: str) -> dict:
+    """Per-service region, investigation paths, data-origin label and (optionally) its own Zetaris datasources."""
+    import json
+    return json.loads((ROOT / "config" / "services.json").read_text()).get(service_id) or {
+        "region": "us-central1", "paths": ["cloud", "ai"], "data_origin": "synthetic", "sources": None}
+
+
 def get_settings() -> Settings:
     load_dotenv()
     mode = RuntimeMode(_env("RUNTIME_MODE", "sample"))

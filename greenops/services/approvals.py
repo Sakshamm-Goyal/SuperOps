@@ -34,18 +34,26 @@ def target_version(rt: Runtime, plan: dict) -> int | None:
             return ConfigStore(rt.settings.sandbox_dir, plan["target_key"]).read()["version"]
         except Exception:
             return None
+    if a["action_type"] == "AWS_INSTANCE_TYPE_UPDATE":
+        from greenops.adapters.aws import AwsInstanceStore
+        try:
+            cur = AwsInstanceStore(plan["target_key"]).read()
+        except Exception:
+            return None
+        # the instance must also still be the type the trial and approval were about
+        return cur["version"] if cur["instance_type"] == a["expected_instance_type"] else -1
     return None
 
 
 def versions_current(rt: Runtime, plan: dict) -> tuple[bool, str | None]:
     """Every input the trial validated must still hold (audit A06). Guards approval and the worker's first write."""
-    from greenops.services.plans import ai_artifact_versions
+    from greenops.services.plans import ai_artifact_versions, cloud_workload_version
     v = plan["core"]["versions"]
     if v["policy_version"] != rt.settings.policy_version:
         return False, "POLICY_VERSION_CHANGED"
     if v["data_manifest_id"] != rt.settings.data_manifest_id:
         return False, "DATA_MANIFEST_CHANGED"
-    if plan["path"] == "cloud" and v["workload_version"] != file_hash(WORKLOAD_PATH):
+    if plan["path"] == "cloud" and v["workload_version"] != cloud_workload_version(plan["core"]["executor"]):
         return False, "WORKLOAD_VERSION_CHANGED"
     if plan["path"] == "ai":
         cur = ai_artifact_versions(rt.model_factory().model_id)
