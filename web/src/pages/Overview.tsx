@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import {
-  Search, Clock3, Leaf, DollarSign, ShieldX, Bot, Network, Brain, Cpu, Sparkles, ArrowRight, Activity, ShieldCheck, Ban, Info, BadgeCheck,
+  Search, Clock3, Leaf, DollarSign, Bot, Network, Brain, Cpu, Sparkles, ArrowRight, Activity, ShieldCheck, Ban, Info, BadgeCheck,
 } from "lucide-react";
 import { api, ApiError, type Overview as OverviewT, type Page, type Json, type Resource, type InvestigationData } from "../lib/api";
 import { useAuth } from "../lib/auth";
@@ -131,7 +131,7 @@ function HealthRow({ icon: Icon, name, status, children }: { icon: typeof Networ
           <span className="text-[14px] font-bold text-ink">{name}</span>
           {status && <StatusChip status={status} size="xs" />}
         </div>
-        <div className="mt-0.5 text-[12.5px] leading-snug text-muted">{children}</div>
+        <div className="mt-0.5 text-[13.5px] leading-snug text-muted">{children}</div>
       </div>
     </div>
   );
@@ -209,7 +209,7 @@ export default function Overview() {
           <div className="flex max-w-full gap-1 overflow-x-auto rounded-full bg-lav p-1 scroll-thin" role="tablist" aria-label="Filter by service">
             {["all", ...services].map((x) => (
               <button key={x} role="tab" aria-selected={svc === x} onClick={() => setSvc(x)}
-                className={cx("inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-3 py-1.5 text-[12.5px] font-semibold transition", svc === x ? "bg-white text-ink shadow-sm" : "text-muted hover:text-ink")}>
+                className={cx("inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-3 py-1.5 text-[13.5px] font-semibold transition", svc === x ? "bg-white text-ink shadow-sm" : "text-muted hover:text-ink")}>
                 {x === "all" ? "All services" : <span className="mono">{x}</span>}
                 {isLiveAws(x) && <LiveAwsBadge size="xs" />}
               </button>
@@ -222,12 +222,14 @@ export default function Overview() {
       {d.derived && (
         <div className="mb-5">
           <Notice tone="info" icon={Info} title="Derived view">
-            <span className="text-[13px]">The <code className="mono">/v1/overview</code> endpoint isn't available on this API, so these figures are computed in your browser from recent investigations. Verified savings, carbon and model ids need that endpoint.</span>
+            <span className="text-[14px]">The <code className="mono">/v1/overview</code> endpoint isn't available on this API, so these figures are computed in your browser from recent investigations. Verified savings, carbon and model ids need that endpoint.</span>
           </Notice>
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
+      {!d.derived && <SavingsFunnel ov={ov} />}
+
+      <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Stat label={scoped ? `Investigations · ${svc}` : "Investigations"} icon={Search} value={scoped ? scoped.total : ov.investigations.total}
           sub={<span className="flex flex-wrap gap-x-3">{Object.entries(scoped ? scoped.by : ov.investigations.by_status).map(([k, v]) => <span key={k}>{humanize(k)} <b className="text-ink tnum">{v}</b></span>)}</span>} />
         <Stat label="Awaiting approval" icon={Clock3} value={awaiting} sub="Plans that passed screening and a matched trial" footnote="Approval binds the exact plan + trial hash for 15 min" />
@@ -235,18 +237,16 @@ export default function Overview() {
           value={ov.savings.proposed_monthly_usd === null ? "—" : money(ov.savings.proposed_monthly_usd)}
           sub={ov.savings.proposed_monthly_usd === null ? "No projected saving available" : <>Projected, latest investigation{ov.savings.latest_investigation_id && <> · <Link className="underline" to={`/app/investigations/${ov.savings.latest_investigation_id}`}>{ov.savings.latest_investigation_id.slice(0, 8)}</Link></>}</>}
           footnote="Proposed ≠ achieved. A projection, not an invoice saving." />
-        <Stat label="Refused by evidence" icon={ShieldX}
-          value={ov.savings.blocked_monthly_usd == null ? "—" : money(ov.savings.blocked_monthly_usd)}
-          sub={ov.savings.blocked_monthly_usd == null ? "No rejected candidate in the latest run carried a projected saving" : "Tempting savings the checks rejected in the latest run"}
-          footnote="A rejection is a result, not a failure." />
         <Stat label="Verified monthly saving" icon={BadgeCheck}
           value={ov.savings.verified_monthly_usd === null ? "—" : money(ov.savings.verified_monthly_usd)}
           sub={ov.savings.verified_monthly_usd === null ? "No verified action has measured a saving yet" : "Projection of changes verified in the sandbox analogue"}
           footnote={<span className="flex items-start gap-1"><Leaf className="mt-0.5 size-3 shrink-0" /> Carbon: {ov.carbon.proposed_monthly_kgco2e === null ? `unknown (${ov.carbon.basis})` : `${num(ov.carbon.proposed_monthly_kgco2e)} kgCO₂e proposed · ${ov.carbon.basis}`}</span>} />
       </div>
-      <p className="mt-2 text-[11.5px] text-faint">Savings basis (from the server): {ov.savings.basis}</p>
+      <details className="mt-3 text-[13px] text-muted">
+        <summary className="cursor-pointer select-none font-semibold text-ink-2 hover:text-accent">How these savings are calculated</summary>
+        <p className="mt-1.5 max-w-4xl">{ov.savings.basis}</p>
+      </details>
 
-      {!d.derived && <SavingsFunnel ov={ov} />}
 
       <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-3 [&>*]:min-w-0">
         <Card className="flex flex-col">
@@ -259,7 +259,7 @@ export default function Overview() {
           <CardHeader title="Rejections by check" icon={ShieldCheck} sub="Which deterministic check stopped a plan" />
           <div className="px-5 pb-6 sm:px-6">
             {ov.rejections_by_check.length ? (
-              <BarList items={ov.rejections_by_check.slice(0, 7).map((r) => ({ label: <span><b className="font-semibold text-ink">{checkLabel(r.check_id)}</b> <span className="mono text-[11px] text-faint">{r.check_id}</span></span>, value: r.count ?? r.n ?? 0, tone: "fail" as const }))} />
+              <BarList items={ov.rejections_by_check.slice(0, 7).map((r) => ({ label: <span><b className="font-semibold text-ink">{checkLabel(r.check_id)}</b> <span className="mono text-[12px] text-faint">{r.check_id}</span></span>, value: r.count ?? r.n ?? 0, tone: "fail" as const }))} />
             ) : (
               <Empty title="No rejections yet" icon={ShieldCheck}>When a check refuses a plan it shows up here.</Empty>
             )}
@@ -286,7 +286,7 @@ export default function Overview() {
           <div className="divide-y divide-line px-5 pb-3 sm:px-6">
             <HealthRow icon={Network} name="Zetaris federation" status={/sample|local/.test(ov.federation.mode) ? "unknown" : ov.federation.receipts || ov.federation.sources.length ? "ready" : "unknown"}>
               Mode <b className="text-ink">{ov.federation.mode === "local_sample_postgres" ? "local sample database — not Zetaris federation" : ov.federation.mode}</b>
-              {ov.federation.sources.length > 0 && <> · sources {ov.federation.sources.map((s) => <span key={s.name} className="mono mx-0.5 rounded bg-lav px-1 text-[11px] text-ink-2">{s.name}</span>)}</>}
+              {ov.federation.sources.length > 0 && <> · sources {ov.federation.sources.map((s) => <span key={s.name} className="mono mx-0.5 rounded bg-lav px-1 text-[12px] text-ink-2">{s.name}</span>)}</>}
               {" · "}{ov.federation.receipts} receipts{ov.federation.last_receipt_at && <> · last {ago(ov.federation.last_receipt_at)}</>}
             </HealthRow>
             <HealthRow icon={Brain} name="Meterless H-MEM" status={ov.memory.status}>
@@ -294,7 +294,7 @@ export default function Overview() {
               {ov.memory.semantic === false && <span className="text-warn"> (hash conformance — not semantic-recall evidence)</span>}
               {ov.memory.semantic === true && <span className="text-pass"> (semantic)</span>}
               {" · "}{ov.memory.records ?? "?"} records{ov.memory.pending ? ` (${ov.memory.pending} pending)` : ""} · {ov.memory.recalls} recalls · {ov.memory.applicable_hits} applicable hits
-              {ov.memory.engine && <> · engine {ov.memory.engine}{ov.memory.engine_sha && <span className="mono text-[11px]"> @{ov.memory.engine_sha}</span>}</>}
+              {ov.memory.engine && <> · engine {ov.memory.engine}{ov.memory.engine_sha && <span className="mono text-[12px]"> @{ov.memory.engine_sha}</span>}</>}
             </HealthRow>
             <HealthRow icon={Cpu} name="NVIDIA Nemotron agents" status={ov.model.agent_model_id ? "configured" : null}>
               {ov.model.agent_model_id ? <span className="mono text-[12px] text-ink">{ov.model.agent_model_id}</span> : "Model id not reported by this API"} · coordinator, investigator, optimizer, critic roles via Google ADK
@@ -308,7 +308,7 @@ export default function Overview() {
           </div>
         </Card>
         <Card>
-          <CardHeader title="Recent activity" icon={Clock3} right={<Link to="/app/investigations" className="text-[13px] font-semibold text-accent hover:underline">All investigations</Link>} />
+          <CardHeader title="Recent activity" icon={Clock3} right={<Link to="/app/investigations" className="text-[14px] font-semibold text-accent hover:underline">All investigations</Link>} />
           <ol className="relative px-5 pb-5 sm:px-6">
             {recent.length === 0 && <Empty title="Nothing yet" icon={Clock3}>{scoped ? `No recent activity for ${svc} in the latest events.` : "Start an investigation to see activity here."}</Empty>}
             {recent.slice(0, 8).map((r, i) => (
@@ -317,11 +317,11 @@ export default function Overview() {
                 <span className={cx("relative mt-1.5 size-[15px] shrink-0 rounded-full border-[3px] border-white ring-1", i === 0 ? "bg-accent ring-accent/40" : "bg-line-2 ring-line")} />
                 <Link to={`/app/investigations/${r.investigation_id}`} className="group min-w-0 flex-1 rounded-xl px-2 py-1 -mx-2 hover:bg-lav">
                   <div className="flex items-center justify-between gap-3">
-                    <span className="truncate text-[13.5px] font-semibold text-ink group-hover:text-accent">{eventLabel(r.kind)}</span>
+                    <span className="truncate text-[14px] font-semibold text-ink group-hover:text-accent">{eventLabel(r.kind)}</span>
                     <ArrowRight className="size-3.5 shrink-0 text-faint opacity-0 group-hover:opacity-100" />
                   </div>
                   {r.summary && r.summary !== r.kind && <div className="truncate text-[12px] text-muted">{r.summary}</div>}
-                  <div className="text-[11.5px] text-faint">{r.actor && <span className="mono">{r.actor} · </span>}{ago(r.at)} · <span className="mono">{r.investigation_id.slice(0, 8)}</span></div>
+                  <div className="text-[12.5px] text-faint">{r.actor && <span className="mono">{r.actor} · </span>}{ago(r.at)} · <span className="mono">{r.investigation_id.slice(0, 8)}</span></div>
                 </Link>
               </li>
             ))}

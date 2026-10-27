@@ -74,7 +74,7 @@ export function SavingsFunnel({ ov }: { ov: Overview }) {
         <CardHeader title="Savings funnel" icon={Filter} sub={c ? `Every candidate plan across ${c.investigations} investigations — each stage narrows what may happen next` : "Every candidate plan, stage by stage"} />
         <div className="px-5 pb-5 sm:px-6">
           {!c && !err && <div className="space-y-2">{[0, 1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-11" />)}</div>}
-          {err && <div className="text-[13px] text-faint">Could not read the investigations to build the funnel.</div>}
+          {err && <div className="text-[14px] text-faint">Could not read the investigations to build the funnel.</div>}
           {c && (
             <ol className="space-y-2">
               {STAGES.map((s, i) => {
@@ -82,15 +82,15 @@ export function SavingsFunnel({ ov }: { ov: Overview }) {
                 const w = Math.max(6, (n / max) * 100);
                 const money$ = s.key === "proposed" ? ov.savings.proposed_monthly_usd : s.key === "verified" ? ov.savings.verified_monthly_usd : null;
                 return (
-                  <li key={s.key} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 sm:grid-cols-[200px_minmax(0,1fr)_auto]">
+                  <li key={s.key} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 sm:grid-cols-[230px_minmax(0,1fr)_auto]">
                     <div className="min-w-0 sm:order-none">
-                      <div className="truncate text-[13px] font-semibold text-ink">{s.label}</div>
-                      <div className="truncate text-[11px] text-faint">{s.basis}</div>
+                      <div className="text-[14px] font-semibold leading-tight text-ink">{s.label}</div>
+                      <div className="text-[12.5px] text-faint">{s.basis}</div>
                     </div>
                     <div className="order-3 col-span-2 sm:order-none sm:col-span-1">
                       <div className="h-9 overflow-hidden rounded-xl bg-lav">
                         <div
-                          className={cx("flex h-full items-center rounded-xl px-3 text-[13px] font-bold text-white transition-all duration-700", i === STAGES.length - 1 ? "bg-pass" : "bg-accent")}
+                          className={cx("flex h-full items-center rounded-xl px-3 text-[14px] font-bold text-white transition-all duration-700", i === STAGES.length - 1 ? "bg-pass" : "bg-accent")}
                           style={{ width: `${w}%`, opacity: 1 - i * 0.12 }}
                         >
                           {n}
@@ -101,12 +101,12 @@ export function SavingsFunnel({ ov }: { ov: Overview }) {
                       {money$ !== null && money$ !== undefined ? (
                         <>
                           <span className="font-display text-[15px] font-bold text-ink">{money(money$)}</span>
-                          <span className="text-[10.5px] text-faint">{s.key === "verified" ? "projection of verified change" : "projected, latest run"}</span>
+                          <span className="text-[11.5px] text-faint">{s.key === "verified" ? "projection of verified change" : "projected, latest run"}</span>
                         </>
                       ) : (
                         <>
                           <KindBadge kind={s.kind === "observed" ? "human" : s.kind} />
-                          {i > 0 && (c[STAGES[i - 1].key] as number) > 0 && <span className="mt-0.5 text-[10.5px] text-faint">{Math.round((n / (c[STAGES[i - 1].key] as number)) * 100)}% of previous</span>}
+                          {i > 0 && (c[STAGES[i - 1].key] as number) > 0 && <span className="mt-0.5 text-[11.5px] text-faint">{Math.round((n / (c[STAGES[i - 1].key] as number)) * 100)}% of previous</span>}
                         </>
                       )}
                     </div>
@@ -115,7 +115,7 @@ export function SavingsFunnel({ ov }: { ov: Overview }) {
               })}
             </ol>
           )}
-          <p className="mt-4 text-[11.5px] text-faint">
+          <p className="mt-4 text-[12.5px] text-faint">
             Dollar figures are the server's projections at dated synthetic rates; even the verified figure is a projection of a change verified on the local analogue, not an invoice saving.
           </p>
         </div>
@@ -137,7 +137,7 @@ export function SavingsFunnel({ ov }: { ov: Overview }) {
             <div className="relative mt-2 text-[14px] text-white/80">Each rejection kept its reason and evidence. The latest run had no rejected candidate with a projected saving, so no dollar figure is claimed.</div>
           </>
         )}
-        <div className="relative mt-auto space-y-2 pt-6 text-[13px]">
+        <div className="relative mt-auto space-y-2 pt-6 text-[14px]">
           {blocked != null && <div className="flex items-center justify-between border-t border-white/15 pt-3"><span className="text-white/60">Plans rejected with a kept reason</span><b className="font-display text-[20px]">{c ? c.rejected : "…"}</b></div>}
           {c?.topRejection && <div className={cx("flex items-center justify-between", blocked == null && "border-t border-white/15 pt-3")}><span className="text-white/60">Most common stop</span><b>{checkLabel(c.topRejection.check)} · {c.topRejection.n}</b></div>}
           {c?.firstVerifiedAction && (

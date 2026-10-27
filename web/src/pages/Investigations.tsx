@@ -18,7 +18,7 @@ function PlanDots({ plans }: { plans: Json[] }) {
         const color =
           p.status === "REJECTED" ? "bg-fail" : p.status === "AWAITING_APPROVAL" ? "bg-warn" : p.status === "DRAFT" ? "bg-line-2" : ["VERIFIED", "COMPLETED", "APPROVED"].includes(p.status) ? "bg-pass" : "bg-accent";
         return (
-          <span key={p.plan_id} title={`${p.signature} — ${p.status}`} className="inline-flex items-center gap-1 rounded-full bg-wash px-1.5 py-0.5 text-[10.5px] font-medium text-ink-2 ring-1 ring-line">
+          <span key={p.plan_id} title={`${p.signature} — ${p.status}`} className="inline-flex items-center gap-1 rounded-full bg-wash px-1.5 py-0.5 text-[11.5px] font-medium text-ink-2 ring-1 ring-line">
             <span className={cx("size-1.5 rounded-full", color)} />
             {s.path === "ai" ? <Bot className="size-3" /> : <Cloud className="size-3" />}
           </span>
@@ -85,48 +85,48 @@ function NewInvestigation({ open, onClose, mode }: { open: boolean; onClose: () 
     <Drawer open={open} onClose={onClose} title="New investigation">
       <form onSubmit={submit} className="space-y-5 p-5">
         <Notice tone="info" icon={BrainCircuit}>
-          <span className="text-[13px]">Agents will propose at most three candidates per path. Starting an investigation changes nothing on a target: trials run on sandbox fixtures or a disposable canary, and every write needs a separate human approval.</span>
+          <span className="text-[14px]">Agents will propose at most three candidates per path. Starting an investigation changes nothing on a target: trials run on sandbox fixtures or a disposable canary, and every write needs a separate human approval.</span>
         </Notice>
         <div>
-          <span className="mb-1.5 block text-[13px] font-semibold text-ink">Service</span>
+          <span className="mb-1.5 block text-[14px] font-semibold text-ink">Service</span>
           <div className="grid gap-2 sm:grid-cols-2">
             {svcList.map((x) => (
               <button type="button" key={x.service_id} onClick={() => pickService(x.service_id)} className={cx("rounded-xl p-3 text-left ring-1 transition", service === x.service_id ? "bg-accent-50 ring-accent" : "bg-white ring-line hover:ring-accent/40")}>
                 <span className="flex items-center justify-between gap-2">
-                  <span className="mono text-[12.5px] font-semibold text-ink">{x.service_id}</span>
+                  <span className="mono text-[13.5px] font-semibold text-ink">{x.service_id}</span>
                   {isLiveAws(x.service_id) && <LiveAwsBadge size="xs" />}
                 </span>
-                <span className="mt-0.5 block text-[11.5px] text-muted">{x.display_name}</span>
-                <span className="mt-1 block text-[10.5px] text-faint">modes: {(x.runtime_modes ?? []).join(", ")}</span>
+                <span className="mt-0.5 block text-[12.5px] text-muted">{x.display_name}</span>
+                <span className="mt-1 block text-[11.5px] text-faint">modes: {(x.runtime_modes ?? []).join(", ")}</span>
               </button>
             ))}
           </div>
           {!modeOk && <div className="mt-2"><Notice tone="warn" title="This service does not run in the server's mode">The server runs <b>{mode}</b>; {service} supports {(svc?.runtime_modes ?? []).join(", ")}. The request will be refused.</Notice></div>}
-          {isLiveAws(service) && <p className="mt-2 text-[11.5px] text-muted">Live AWS: real CloudWatch metrics and Price List through Zetaris, and a real canary EC2 instance for the trial (about 15 minutes end to end). Nothing on the live instances changes until a human approves.</p>}
+          {isLiveAws(service) && <p className="mt-2 text-[12.5px] text-muted">Live AWS: real CloudWatch metrics and Price List through Zetaris, and a real canary EC2 instance for the trial (about 15 minutes end to end). Nothing on the live instances changes until a human approves.</p>}
         </div>
         <div>
-          <label htmlFor="q" className="mb-1.5 block text-[13px] font-semibold text-ink">Question</label>
+          <label htmlFor="q" className="mb-1.5 block text-[14px] font-semibold text-ink">Question</label>
           <textarea id="q" value={question} onChange={(e) => setQuestion(e.target.value)} rows={3} maxLength={2000} required className={cx(input, "h-auto py-2.5")} />
         </div>
         <div className="grid gap-3 sm:grid-cols-2">
           <div>
-            <label htmlFor="st" className="mb-1.5 block text-[13px] font-semibold text-ink">Interval start (UTC)</label>
-            <input id="st" value={start} onChange={(e) => setStart(e.target.value)} className={cx(input, "mono text-[12.5px]")} required />
+            <label htmlFor="st" className="mb-1.5 block text-[14px] font-semibold text-ink">Interval start (UTC)</label>
+            <input id="st" value={start} onChange={(e) => setStart(e.target.value)} className={cx(input, "mono text-[13.5px]")} required />
           </div>
           <div>
-            <label htmlFor="en" className="mb-1.5 block text-[13px] font-semibold text-ink">Interval end (UTC)</label>
-            <input id="en" value={end} onChange={(e) => setEnd(e.target.value)} className={cx(input, "mono text-[12.5px]")} required />
+            <label htmlFor="en" className="mb-1.5 block text-[14px] font-semibold text-ink">Interval end (UTC)</label>
+            <input id="en" value={end} onChange={(e) => setEnd(e.target.value)} className={cx(input, "mono text-[13.5px]")} required />
           </div>
         </div>
         <div>
-          <span className="mb-1.5 block text-[13px] font-semibold text-ink">Memory</span>
+          <span className="mb-1.5 block text-[14px] font-semibold text-ink">Memory</span>
           <div className="grid grid-cols-2 gap-2">
             {(["on", "off"] as const).map((v) => (
               <button type="button" key={v} onClick={() => setMemory(v)} className={cx("flex items-start gap-2 rounded-xl p-3 text-left ring-1 transition", memory === v ? "bg-accent-50 ring-accent" : "bg-white ring-line hover:ring-accent/40")}>
                 <Brain className={cx("mt-0.5 size-4", memory === v ? "text-accent" : "text-faint")} />
                 <span>
-                  <span className="block text-[13px] font-semibold text-ink">Memory {v}</span>
-                  <span className="block text-[11.5px] text-muted">{v === "on" ? "Recall prior outcomes and skip known failures" : "Screen every option from scratch (ablation)"}</span>
+                  <span className="block text-[14px] font-semibold text-ink">Memory {v}</span>
+                  <span className="block text-[12.5px] text-muted">{v === "on" ? "Recall prior outcomes and skip known failures" : "Screen every option from scratch (ablation)"}</span>
                 </span>
               </button>
             ))}
@@ -134,15 +134,15 @@ function NewInvestigation({ open, onClose, mode }: { open: boolean; onClose: () 
         </div>
         <div className="grid gap-3 sm:grid-cols-2">
           <div>
-            <label htmlFor="tp" className="mb-1.5 block text-[13px] font-semibold text-ink">Trial profile</label>
-            <input id="tp" value={trialProfile} onChange={(e) => setTrialProfile(e.target.value)} className={cx(input, "mono text-[12.5px]")} />
+            <label htmlFor="tp" className="mb-1.5 block text-[14px] font-semibold text-ink">Trial profile</label>
+            <input id="tp" value={trialProfile} onChange={(e) => setTrialProfile(e.target.value)} className={cx(input, "mono text-[13.5px]")} />
           </div>
           <div>
-            <label htmlFor="bp" className="mb-1.5 block text-[13px] font-semibold text-ink">Budget profile</label>
-            <input id="bp" value={budget} onChange={(e) => setBudget(e.target.value)} className={cx(input, "mono text-[12.5px]")} required />
+            <label htmlFor="bp" className="mb-1.5 block text-[14px] font-semibold text-ink">Budget profile</label>
+            <input id="bp" value={budget} onChange={(e) => setBudget(e.target.value)} className={cx(input, "mono text-[13.5px]")} required />
           </div>
         </div>
-        <div className="flex items-center justify-between rounded-xl bg-wash px-3 py-2.5 text-[13px]">
+        <div className="flex items-center justify-between rounded-xl bg-wash px-3 py-2.5 text-[14px]">
           <span className="text-muted">Runtime mode (set by the server)</span>
           <KindBadge kind={mode} />
         </div>
@@ -152,7 +152,7 @@ function NewInvestigation({ open, onClose, mode }: { open: boolean; onClose: () 
           <Button type="button" variant="ghost" onClick={onClose}>Cancel</Button>
           <Button type="submit" icon={Play} loading={m.pending}>Start investigation</Button>
         </div>
-        <p className="text-[11.5px] text-faint">Sent with a fresh Idempotency-Key; retrying after a network error reuses it, so the run is never created twice.</p>
+        <p className="text-[12.5px] text-faint">Sent with a fresh Idempotency-Key; retrying after a network error reuses it, so the run is never created twice.</p>
       </form>
     </Drawer>
   );
@@ -194,7 +194,7 @@ export default function Investigations() {
           canOperate ? (
             <Button icon={Plus} onClick={() => setOpen(true)}>New investigation</Button>
           ) : (
-            <span className="text-[12.5px] text-muted">Viewer role: read-only</span>
+            <span className="text-[13.5px] text-muted">Viewer role: read-only</span>
           )
         }
       />
@@ -207,7 +207,7 @@ export default function Investigations() {
               <button
                 key={s}
                 onClick={() => setStatus(s)}
-                className={cx("whitespace-nowrap rounded-full px-3 py-1.5 text-[12.5px] font-semibold transition", status === s ? "bg-ink text-white" : "bg-wash text-muted hover:text-ink")}
+                className={cx("whitespace-nowrap rounded-full px-3 py-1.5 text-[13.5px] font-semibold transition", status === s ? "bg-ink text-white" : "bg-wash text-muted hover:text-ink")}
               >
                 {s === "ALL" ? "All" : humanize(s)}
               </button>
@@ -215,7 +215,7 @@ export default function Investigations() {
           </div>
           <label className="flex h-10 items-center gap-2 rounded-full bg-wash px-3.5 ring-1 ring-line focus-within:ring-accent/50 lg:w-72">
             <Search className="size-4 text-faint" />
-            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search id, question, target" className="min-w-0 flex-1 bg-transparent text-[13.5px] outline-none placeholder:text-faint" />
+            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search id, question, target" className="min-w-0 flex-1 bg-transparent text-[14px] outline-none placeholder:text-faint" />
           </label>
         </div>
 
@@ -236,7 +236,7 @@ export default function Investigations() {
             {/* Desktop table */}
             <table className="hidden w-full text-left md:table">
               <thead>
-                <tr className="border-b border-line bg-wash/60 text-[11.5px] font-semibold uppercase tracking-wider text-faint">
+                <tr className="border-b border-line bg-wash/60 text-[12.5px] font-semibold uppercase tracking-wider text-faint">
                   <th className="px-5 py-3">Investigation</th>
                   <th className="px-3 py-3">Status</th>
                   <th className="px-3 py-3">Plans</th>
@@ -255,7 +255,7 @@ export default function Investigations() {
                           {isLiveAws(i.service_id) && <LiveAwsBadge size="xs" />}
                           <span className="truncate text-[14px] font-semibold text-ink group-hover:text-accent">{i.question}</span>
                         </div>
-                        <div className="mt-0.5 flex items-center gap-2 text-[11.5px] text-faint">
+                        <div className="mt-0.5 flex items-center gap-2 text-[12.5px] text-faint">
                           <span className="mono">{i.id.slice(0, 8)}</span>
                           <span>·</span>
                           <span className="mono">{i.service_id}</span>
@@ -267,8 +267,8 @@ export default function Investigations() {
                     </td>
                     <td className="px-3 py-3.5"><StatusChip status={i.status} /></td>
                     <td className="px-3 py-3.5"><PlanDots plans={i.outcome?.plans ?? []} /></td>
-                    <td className="px-3 py-3.5 text-[12.5px] text-muted">{i.memory_mode === "on" ? <span className="inline-flex items-center gap-1 text-accent"><Brain className="size-3.5" /> on</span> : "off"}</td>
-                    <td className="px-3 py-3.5 text-[12.5px] text-muted" title={shortTs(i.created_at)}>{ago(i.created_at)}</td>
+                    <td className="px-3 py-3.5 text-[13.5px] text-muted">{i.memory_mode === "on" ? <span className="inline-flex items-center gap-1 text-accent"><Brain className="size-3.5" /> on</span> : "off"}</td>
+                    <td className="px-3 py-3.5 text-[13.5px] text-muted" title={shortTs(i.created_at)}>{ago(i.created_at)}</td>
                     <td className="px-5 py-3.5 text-right">
                       <Link to={`/app/investigations/${i.id}`} aria-label="Open investigation" className="inline-grid size-8 place-items-center rounded-full text-faint group-hover:bg-white group-hover:text-accent">
                         <ArrowRight className="size-4" />
@@ -289,7 +289,7 @@ export default function Investigations() {
                     </div>
                     <div className="mt-2 flex items-center justify-between gap-2">
                       <PlanDots plans={i.outcome?.plans ?? []} />
-                      <span className="text-[11.5px] text-faint"><span className="mono">{i.id.slice(0, 8)}</span> · {ago(i.created_at)}</span>
+                      <span className="text-[12.5px] text-faint"><span className="mono">{i.id.slice(0, 8)}</span> · {ago(i.created_at)}</span>
                     </div>
                   </Link>
                 </li>

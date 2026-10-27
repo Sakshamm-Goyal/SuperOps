@@ -15,13 +15,13 @@ function ModeBadge({ mode, writes }: { mode: string; writes: boolean }) {
   };
   return (
     <span className="flex items-center gap-1.5">
-      <span title="Server runtime mode (from /v1/me)" className={cx("inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11.5px] font-semibold ring-1 ring-inset", styles[mode] ?? "bg-unk-bg text-unk ring-unk/25")}>
+      <span title="Server runtime mode (from /v1/me)" className={cx("inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[12.5px] font-semibold ring-1 ring-inset", styles[mode] ?? "bg-unk-bg text-unk ring-unk/25")}>
         <span className="size-1.5 rounded-full bg-current" />
         {modeLabel(mode)}
       </span>
       <span
         title={writes ? "Sandbox writes are enabled on the server" : "Sandbox writes are disabled on the server: nothing can be executed"}
-        className={cx("hidden items-center gap-1 rounded-full px-2 py-1 text-[11px] font-medium ring-1 ring-inset sm:inline-flex", writes ? "bg-warn-bg text-warn ring-warn/25" : "bg-white text-muted ring-line")}
+        className={cx("hidden items-center gap-1 rounded-full px-2 py-1 text-[12px] font-medium ring-1 ring-inset sm:inline-flex", writes ? "bg-warn-bg text-warn ring-warn/25" : "bg-white text-muted ring-line")}
       >
         {writes ? <ShieldCheck className="size-3" /> : <Lock className="size-3" />}
         {writes ? "Writes on" : "Writes off"}
@@ -73,14 +73,14 @@ function ShellInner() {
       {/* Sidebar (desktop) */}
       <aside className="sticky top-0 hidden h-screen flex-col border-r border-line bg-white/80 px-4 py-5 backdrop-blur lg:flex">
         <Link to="/" className="px-2"><Logo /></Link>
-        <div className="mt-8 px-3 text-[11px] font-semibold uppercase tracking-[0.16em] text-faint">Workbench</div>
+        <div className="mt-8 px-3 text-[12px] font-semibold uppercase tracking-[0.16em] text-faint">Workbench</div>
         <div className="mt-2">{navList}</div>
         <div className="mt-auto space-y-3">
           <div className="rounded-2xl bg-gradient-to-br from-accent to-[#5465ff] p-4 text-white">
             <div className="font-display text-[15px] font-bold leading-tight">Rejections are <em className="font-extrabold">wins</em>.</div>
             <p className="mt-1 text-[12px] leading-snug text-white/80">A justified NO_CHANGE is the evidence loop working, not failing.</p>
           </div>
-          <a href="/docs" target="_blank" rel="noreferrer" className="flex items-center justify-between rounded-xl px-3 py-2 text-[13px] font-medium text-muted hover:bg-lav hover:text-ink">
+          <a href="/docs" target="_blank" rel="noreferrer" className="flex items-center justify-between rounded-xl px-3 py-2 text-[14px] font-medium text-muted hover:bg-lav hover:text-ink">
             API docs (Swagger) <ExternalLink className="size-3.5" />
           </a>
         </div>
@@ -93,7 +93,7 @@ function ShellInner() {
             <Menu className="size-5" />
           </button>
           <Link to="/" className="lg:hidden"><Logo className="[&_span:last-child]:hidden sm:[&_span:last-child]:inline" /></Link>
-          <div className="hidden items-center gap-2 text-[13px] text-muted md:flex">
+          <div className="hidden items-center gap-2 text-[14px] text-muted md:flex">
             <span className="rounded-lg bg-white px-2 py-1 font-semibold text-ink ring-1 ring-line">support-demo · superops-aws</span>
             <span>tenant {me?.tenant_id}</span>
           </div>
@@ -102,8 +102,8 @@ function ShellInner() {
             <div className="flex items-center gap-2 rounded-full bg-white py-1 pl-1 pr-1 ring-1 ring-line sm:pr-3">
               <span className="grid size-7 place-items-center rounded-full bg-ink text-[12px] font-bold uppercase text-white">{me?.display_name?.[0] ?? "?"}</span>
               <span className="hidden leading-tight sm:block">
-                <span className="block max-w-[160px] truncate text-[12.5px] font-semibold text-ink">{me?.display_name}</span>
-                <span className="block text-[10.5px] uppercase tracking-wider text-faint">{me?.role}</span>
+                <span className="block max-w-[160px] truncate text-[13.5px] font-semibold text-ink">{me?.display_name}</span>
+                <span className="block text-[11.5px] uppercase tracking-wider text-faint">{me?.role}</span>
               </span>
             </div>
             <button onClick={signOut} className="grid size-9 place-items-center rounded-full text-muted hover:bg-lav hover:text-ink" aria-label="Sign out" title="Sign out">
@@ -133,7 +133,7 @@ function ShellInner() {
       {!onCopilotPage && (
         <button
           onClick={() => setChatOpen(true)}
-          className="fixed bottom-5 right-5 z-40 flex items-center gap-2 rounded-full bg-ink py-3 pl-3 pr-4 text-[13.5px] font-semibold text-white shadow-[0_18px_40px_-12px_rgb(11_16_48/0.6)] transition hover:-translate-y-0.5"
+          className="fixed bottom-5 right-5 z-40 flex items-center gap-2 rounded-full bg-ink py-3 pl-3 pr-4 text-[14px] font-semibold text-white shadow-[0_18px_40px_-12px_rgb(11_16_48/0.6)] transition hover:-translate-y-0.5"
         >
           <span className="grid size-7 place-items-center rounded-full bg-accent"><Sparkles className="size-4" /></span>
           Ask Copilot

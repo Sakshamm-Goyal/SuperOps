@@ -52,7 +52,7 @@ export default function ReportDetail() {
         right={<><Button variant="secondary" icon={Download} onClick={download}>JSON</Button><Button variant="secondary" icon={Eye} loading={htmlLoading} onClick={loadHtml}>HTML view</Button></>}
       />
       <div className="mb-5 flex min-w-0 flex-wrap items-center gap-2 rounded-2xl bg-white px-4 py-3 ring-1 ring-line">
-        <Fingerprint className="size-4 text-accent" /><span className="text-[13px] font-semibold text-ink">Content hash</span><span className="min-w-0 max-w-full"><Hash value={d.content_hash} n={20} /></span>
+        <Fingerprint className="size-4 text-accent" /><span className="text-[14px] font-semibold text-ink">Content hash</span><span className="min-w-0 max-w-full"><Hash value={d.content_hash} n={20} /></span>
       </div>
       {htmlErr && <div className="mb-5"><ErrorBox error={htmlErr} /></div>}
       {html && (
@@ -68,7 +68,7 @@ export default function ReportDetail() {
             {(d.plans ?? []).map((p: Json) => (
               <li key={p.id} className="flex items-center gap-3 py-2.5">
                 <StatusChip status={p.status} size="xs" />
-                <span className="min-w-0 flex-1 truncate text-[13px] text-ink">{planTitle(p)}</span>
+                <span className="min-w-0 flex-1 truncate text-[14px] text-ink">{planTitle(p)}</span>
                 <IdLink kind="plan" id={p.id} />
               </li>
             ))}
@@ -89,8 +89,8 @@ export default function ReportDetail() {
         <Card className="lg:col-span-2 overflow-hidden">
           <CardHeader title="Evidence receipts" icon={Fingerprint} sub={`${(d.evidence_receipts ?? []).length} receipts`} />
           <div className="overflow-x-auto">
-            <table className="w-full text-[12.5px]">
-              <thead><tr className="border-y border-line bg-wash/60 text-left text-[11px] uppercase tracking-wider text-faint">{["Template", "Completeness", "Rows", "Pages", "Sources", "Result hash", "Mode"].map((h) => <th key={h} className="whitespace-nowrap px-4 py-2">{h}</th>)}</tr></thead>
+            <table className="w-full text-[13.5px]">
+              <thead><tr className="border-y border-line bg-wash/60 text-left text-[12px] uppercase tracking-wider text-faint">{["Template", "Completeness", "Rows", "Pages", "Sources", "Result hash", "Mode"].map((h) => <th key={h} className="whitespace-nowrap px-4 py-2">{h}</th>)}</tr></thead>
               <tbody className="divide-y divide-line">
                 {(d.evidence_receipts ?? []).map((e: Json) => (
                   <tr key={e.id}>
@@ -98,7 +98,7 @@ export default function ReportDetail() {
                     <td className="px-4 py-2"><StatusChip status={e.completeness} size="xs" /></td>
                     <td className="px-4 py-2 tnum">{e.row_count}</td>
                     <td className="px-4 py-2 tnum">{e.page_count}</td>
-                    <td className="mono px-4 py-2 text-[11.5px]">{(e.sources ?? []).join(", ")}</td>
+                    <td className="mono px-4 py-2 text-[12.5px]">{(e.sources ?? []).join(", ")}</td>
                     <td className="px-4 py-2"><Hash value={e.result_hash} n={8} /></td>
                     <td className="px-4 py-2"><KindBadge kind={e.runtime_mode} /></td>
                   </tr>
@@ -109,7 +109,7 @@ export default function ReportDetail() {
         </Card>
         <Card>
           <CardHeader title="Labels & limitations" icon={ShieldCheck} />
-          <div className="space-y-3 px-5 pb-5 sm:px-6 text-[13px]">
+          <div className="space-y-3 px-5 pb-5 sm:px-6 text-[14px]">
             {d.labels && <KV rows={Object.entries(d.labels).map(([k, v]) => [humanize(k), typeof v === "object" ? JSON.stringify(v) : String(v)])} />}
             {(d.limitations ?? []).length > 0 && <ul className="list-disc space-y-1 pl-5 text-muted">{d.limitations.map((l: string) => <li key={l}>{l}</li>)}</ul>}
           </div>
@@ -120,13 +120,13 @@ export default function ReportDetail() {
             {(d.memory_outbox ?? []).length ? (
               <ul className="divide-y divide-line">
                 {d.memory_outbox.map((m: Json, i: number) => (
-                  <li key={i} className="flex items-center gap-2 py-2 text-[12.5px]">
+                  <li key={i} className="flex items-center gap-2 py-2 text-[13.5px]">
                     <StatusChip status={m.status} size="xs" /><span className="flex-1 truncate">{humanize(m.receipt_kind ?? m.kind)}</span>
                     {m.application_receipt_id && <IdLink kind="memory" id={m.application_receipt_id} />}
                   </li>
                 ))}
               </ul>
-            ) : <div className="text-[13px] text-faint">Nothing queued for memory.</div>}
+            ) : <div className="text-[14px] text-faint">Nothing queued for memory.</div>}
           </div>
         </Card>
       </div>

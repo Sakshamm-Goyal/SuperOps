@@ -12,9 +12,9 @@ import { cx, recordHref, ErrorBox } from "./ui";
 import { ago } from "../lib/format";
 
 export const DEFAULT_PROMPTS = [
-  "Why was worker-prod-01 → e2-standard-2 rejected?",
+  "Why was superops-api-01 → c7g.large refused?",
+  "What did the canary on c7g.large measure, and how much downtime did the real resize take?",
   "What did we learn from previous runs?",
-  "Which change is safest to approve now and what blocks it?",
   "Summarise today's investigation for my manager",
 ];
 
@@ -76,7 +76,7 @@ export function ToolChips({ calls }: { calls: CopilotToolCall[] }) {
           <span
             key={i}
             title={`${c.tool}${c.input ? ` ${JSON.stringify(c.input)}` : ""}${c.duration_ms !== undefined ? ` · ${c.duration_ms} ms` : ""}`}
-            className={cx("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ring-1", c.ok === false ? "bg-fail-bg text-fail ring-fail/20" : "bg-lav text-ink-2 ring-line")}
+            className={cx("inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[12px] font-medium ring-1", c.ok === false ? "bg-fail-bg text-fail ring-fail/20" : "bg-lav text-ink-2 ring-line")}
           >
             <Icon className="size-3" aria-hidden />
             {m.label}
@@ -95,13 +95,13 @@ export function CitationChips({ cites, onNavigate }: { cites: CopilotCitation[];
   const shown = all ? cites : cites.slice(0, 6);
   return (
     <div className="flex flex-wrap items-center gap-1.5">
-      <span className="text-[11px] font-semibold uppercase tracking-wider text-faint">Sources</span>
+      <span className="text-[12px] font-semibold uppercase tracking-wider text-faint">Sources</span>
       {shown.map((c, i) => (
         <Link
           key={`${c.kind}-${c.id}-${i}`}
           to={recordHref(c.kind, c.id)}
           onClick={onNavigate}
-          className="inline-flex max-w-[240px] items-center gap-1 rounded-md bg-white px-2 py-0.5 text-[11px] font-medium text-accent-700 ring-1 ring-accent-100 hover:bg-accent-50"
+          className="inline-flex max-w-[240px] items-center gap-1 rounded-md bg-white px-2 py-0.5 text-[12px] font-medium text-accent-700 ring-1 ring-accent-100 hover:bg-accent-50"
           title={`${c.kind} ${c.id}`}
         >
           <span className="text-faint">{c.kind}</span>
@@ -109,7 +109,7 @@ export function CitationChips({ cites, onNavigate }: { cites: CopilotCitation[];
         </Link>
       ))}
       {cites.length > 6 && (
-        <button onClick={() => setAll((x) => !x)} className="rounded-md px-1.5 py-0.5 text-[11px] font-semibold text-muted hover:text-accent">
+        <button onClick={() => setAll((x) => !x)} className="rounded-md px-1.5 py-0.5 text-[12px] font-semibold text-muted hover:text-accent">
           {all ? "show fewer" : `+${cites.length - 6} more`}
         </button>
       )}
@@ -156,7 +156,7 @@ function Thinking() {
     <div className="rise flex gap-3">
       <Avatar />
       <div className="rounded-2xl rounded-tl-md bg-white px-4 py-3 ring-1 ring-line">
-        <div className="flex items-center gap-2 text-[13px] font-semibold text-ink">
+        <div className="flex items-center gap-2 text-[14px] font-semibold text-ink">
           <span className="flex gap-1">
             {[0, 1, 2].map((d) => <span key={d} className="pulse-dot size-1.5 rounded-full bg-accent" style={{ animationDelay: `${d * 0.2}s` }} />)}
           </span>
@@ -172,7 +172,7 @@ function Thinking() {
             );
           })}
         </ul>
-        <div className="mt-2 text-[11px] text-faint">Typical steps shown; the tools actually used appear with the answer. Replies can take up to 40 s.</div>
+        <div className="mt-2 text-[12px] text-faint">Typical steps shown; the tools actually used appear with the answer. Replies can take up to 40 s.</div>
       </div>
     </div>
   );
@@ -282,14 +282,14 @@ export function CopilotChat({ investigationId, compact, onNavigate }: { investig
         )}
       </div>
 
-      <div ref={scroller} className={cx("min-h-0 flex-1 space-y-5 overflow-y-auto scroll-thin", compact ? "px-4 py-4" : "px-4 py-6 sm:px-8")}>
+      <div ref={scroller} className={cx("min-h-0 flex-1 space-y-6 overflow-y-auto scroll-thin", compact ? "px-4 py-4" : "px-4 py-7 sm:px-10")}>
         {messages.length === 0 && !busy && (
           <div className={cx("mx-auto max-w-xl", compact ? "pt-2" : "pt-8")}>
             <div className="flex items-center gap-3">
               <Avatar />
               <div>
                 <div className="font-display text-lg font-bold text-ink">Ask about the evidence, not around it.</div>
-                <div className="text-[13px] text-muted">Answers come from committed records and cite them. The copilot is advisory — it cannot approve, execute or change anything.</div>
+                <div className="text-[14px] text-muted">Answers come from committed records and cite them. The copilot is advisory — it cannot approve, execute or change anything.</div>
               </div>
             </div>
             {unavailable && (
@@ -297,7 +297,7 @@ export function CopilotChat({ investigationId, compact, onNavigate }: { investig
             )}
             <div className="mt-5 grid gap-2">
               {suggested.map((p) => (
-                <button key={p} onClick={() => send(p)} className="group flex items-center justify-between gap-3 rounded-xl bg-white px-4 py-3 text-left text-[13.5px] font-medium text-ink-2 ring-1 ring-line transition hover:ring-accent/40 hover:text-accent">
+                <button key={p} onClick={() => send(p)} className="group flex items-center justify-between gap-3 rounded-xl bg-white px-4 py-3 text-left text-[14px] font-medium text-ink-2 ring-1 ring-line transition hover:ring-accent/40 hover:text-accent">
                   {p}
                   <ArrowUp className="size-4 shrink-0 rotate-45 text-faint group-hover:text-accent" />
                 </button>
@@ -324,11 +324,11 @@ export function CopilotChat({ investigationId, compact, onNavigate }: { investig
               <Avatar />
               <div className="min-w-0 flex-1 space-y-2">
                 {m.tool_calls && m.tool_calls.length > 0 && <ToolChips calls={m.tool_calls} />}
-                <div className="rounded-2xl rounded-tl-md bg-white px-4 py-3 ring-1 ring-line">
+                <div className="rounded-2xl rounded-tl-md bg-white px-5 py-4 ring-1 ring-line">
                   <Markdown text={m.content} onNavigate={onNavigate} />
                 </div>
                 {m.citations && m.citations.length > 0 && <CitationChips cites={m.citations} onNavigate={onNavigate} />}
-                {m.at && <div className="text-[11px] text-faint">{ago(m.at)} · advisory only; check the cited records before acting</div>}
+                {m.at && <div className="text-[12px] text-faint">{ago(m.at)} · advisory only; check the cited records before acting</div>}
               </div>
             </div>
           ),
@@ -371,7 +371,7 @@ export function CopilotChat({ investigationId, compact, onNavigate }: { investig
             <ArrowUp className="size-4" />
           </button>
         </div>
-        <div className="mt-1.5 flex justify-between px-1 text-[10.5px] text-faint">
+        <div className="mt-1.5 flex justify-between px-1 text-[11.5px] text-faint">
           <span>Enter to send · Shift+Enter for a new line</span>
           <span className="tnum">{input.length}/4000</span>
         </div>

@@ -7,8 +7,8 @@
 
   --color-ink: #0b1030;
   --color-ink-2: #2a3152;
-  --color-muted: #5e6687;
-  --color-faint: #8a91ae;
+  --color-muted: #4b5272;
+  --color-faint: #6b7291;
   --color-line: #e4e7f4;
   --color-line-2: #d5daee;
   --color-wash: #f6f7fd;
@@ -36,6 +36,8 @@
 
 :root {
   color-scheme: light;
+  scroll-behavior: smooth;
+  scroll-padding-top: 88px;
   background: var(--color-wash);
   color: var(--color-ink);
   font-family: var(--font-sans);
@@ -127,10 +129,14 @@ body {
 .floaty { animation: floaty 7s ease-in-out infinite; }
 
 @keyframes rise {
-  from { opacity: 0; transform: translateY(10px); }
+  from { opacity: 0; transform: translateY(6px); }
   to { opacity: 1; transform: none; }
 }
-.rise { animation: rise 0.6s cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+/* Route and skeleton-to-content entrance: short, so it reads as smooth rather than animated. */
+.rise { animation: rise 200ms cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+
+a, button, [role="tab"], summary { transition: color 150ms, background-color 150ms, border-color 150ms, box-shadow 150ms, opacity 150ms, transform 150ms; }
+button:not(:disabled):active, a:active { transform: translateY(0.5px); }
 
 @keyframes dash {
   to { stroke-dashoffset: -24; }
@@ -144,22 +150,25 @@ body {
 .pulse-dot { animation: pulse-dot 1.4s ease-in-out infinite; }
 
 @media (prefers-reduced-motion: reduce) {
-  .floaty, .rise, .flow, .pulse-dot { animation: none !important; }
+  :root { scroll-behavior: auto; }
+  .floaty, .rise, .flow, .pulse-dot, .animate-pulse, .animate-spin { animation: none !important; }
+  *, *::before, *::after { transition-duration: 0.01ms !important; }
 }
 
 /* Markdown inside Copilot replies. */
-.md { font-size: 0.925rem; line-height: 1.6; color: var(--color-ink-2); }
+.md { font-size: 15px; line-height: 1.65; color: var(--color-ink-2); max-width: 72ch; }
 .md > * + * { margin-top: 0.6em; }
 .md h1, .md h2, .md h3 { font-family: var(--font-display); color: var(--color-ink); font-weight: 700; letter-spacing: -0.02em; }
 .md h1 { font-size: 1.15rem; } .md h2 { font-size: 1.05rem; } .md h3 { font-size: 0.98rem; }
 .md ul { list-style: disc; padding-left: 1.2em; } .md ol { list-style: decimal; padding-left: 1.3em; }
 .md li + li { margin-top: 0.2em; }
 .md code { font-family: var(--font-mono); font-size: 0.82em; background: var(--color-lav); padding: 0.1em 0.35em; border-radius: 5px; color: var(--color-accent-700); word-break: break-all; }
-.md pre { background: #0b1030; color: #e8ebff; padding: 0.8em 1em; border-radius: 12px; overflow-x: auto; }
+.md pre { background: #0b1030; color: #e8ebff; padding: 0.85em 1em; border-radius: 12px; overflow-x: auto; font-size: 13px; line-height: 1.55; white-space: pre; }
+.md p, .md li { overflow-wrap: anywhere; }
 .md pre code { background: transparent; color: inherit; padding: 0; }
 .md a { color: var(--color-accent); text-decoration: underline; text-underline-offset: 2px; }
 .md strong { color: var(--color-ink); font-weight: 650; }
-.md table { width: 100%; border-collapse: collapse; font-size: 0.85em; display: block; overflow-x: auto; }
+.md table { width: 100%; border-collapse: collapse; font-size: 0.9em; display: block; overflow-x: auto; margin: 0.4em 0; }
 .md th, .md td { border-bottom: 1px solid var(--color-line); padding: 0.35em 0.6em; text-align: left; }
 .md th { color: var(--color-muted); font-weight: 600; }
 .md blockquote { border-left: 3px solid var(--color-accent-100); padding-left: 0.8em; color: var(--color-muted); }

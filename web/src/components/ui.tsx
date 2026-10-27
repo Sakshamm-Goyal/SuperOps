@@ -43,8 +43,8 @@ export function StatusChip({ status, size = "sm", label, title }: { status: stri
       title={title ?? (status ? STATUS_MEANING[status] : "No status recorded")}
       className={cx(
         "inline-flex items-center gap-1 rounded-full ring-1 ring-inset font-semibold uppercase tracking-wide whitespace-nowrap",
-        size === "xs" && "px-1.5 py-0.5 text-[10px]",
-        size === "sm" && "px-2 py-0.5 text-[11px]",
+        size === "xs" && "px-1.5 py-0.5 text-[11px]",
+        size === "sm" && "px-2 py-0.5 text-[12px]",
         size === "md" && "px-2.5 py-1 text-xs",
         s.cls,
       )}
@@ -71,7 +71,7 @@ export function KindBadge({ kind, prefix }: { kind: string | null | undefined; p
     unknown: "border-unk/40 text-unk bg-unk-bg",
   };
   return (
-    <span className={cx("inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[11px] font-medium whitespace-nowrap", styles[k] ?? "border-line-2 text-muted bg-white")}>
+    <span className={cx("inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[12px] font-medium whitespace-nowrap", styles[k] ?? "border-line-2 text-muted bg-white")}>
       {prefix && <span className="text-faint font-normal">{prefix}</span>}
       {KIND_LABEL[k] ?? humanize(k)}
     </span>
@@ -128,7 +128,7 @@ export function CardHeader({ title, eyebrow, icon: Icon, right, sub }: { title: 
   return (
     <div className="flex flex-wrap items-start justify-between gap-3 px-5 pt-5 pb-3 sm:px-6">
       <div className="min-w-0">
-        {eyebrow && <div className="mb-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-faint">{eyebrow}</div>}
+        {eyebrow && <div className="mb-1 text-[12px] font-semibold uppercase tracking-[0.14em] text-faint">{eyebrow}</div>}
         <h3 className="flex items-center gap-2 font-display text-[17px] font-bold tracking-tight text-ink">
           {Icon && (
             <span className="grid size-7 place-items-center rounded-lg bg-accent-50 text-accent">
@@ -148,7 +148,7 @@ export function Stat({ label, value, sub, icon: Icon, accent, footnote }: { labe
   return (
     <div className={cx("card relative overflow-hidden p-5", accent && "bg-accent text-white border-accent")}>
       <div className="flex items-center justify-between">
-        <span className={cx("text-[13px] font-medium", accent ? "text-white/80" : "text-muted")}>{label}</span>
+        <span className={cx("text-[14px] font-medium", accent ? "text-white/80" : "text-muted")}>{label}</span>
         {Icon && (
           <span className={cx("grid size-8 place-items-center rounded-full", accent ? "bg-white/15 text-white" : "bg-accent-50 text-accent")}>
             <Icon className="size-4" aria-hidden />
@@ -157,7 +157,7 @@ export function Stat({ label, value, sub, icon: Icon, accent, footnote }: { labe
       </div>
       <div className={cx("mt-3 font-display text-[34px] font-bold leading-none tracking-tight", accent ? "text-white" : "text-ink")}>{value}</div>
       {sub && <div className={cx("mt-2 text-xs", accent ? "text-white/75" : "text-muted")}>{sub}</div>}
-      {footnote && <div className={cx("mt-3 border-t pt-2 text-[11px]", accent ? "border-white/20 text-white/70" : "border-line text-faint")}>{footnote}</div>}
+      {footnote && <div className={cx("mt-3 border-t pt-2 text-[12px]", accent ? "border-white/20 text-white/70" : "border-line text-faint")}>{footnote}</div>}
     </div>
   );
 }
@@ -202,7 +202,7 @@ export function ErrorBox({ error, title }: { error: ApiError | null | undefined;
         </div>
         <div className="mt-0.5 break-words text-ink-2">{error.message}</div>
         {hint && <div className="mt-1 text-muted">{hint}</div>}
-        {error.requestId && <div className="mono mt-1 text-[11px] text-faint">request {error.requestId}</div>}
+        {error.requestId && <div className="mono mt-1 text-[12px] text-faint">request {error.requestId}</div>}
       </div>
     </div>
   );
@@ -365,12 +365,12 @@ export function Tabs<T extends string>({ tabs, value, onChange, stretch }: { tab
           aria-selected={value === t.id}
           onClick={() => onChange(t.id)}
           className={cx(
-            "flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1.5 text-[12.5px] font-semibold transition sm:px-3.5 sm:text-[13px]",
+            "flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1.5 text-[13.5px] font-semibold transition sm:px-3.5 sm:text-[14px]",
             value === t.id ? "bg-white text-ink shadow-sm" : "text-muted hover:text-ink",
           )}
         >
           {t.label}
-          {t.count !== undefined && <span className={cx("rounded-full px-1.5 text-[11px] tnum", value === t.id ? "bg-accent-50 text-accent" : "bg-white/70 text-faint")}>{t.count}</span>}
+          {t.count !== undefined && <span className={cx("rounded-full px-1.5 text-[12px] tnum", value === t.id ? "bg-accent-50 text-accent" : "bg-white/70 text-faint")}>{t.count}</span>}
         </button>
       ))}
     </div>
@@ -386,13 +386,13 @@ export function CheckRow({ id, status, detail, measured, limit, label }: { id: s
       </span>
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-          <span className="text-[13px] font-semibold text-ink">{label ?? id}</span>
-          <span className="mono text-[10.5px] text-faint">{id}</span>
-          <span className={cx("ml-auto text-[11px] font-bold uppercase", t === "ok" ? "text-pass" : t === "fail" ? "text-fail" : t === "unknown" ? "text-unk" : "text-warn")}>{status === "WAIVED" ? "Waived by policy" : status}</span>
+          <span className="text-[14px] font-semibold text-ink">{label ?? id}</span>
+          <span className="mono text-[11.5px] text-faint">{id}</span>
+          <span className={cx("ml-auto text-[12px] font-bold uppercase", t === "ok" ? "text-pass" : t === "fail" ? "text-fail" : t === "unknown" ? "text-unk" : "text-warn")}>{status === "WAIVED" ? "Waived by policy" : status}</span>
         </div>
-        {detail && <div className="mt-0.5 break-words text-[12.5px] leading-snug text-muted">{detail}</div>}
+        {detail && <div className="mt-0.5 break-words text-[13.5px] leading-snug text-muted">{detail}</div>}
         {(measured || limit) && (
-          <div className="mono mt-1 text-[11px] text-faint">
+          <div className="mono mt-1 text-[12px] text-faint">
             measured {measured ?? "—"} · limit {limit ?? "—"}
           </div>
         )}
@@ -405,7 +405,7 @@ export function AutopilotBadge({ size = "sm" }: { size?: "xs" | "sm" }) {
   return (
     <span
       title="Started by Autopilot because Zetaris evidence drifted. Autopilot can only start investigations; it can never approve or execute."
-      className={cx("inline-flex items-center gap-1 rounded-full bg-ink font-semibold text-white whitespace-nowrap", size === "xs" ? "px-1.5 py-0.5 text-[10px]" : "px-2 py-0.5 text-[11px]")}
+      className={cx("inline-flex items-center gap-1 rounded-full bg-ink font-semibold text-white whitespace-nowrap", size === "xs" ? "px-1.5 py-0.5 text-[11px]" : "px-2 py-0.5 text-[12px]")}
     >
       <Bot className="size-3" aria-hidden /> Autopilot
     </span>
@@ -416,7 +416,7 @@ export function LiveAwsBadge({ size = "sm" }: { size?: "xs" | "sm" }) {
   return (
     <span
       title="Live AWS sandbox (ap-south-1): real EC2 instances, CloudWatch metrics and the AWS Price List"
-      className={cx("inline-flex items-center gap-1 rounded-full bg-[#ff9900]/15 font-semibold text-[#9a5b00] ring-1 ring-inset ring-[#ff9900]/40 whitespace-nowrap", size === "xs" ? "px-1.5 py-0.5 text-[10px]" : "px-2 py-0.5 text-[11px]")}
+      className={cx("inline-flex items-center gap-1 rounded-full bg-[#ff9900]/15 font-semibold text-[#9a5b00] ring-1 ring-inset ring-[#ff9900]/40 whitespace-nowrap", size === "xs" ? "px-1.5 py-0.5 text-[11px]" : "px-2 py-0.5 text-[12px]")}
     >
       <Cloud className="size-3" aria-hidden /> Live AWS
     </span>

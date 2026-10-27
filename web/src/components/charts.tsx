@@ -52,7 +52,7 @@ export function Gauge({ value, label, sub, size = 220 }: { value: number | null;
           {value === null ? "—" : `${Math.round(v * 100)}%`}
         </text>
       </svg>
-      <div className="-mt-1 text-center text-[13px] font-semibold text-ink">{label}</div>
+      <div className="-mt-1 text-center text-[14px] font-semibold text-ink">{label}</div>
       {sub && <div className="mt-0.5 text-center text-xs text-muted">{sub}</div>}
     </div>
   );
@@ -65,7 +65,7 @@ export function BarList({ items, max, valueSuffix = "" }: { items: { label: Reac
     <ul className="space-y-2.5">
       {items.map((it, i) => (
         <li key={i} title={it.hint}>
-          <div className="mb-1 flex items-center justify-between gap-3 text-[13px]">
+          <div className="mb-1 flex items-center justify-between gap-3 text-[14px]">
             <span className="min-w-0 truncate text-ink-2">{it.label}</span>
             <span className="tnum font-semibold text-ink">{it.value}{valueSuffix}</span>
           </div>
@@ -111,12 +111,12 @@ export function MiniBars({ data, height = 120 }: { data: { label: string; value:
     <div className="flex items-end gap-1.5" style={{ height }}>
       {data.map((d, i) => (
         <div key={i} className="group flex flex-1 flex-col items-center justify-end gap-1.5" title={`${d.label}: ${d.value}`}>
-          <span className="text-[10px] font-semibold text-ink opacity-0 transition group-hover:opacity-100 tnum">{d.value}</span>
+          <span className="text-[11px] font-semibold text-ink opacity-0 transition group-hover:opacity-100 tnum">{d.value}</span>
           <div
             className={cx("w-full max-w-7 rounded-md transition-all", d.highlight ? "bg-accent" : d.value ? "bg-accent-100 group-hover:bg-accent/60" : "bg-lav")}
             style={{ height: `${Math.max(4, (d.value / max) * (height - 34))}px` }}
           />
-          <span className="text-[10px] text-faint">{d.label}</span>
+          <span className="text-[11px] text-faint">{d.label}</span>
         </div>
       ))}
     </div>
@@ -219,7 +219,7 @@ export function SeriesChart({ points, refs = [], unit = "", height = 260, yMax, 
       )}
       {hp && (
         <div
-          className="pointer-events-none absolute top-1 rounded-lg bg-ink px-2.5 py-1.5 text-[11px] text-white shadow-lg"
+          className="pointer-events-none absolute top-1 rounded-lg bg-ink px-2.5 py-1.5 text-[12px] text-white shadow-lg"
           style={{ left: Math.min(Math.max(x(hp.t) - 70, 0), w - 150) }}
         >
           <div className="tnum font-semibold">{fmtTick(hp.v)}{unit}</div>
@@ -276,7 +276,7 @@ export function PairBars({ rows, unit = "" }: { rows: { label: string; baseline:
               const v = r[side];
               return (
                 <div key={side} className="mb-1 flex items-center gap-2">
-                  <span className="w-16 shrink-0 text-[11px] text-muted">{side}</span>
+                  <span className="w-16 shrink-0 text-[12px] text-muted">{side}</span>
                   <div className="h-2.5 flex-1 overflow-hidden rounded-full bg-lav">
                     <div className={cx("h-full rounded-full", side === "baseline" ? "bg-ink-2/35" : worse ? "bg-fail/80" : "bg-accent")} style={{ width: `${v === null ? 0 : Math.max(2, (v / m) * 100)}%` }} />
                   </div>
@@ -308,7 +308,7 @@ export function CategoryGrid({ base, cand }: { base: Record<string, { accepted: 
                 <span key={i} className={cx("h-2 flex-1 rounded-full", i < k.accepted ? (lost ? "bg-fail/70" : "bg-pass/70") : "bg-line")} />
               ))}
             </div>
-            <div className="mt-1.5 flex justify-between text-[11px] text-muted tnum">
+            <div className="mt-1.5 flex justify-between text-[12px] text-muted tnum">
               <span>candidate {k.accepted}/{k.total}</span>
               {b && <span>baseline {b.accepted}/{b.total}</span>}
             </div>

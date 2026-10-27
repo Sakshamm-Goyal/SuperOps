@@ -12,12 +12,12 @@ export function PathIcon({ path, className }: { path: string; className?: string
 }
 
 export function ImpactSummary({ imp, compact }: { imp: Json; compact?: boolean }) {
-  if (!imp) return <div className="text-[12.5px] text-faint">No impact recorded.</div>;
+  if (!imp) return <div className="text-[13.5px] text-faint">No impact recorded.</div>;
   const isAi = imp.suite || imp.cost_per_accepted_reduction !== undefined;
   return (
     <div className={cx("rounded-xl bg-wash p-3", compact && "p-2.5")}>
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <span className="text-[11px] font-semibold uppercase tracking-wider text-faint">{isAi ? "Cost per accepted task" : "Gross saving"}</span>
+        <span className="text-[12px] font-semibold uppercase tracking-wider text-faint">{isAi ? "Cost per accepted task" : "Gross saving"}</span>
         <KindBadge kind={imp.result_kind} />
       </div>
       {isAi ? (
@@ -31,9 +31,9 @@ export function ImpactSummary({ imp, compact }: { imp: Json; compact?: boolean }
           {imp.horizon_hours && <span className="text-[12px] text-muted">over {num(imp.horizon_hours, 0)} h</span>}
         </div>
       )}
-      <div className="mt-1 text-[11.5px] leading-snug text-muted">{impactBasis(imp)}{imp.note ? ` — ${imp.note}` : ""}</div>
+      <div className="mt-1 text-[12.5px] leading-snug text-muted">{impactBasis(imp)}{imp.note ? ` — ${imp.note}` : ""}</div>
       {!compact && imp.carbon && (
-        <div className="mt-2 flex items-start gap-1.5 border-t border-line pt-2 text-[11.5px] text-muted">
+        <div className="mt-2 flex items-start gap-1.5 border-t border-line pt-2 text-[12.5px] text-muted">
           <Leaf className="mt-0.5 size-3.5 shrink-0 text-pass" />
           {imp.carbon.result_kind === "unknown" || !imp.carbon.baseline_kg_co2e ? (
             <span>Carbon unknown{imp.carbon.reason ? ` — ${imp.carbon.reason}` : ""}</span>
@@ -58,12 +58,12 @@ export function CriticBlock({ critic }: { critic: Json }) {
         <span className="text-[12px] font-semibold text-ink">Critic</span>
         <StatusChip status={critic.verdict} size="xs" />
         {critic.trial?.status && (
-          <span className="ml-auto inline-flex items-center gap-1 text-[11.5px] text-muted">
+          <span className="ml-auto inline-flex items-center gap-1 text-[12.5px] text-muted">
             <FlaskConical className="size-3" /> trial <StatusChip status={critic.trial.status} size="xs" />
           </span>
         )}
       </div>
-      {critic.note && <p className="mt-1.5 text-[12.5px] leading-snug text-muted">{critic.note}</p>}
+      {critic.note && <p className="mt-1.5 text-[13.5px] leading-snug text-muted">{critic.note}</p>}
       {reqs.length > 0 && (
         <div className="mt-2 flex items-start gap-1.5 text-[12px] text-warn">
           <MessageSquareWarning className="mt-0.5 size-3.5 shrink-0" />
@@ -89,20 +89,20 @@ export function PlanCard({ plan, feedback }: { plan: PlanSummary; feedback?: Jso
       <div className="flex flex-1 flex-col gap-3 p-5">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-faint">
+            <div className="flex items-center gap-1.5 text-[12px] font-semibold uppercase tracking-wider text-faint">
               <PathIcon path={plan.path} className="size-3.5" /> {plan.path} · candidate {plan.candidate_no ?? "?"}{plan.revision && plan.revision > 1 ? ` · revision ${plan.revision}` : ""}
             </div>
             <h4 className="mt-1 font-display text-[16px] font-bold leading-snug tracking-tight text-ink">{planTitle(plan)}</h4>
-            <div className="mt-0.5 text-[11.5px] text-muted">{environmentOf(plan.target_key)} · <span className="mono">{plan.target_key}</span></div>
+            <div className="mt-0.5 text-[12.5px] text-muted">{environmentOf(plan.target_key)} · <span className="mono">{plan.target_key}</span></div>
           </div>
           <StatusChip status={plan.status} />
         </div>
 
-        <p className={cx("text-[12.5px] leading-snug", t === "fail" ? "text-fail" : "text-ink-2")}>{planReason(plan, feedback)}</p>
+        <p className={cx("text-[13.5px] leading-snug", t === "fail" ? "text-fail" : "text-ink-2")}>{planReason(plan, feedback)}</p>
 
         <div className="flex flex-wrap gap-1">
           {checks.map((c) => (
-            <span key={c.check_id} title={`${c.check_id} ${c.status === "WAIVED" ? "waived by policy" : c.status}: ${c.detail ?? ""}`} className={cx("rounded-md px-1.5 py-0.5 text-[10.5px] font-semibold", c.status === "PASS" ? "bg-pass-bg text-pass" : c.status === "FAIL" ? "bg-fail-bg text-fail" : c.status === "WAIVED" ? "bg-warn-bg text-warn ring-1 ring-inset ring-warn/30" : "bg-unk-bg text-unk")}>
+            <span key={c.check_id} title={`${c.check_id} ${c.status === "WAIVED" ? "waived by policy" : c.status}: ${c.detail ?? ""}`} className={cx("rounded-md px-1.5 py-0.5 text-[11.5px] font-semibold", c.status === "PASS" ? "bg-pass-bg text-pass" : c.status === "FAIL" ? "bg-fail-bg text-fail" : c.status === "WAIVED" ? "bg-warn-bg text-warn ring-1 ring-inset ring-warn/30" : "bg-unk-bg text-unk")}>
               {checkLabel(c.check_id)}{c.status === "WAIVED" ? " · waived" : ""}
             </span>
           ))}
@@ -111,7 +111,7 @@ export function PlanCard({ plan, feedback }: { plan: PlanSummary; feedback?: Jso
         <ImpactSummary imp={plan.impacts} compact />
         <CriticBlock critic={plan.critic} />
 
-        <button onClick={() => setOpen((o) => !o)} className="flex items-center justify-between rounded-lg px-1 text-[12.5px] font-semibold text-ink-2 hover:text-accent" aria-expanded={open}>
+        <button onClick={() => setOpen((o) => !o)} className="flex items-center justify-between rounded-lg px-1 text-[13.5px] font-semibold text-ink-2 hover:text-accent" aria-expanded={open}>
           <span>Screening checks · {passCount}/{checks.length} pass{waivedCount ? ` · ${waivedCount} waived` : ""}</span>
           <ChevronDown className={cx("size-4 transition", open && "rotate-180")} />
         </button>
@@ -122,13 +122,13 @@ export function PlanCard({ plan, feedback }: { plan: PlanSummary; feedback?: Jso
         )}
         {plan.rationale && open && (
           <div className="rounded-xl bg-lav/60 p-3 text-[12px] text-muted">
-            <div className="mb-0.5 text-[10.5px] font-semibold uppercase tracking-wider text-faint">Model rationale — untrusted text, not evidence or authority</div>
+            <div className="mb-0.5 text-[11.5px] font-semibold uppercase tracking-wider text-faint">Model rationale — untrusted text, not evidence or authority</div>
             {plan.rationale}
           </div>
         )}
         <div className="mt-auto flex items-center justify-between border-t border-line pt-3">
           <IdLink kind="plan" id={plan.id} />
-          <Link to={`/app/plans/${plan.id}`} className="inline-flex items-center gap-1 text-[13px] font-semibold text-accent hover:underline">
+          <Link to={`/app/plans/${plan.id}`} className="inline-flex items-center gap-1 text-[14px] font-semibold text-accent hover:underline">
             Open plan <ArrowRight className="size-3.5" />
           </Link>
         </div>
@@ -183,7 +183,7 @@ export function CpuEvidenceChart({ d, targetKey, plan, height = 260 }: { d: Inve
   return (
     <div>
       <SeriesChart points={points} refs={refs} unit=" vCPU" height={height} peak={peakPt} />
-      <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-[11.5px] text-faint">
+      <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-[12.5px] text-faint">
         <span>
           {hourly
             ? <>Hourly peak of every observation: {points.length} hours from {num(rawCount, 0)} raw samples, so no spike is averaged away. The checks used every raw observation.</>

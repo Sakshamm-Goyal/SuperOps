@@ -51,11 +51,11 @@ export default function MemoryDetail() {
               {d.audit_error ? (
                 <Notice tone="unknown" title={`Audit unavailable: ${d.audit_error}`}>The application receipt exists, but the sidecar could not return its ledger history. The record is shown from the application outbox.</Notice>
               ) : history.length ? (
-                <ol className="space-y-2">{history.map((h, i) => <li key={i} className="mono rounded-lg bg-wash px-3 py-2 text-[11.5px] text-ink-2">{JSON.stringify(h)}</li>)}</ol>
+                <ol className="space-y-2">{history.map((h, i) => <li key={i} className="mono rounded-lg bg-wash px-3 py-2 text-[12.5px] text-ink-2">{JSON.stringify(h)}</li>)}</ol>
               ) : audit ? (
-                <pre className="mono max-h-72 overflow-auto rounded-xl bg-wash p-3 text-[11.5px] scroll-thin">{JSON.stringify(audit, null, 2)}</pre>
+                <pre className="mono max-h-72 overflow-auto rounded-xl bg-wash p-3 text-[12.5px] scroll-thin">{JSON.stringify(audit, null, 2)}</pre>
               ) : (
-                <div className="text-[13px] text-faint">No audit history returned.</div>
+                <div className="text-[14px] text-faint">No audit history returned.</div>
               )}
             </div>
           </Card>
@@ -67,8 +67,8 @@ export default function MemoryDetail() {
               <KV rows={[
                 ["Tenant", env.scope?.tenant_id],
                 ["Service", env.scope?.service_id],
-                ["Target", <span className="mono text-[11.5px]">{env.scope?.target_id}</span>],
-                ...Object.entries(env.applicability ?? {}).map(([k, v]) => [humanize(k), v ? <span className="mono text-[11.5px] break-all">{String(v)}</span> : <span className="text-faint">none</span>] as [string, React.ReactNode]),
+                ["Target", <span className="mono text-[12.5px]">{env.scope?.target_id}</span>],
+                ...Object.entries(env.applicability ?? {}).map(([k, v]) => [humanize(k), v ? <span className="mono text-[12.5px] break-all">{String(v)}</span> : <span className="text-faint">none</span>] as [string, React.ReactNode]),
               ]} />
             </div>
           </Card>
@@ -76,7 +76,7 @@ export default function MemoryDetail() {
             <CardHeader title="Identity" icon={Fingerprint} />
             <div className="px-5 pb-5 sm:px-6">
               <KV rows={[
-                ["Receipt id", <span className="mono text-[11.5px]">{env.application_receipt_id ?? id}</span>],
+                ["Receipt id", <span className="mono text-[12.5px]">{env.application_receipt_id ?? id}</span>],
                 ["Engine id", <span className="mono text-[12px]">{d.engine_memory_id ?? "—"}</span>],
                 ["Content hash", <Hash value={env.content_hash} />],
                 ["Source", <SourceRef v={d.source_ref} />],

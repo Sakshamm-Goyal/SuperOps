@@ -13,7 +13,7 @@ export class ErrorBoundary extends Component<{ children: ReactNode }, { error: E
         <div className="card p-6">
           <div className="font-display text-lg font-bold text-ink">This view failed to render</div>
           <p className="mt-1 text-sm text-muted">Nothing was changed on the server. Reload the page; if it keeps happening, the message below helps debugging.</p>
-          <pre className="mono mt-3 overflow-auto rounded-xl bg-wash p-3 text-[11.5px] text-fail">{this.state.error.message}</pre>
+          <pre className="mono mt-3 overflow-auto rounded-xl bg-wash p-3 text-[12.5px] text-fail">{this.state.error.message}</pre>
           <button className="mt-4 rounded-full bg-accent px-4 py-2 text-sm font-semibold text-white" onClick={() => location.reload()}>Reload</button>
         </div>
       </div>

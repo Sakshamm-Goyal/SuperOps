@@ -6,55 +6,7 @@ import { useGet } from "../lib/hooks";
 import { checkLabel, num, pct, shortTs, usageBasisLabel, STATUS_MEANING } from "../lib/format";
 import { Card, CardHeader, CheckRow, ErrorBox, Hash, IdLink, KindBadge, KV, Notice, PageHeader, PageSkeleton, StatusChip, Stat, cx, Tabs } from "../components/ui";
 import { CategoryGrid, PairBars } from "../components/charts";
-
-function limitFrom(checks: Json[], id: string): number | null {
-  const m = /policy limit (\d+(?:\.\d+)?)%/.exec((checks ?? []).find((c) => c.check_id === id)?.detail ?? "");
-  return m ? Number(m[1]) : null;
-}
-
-function Meter({ label, value, limit }: { label: string; value: number | null | undefined; limit: number | null }) {
-  const v = value == null ? null : Number(value);
-  const over = v != null && limit != null && v > limit;
-  return (
-    <div>
-      <div className="mb-1.5 flex items-baseline justify-between gap-2">
-        <span className="text-[12.5px] font-semibold text-ink-2">{label}</span>
-        <span className="text-[12px] text-muted"><b className={cx("font-display text-[18px]", over ? "text-fail" : "text-ink")}>{v == null ? "—" : `${num(v, 1)}%`}</b>{limit != null && <> / limit {limit}%</>}</span>
-      </div>
-      <div className="relative h-3 overflow-hidden rounded-full bg-lav">
-        <div className={cx("h-full rounded-full", over ? "bg-fail/80" : "bg-accent")} style={{ width: `${Math.min(100, v ?? 0)}%` }} />
-        {limit != null && <div className="absolute inset-y-0 w-0.5 bg-fail" style={{ left: `${limit}%` }} title={`policy limit ${limit}%`} />}
-      </div>
-    </div>
-  );
-}
-
-/** Real AWS canary: a disposable instance of the candidate type ran the target's workload profile. */
-export function CanaryResult({ r, compact }: { r: Json; compact?: boolean }) {
-  const s = r.summary ?? {};
-  const cpuLim = limitFrom(r.checks, "TRIAL-CPU-HEADROOM");
-  const memLim = limitFrom(r.checks, "TRIAL-MEM-HEADROOM");
-  return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-[#ff9900]/40 bg-[#ff9900]/8 px-4 py-3 text-[13.5px] text-ink-2">
-        <Server className="size-4 text-[#9a5b00]" />
-        <span><b className="text-ink">Canary on real AWS:</b> a disposable <span className="mono rounded bg-white px-1 text-[12.5px]">{r.candidate_instance_type}</span> ran the same workload for {r.measure_minutes} min</span>
-        <span className="mono ml-auto text-[11.5px] text-muted">{r.canary_instance_id} · from {shortTs(r.window_start)}</span>
-      </div>
-      <div className={cx("grid gap-4", compact ? "sm:grid-cols-2" : "lg:grid-cols-[1.4fr_1fr]")}>
-        <div className="space-y-4 rounded-2xl bg-wash p-4">
-          <Meter label="Peak 1-minute CPU on the candidate" value={s.cpu_max_pct} limit={cpuLim} />
-          <Meter label="Peak memory" value={s.mem_max_pct} limit={memLim} />
-        </div>
-        <div className="grid grid-cols-2 gap-2">
-          <div className="rounded-xl bg-wash p-3"><div className="text-[11.5px] text-muted">Mean CPU</div><div className="font-display text-[22px] font-bold">{s.cpu_avg_pct == null ? "—" : `${num(s.cpu_avg_pct, 1)}%`}</div></div>
-          <div className="rounded-xl bg-wash p-3"><div className="text-[11.5px] text-muted">Datapoints</div><div className="font-display text-[22px] font-bold">{s.datapoints ?? "—"}</div><div className="text-[10.5px] text-faint">1-minute CloudWatch</div></div>
-          <div className="col-span-2 rounded-xl bg-wash p-3 text-[11.5px] text-muted">The canary is terminated after the window and stops itself regardless. Missing measurements make the trial INCOMPLETE, never PASS.</div>
-        </div>
-      </div>
-    </div>
-  );
-}
+import { CanaryResult } from "../components/canary";
 
 function CloudTrial({ r }: { r: Json }) {
   const s = r.summary ?? {};
@@ -96,8 +48,8 @@ function CloudTrial({ r }: { r: Json }) {
       <Card className="overflow-hidden">
         <CardHeader title="Judged windows" icon={ListChecks} sub="Each pair runs both sides; windows with load-generator lag are re-measured" />
         <div className="overflow-x-auto">
-          <table className="w-full text-[12.5px]">
-            <thead><tr className="border-y border-line bg-wash/60 text-left text-[11px] uppercase tracking-wider text-faint">
+          <table className="w-full text-[13.5px]">
+            <thead><tr className="border-y border-line bg-wash/60 text-left text-[12px] uppercase tracking-wider text-faint">
               {["Pair", "Side", "Attempt", "Completed / offered", "Failures", "p50", "p95", "Server p95", "Lag p95"].map((h) => <th key={h} className="px-4 py-2">{h}</th>)}
             </tr></thead>
             <tbody className="divide-y divide-line">
@@ -157,8 +109,8 @@ function AiTrial({ r }: { r: Json }) {
       <Card className="overflow-hidden">
         <CardHeader title="Per-case results" icon={ListChecks} sub={`Verifier ${r.verifier ?? "?"}`} right={<Tabs value={filter} onChange={setFilter} tabs={[{ id: "changed", label: "Changed or critical" }, { id: "all", label: "All cases" }]} />} />
         <div className="max-h-[480px] overflow-auto scroll-thin">
-          <table className="w-full text-[12.5px]">
-            <thead className="sticky top-0 bg-white"><tr className="border-y border-line text-left text-[11px] uppercase tracking-wider text-faint">
+          <table className="w-full text-[13.5px]">
+            <thead className="sticky top-0 bg-white"><tr className="border-y border-line text-left text-[12px] uppercase tracking-wider text-faint">
               {["Case", "Category", "Expected", "Observed", "Baseline", "Candidate"].map((h) => <th key={h} className="px-4 py-2">{h}</th>)}
             </tr></thead>
             <tbody className="divide-y divide-line">
@@ -169,10 +121,10 @@ function AiTrial({ r }: { r: Json }) {
                   <tr key={x.case_id} className={cx(!x.accepted && "bg-fail-bg/40")}>
                     <td className="mono px-4 py-2">{x.case_id}</td>
                     <td className="px-4 py-2 capitalize">{String(x.category).replace(/_/g, " ")}</td>
-                    <td className="mono px-4 py-2 text-[11.5px]">{x.expected}</td>
-                    <td className="mono px-4 py-2 text-[11.5px]">{x.observed}</td>
+                    <td className="mono px-4 py-2 text-[12.5px]">{x.expected}</td>
+                    <td className="mono px-4 py-2 text-[12.5px]">{x.observed}</td>
                     <td className="px-4 py-2"><StatusChip status={bx ? (bx.accepted ? "PASS" : "FAIL") : null} size="xs" /></td>
-                    <td className="px-4 py-2"><span className="inline-flex items-center gap-1"><StatusChip status={x.accepted ? "PASS" : "FAIL"} size="xs" />{x.critical && <span className="rounded bg-fail px-1 text-[10px] font-bold text-white">CRITICAL</span>}</span></td>
+                    <td className="px-4 py-2"><span className="inline-flex items-center gap-1"><StatusChip status={x.accepted ? "PASS" : "FAIL"} size="xs" />{x.critical && <span className="rounded bg-fail px-1 text-[11px] font-bold text-white">CRITICAL</span>}</span></td>
                   </tr>
                 );
               })}
@@ -213,7 +165,7 @@ export default function TrialDetail() {
         <CardHeader title="Trial checks" icon={ShieldCheck} />
         <ul className="divide-y divide-line px-5 pb-4 sm:px-6">
           {(r.checks ?? []).map((c: Json) => <CheckRow key={c.check_id} id={c.check_id} label={checkLabel(c.check_id)} status={c.status} detail={c.detail} />)}
-          {!(r.checks ?? []).length && <li className="py-3 text-[13px] text-faint">No checks recorded yet.</li>}
+          {!(r.checks ?? []).length && <li className="py-3 text-[14px] text-faint">No checks recorded yet.</li>}
         </ul>
         {(r.limitations ?? []).length > 0 && <div className="border-t border-line px-5 py-3 text-[12px] text-muted sm:px-6"><b className="text-ink-2">Limitations:</b> {r.limitations.join(" · ")}</div>}
       </Card>
@@ -222,7 +174,7 @@ export default function TrialDetail() {
         <CardHeader title="Provenance" icon={Info} />
         <div className="grid gap-6 px-5 pb-5 sm:px-6 md:grid-cols-2">
           <KV rows={[["Actor", d.actor_id], ["Trial profile", <span className="mono text-[12px]">{d.trial_profile_id}</span>], ["Profile hash", <Hash value={r.profile_hash} />], ["Started", shortTs(d.started_at)], ["Finished", shortTs(d.finished_at)], ["Executor", r.executor]]} />
-          <KV rows={[["Plan", <IdLink kind="plan" id={d.plan_id} />], ["Plan hash", <Hash value={d.plan_hash} />], ...Object.entries(r.versions ?? {}).map(([k, v]) => [k.replace(/_/g, " "), v ? <span className="mono text-[11.5px] break-all">{String(v)}</span> : <span className="text-faint">none</span>] as [string, React.ReactNode])]} />
+          <KV rows={[["Plan", <IdLink kind="plan" id={d.plan_id} />], ["Plan hash", <Hash value={d.plan_hash} />], ...Object.entries(r.versions ?? {}).map(([k, v]) => [k.replace(/_/g, " "), v ? <span className="mono text-[12.5px] break-all">{String(v)}</span> : <span className="text-faint">none</span>] as [string, React.ReactNode])]} />
         </div>
       </Card>
     </div>

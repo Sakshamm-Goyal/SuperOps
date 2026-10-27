@@ -28,7 +28,7 @@ export default function CopilotPage() {
           <p className="mt-2 text-[14px] text-muted">A chat agent on Claude Haiku 4.5 that reads committed investigations, plans, trials, evidence and memory, and cites what it used.</p>
         </div>
         <Card className="p-4">
-          <div className="space-y-2.5 text-[12.5px] text-ink-2">
+          <div className="space-y-2.5 text-[13.5px] text-ink-2">
             <div className="flex items-start gap-2"><FileSearch className="mt-0.5 size-4 shrink-0 text-accent" /> Reads records through the same API scope as you.</div>
             <div className="flex items-start gap-2"><Network className="mt-0.5 size-4 shrink-0 text-accent" /> Can run allow-listed evidence queries.</div>
             <div className="flex items-start gap-2"><Brain className="mt-0.5 size-4 shrink-0 text-accent" /> Can recall scoped memory.</div>
@@ -38,7 +38,7 @@ export default function CopilotPage() {
         <Card className="overflow-hidden">
           <div className="border-b border-line px-4 py-3 text-[12px] font-semibold uppercase tracking-wider text-faint">Context</div>
           <div className="max-h-[420px] overflow-y-auto scroll-thin">
-            <button onClick={() => pick(null)} className={cx("flex w-full items-center gap-2 px-4 py-2.5 text-left text-[13px]", !inv ? "bg-accent-50 font-semibold text-accent" : "hover:bg-wash")}>
+            <button onClick={() => pick(null)} className={cx("flex w-full items-center gap-2 px-4 py-2.5 text-left text-[14px]", !inv ? "bg-accent-50 font-semibold text-accent" : "hover:bg-wash")}>
               <Search className="size-3.5" /> All records
             </button>
             {(list.data?.items ?? []).map((i: Json) => (
@@ -47,7 +47,7 @@ export default function CopilotPage() {
                   <span className={cx("mono text-[12px]", inv === i.id ? "font-semibold text-accent" : "text-ink-2")}>{i.id.slice(0, 8)}</span>
                   <StatusChip status={i.status} size="xs" />
                 </span>
-                <span className="truncate text-[11.5px] text-muted">{ago(i.created_at)} · {i.question}</span>
+                <span className="truncate text-[12.5px] text-muted">{ago(i.created_at)} · {i.question}</span>
               </button>
             ))}
           </div>
