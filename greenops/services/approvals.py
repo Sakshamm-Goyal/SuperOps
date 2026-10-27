@@ -45,6 +45,13 @@ def target_version(rt: Runtime, plan: dict) -> int | None:
     return None
 
 
+def _state(plan: dict, which: str) -> dict:
+    a = plan["core"]["action"]
+    if a["action_type"] == "AWS_INSTANCE_TYPE_UPDATE":
+        return {"instance_type": a["expected_instance_type"] if which == "before" else a["new_instance_type"]}
+    return a[which]
+
+
 def versions_current(rt: Runtime, plan: dict) -> tuple[bool, str | None]:
     """Every input the trial validated must still hold (audit A06). Guards approval and the worker's first write."""
     from greenops.services.plans import ai_artifact_versions, cloud_workload_version
@@ -170,8 +177,8 @@ def request_execution(conn, rt: Runtime, actor: dict, plan_id, approval_id, plan
         raise AppError("INVALID_STATE", 409, "SANDBOX_WRITES_ENABLED is false on the server")
     if plan["target_key"] not in rt.settings.allowed_target_ids:
         raise AppError("FORBIDDEN", 403, "target is not in ALLOWED_TARGET_IDS")
-    if plan["core"]["executor"] != "local_analogue":
-        raise AppError("UNSUPPORTED_ACTION", 422, "no executor is enabled for this action type (GCP executor not configured)")
+    if plan["core"]["executor"] not in ("local_analogue", "aws"):
+        raise AppError("UNSUPPORTED_ACTION", 422, f"no executor is enabled for executor {plan['core']['executor']!r} (GCP executor not configured)")
     ok, why = versions_current(rt, plan)
     if not ok:
         conn.execute("UPDATE approvals SET status='STALE' WHERE id=%s", (ap["id"],))
@@ -183,7 +190,7 @@ def request_execution(conn, rt: Runtime, actor: dict, plan_id, approval_id, plan
             conn.execute("INSERT INTO actions (id, approval_id, plan_id, tenant_id, service_id, actor_id, target_key, executor, status, before_state, after_state) "
                          "VALUES (%s,%s,%s,%s,%s,%s,%s,%s,'QUEUED',%s,%s)",
                          (aid, ap["id"], plan["id"], plan["tenant_id"], plan["service_id"], actor["actor_id"], plan["target_key"], plan["core"]["executor"],
-                          J(plan["core"]["action"]["before"]), J(plan["core"]["action"]["after"])))
+                          J(_state(plan, "before")), J(_state(plan, "after"))))
     except psycopg.errors.UniqueViolation:
         raise AppError("TARGET_BUSY", 409, "another action is active on this target")
     conn.execute("UPDATE approvals SET status='CONSUMED', consumed_action_id=%s WHERE id=%s", (aid, ap["id"]))

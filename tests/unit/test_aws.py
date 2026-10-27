@@ -105,3 +105,10 @@ def test_live_drift_is_material_not_every_minute():
     b = ap._bands([{"resource_id": "i-1", "peak_cpu_percent": "84.9", "avg_cpu_percent": "23.9"}])  # minute-to-minute noise
     c = ap._bands([{"resource_id": "i-1", "peak_cpu_percent": "95.0", "avg_cpu_percent": "21.0"}])  # a new, higher peak band
     assert a == b and a != c
+
+
+def test_action_states_for_aws_plans_are_instance_types():
+    """Live run 9959c31a: execution 500'd because the action record assumed local before/after configs."""
+    from greenops.services.approvals import _state
+    plan = {"core": PLAN["core"]}
+    assert _state(plan, "before") == {"instance_type": "c7g.xlarge"} and _state(plan, "after") == {"instance_type": "c7g.large"}
