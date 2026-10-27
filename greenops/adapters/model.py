@@ -137,9 +137,10 @@ class AdkGateway:
             try:
                 return asyncio.run(self._run(role, instruction, payload, output_model, tools or [], budget, before_tool, timeout_s))
             except ModelError as e:
-                if e.code != "DEPENDENCY_UNAVAILABLE" or attempt == 2:
+                # A fresh session also gets one retry after a bounded schema-rejection loop: sampling, not the input, caused it.
+                if e.code not in ("DEPENDENCY_UNAVAILABLE", "MODEL_OUTPUT_INVALID") or attempt == 2:
                     raise
-                logging.getLogger(__name__).warning("%s: transient provider failure, retrying once: %s", role, e)
+                logging.getLogger(__name__).warning("%s: %s, retrying once in a fresh session: %s", role, e.code, e)
 
     async def _run(self, role, instruction, payload, output_model, tools, budget, before_tool, timeout_s):
         from google.adk.agents import LlmAgent
@@ -162,6 +163,8 @@ class AdkGateway:
         started = time.perf_counter()
         totals = {"in": 0, "out": 0, "usage_missing": False, "requests": 0, "tools": 0}
         tool_log: list[dict] = []
+        kinds: list[str] = []  # per-response shape, reported when a role times out
+        rejected: list[str] = []  # set_model_response schema rejections in this run
 
         async def turn(text: str) -> str:
             final = ""
@@ -171,7 +174,18 @@ class AdkGateway:
                     totals["requests"] += 1
                     totals["in"] += ev.usage_metadata.prompt_token_count or 0
                     totals["out"] += ev.usage_metadata.candidates_token_count or 0
-                for p in (ev.content.parts if ev.content and ev.content.parts else []):
+                parts = ev.content.parts if ev.content and ev.content.parts else []
+                kinds.append("+".join(("fc:" + p.function_call.name) if p.function_call else ("fr" if p.function_response else
+                              "thought" if getattr(p, "thought", False) else f"text{len(p.text or '')}") for p in parts) or "empty")
+                for p in parts:
+                    fr = p.function_response
+                    if fr is not None and fr.name == "set_model_response" and isinstance(fr.response, dict) and "error" in fr.response:
+                        # ADK feeds schema errors back and lets the model retry without bound; a model stuck on one
+                        # invalid field burned whole 90 s role budgets (27 Oct, 11-15 requests). Bound it and say why.
+                        rejected.append(str(fr.response["error"]).split("Recall the set_model_response")[0].strip()[:400])
+                        if len(rejected) >= 3:
+                            raise ModelError("MODEL_OUTPUT_INVALID", f"{role}: typed answer rejected {len(rejected)} times by the "
+                                                                     f"output schema; last: {rejected[-1]}")
                     if p.function_call and p.function_call.name == "set_model_response":
                         continue  # ADK's typed-final-answer tool, not a data tool call
                     if p.function_call:
@@ -199,7 +213,8 @@ class AdkGateway:
                                                      f"output tokens {totals['out']})")
         except asyncio.TimeoutError:
             raise ModelError("DEPENDENCY_UNAVAILABLE", f"{role}: model call exceeded {timeout_s}s after {totals['requests']} model "
-                                                       f"requests and {totals['tools']} tool calls ({', '.join(t['tool'] for t in tool_log[-6:]) or 'none'})")
+                                                       f"requests and {totals['tools']} tool calls ({', '.join(t['tool'] for t in tool_log[-6:]) or 'none'}); "
+                                                       f"last responses: {' '.join(kinds[-8:])}")
         except BudgetExceeded:
             raise
         except ModelError:

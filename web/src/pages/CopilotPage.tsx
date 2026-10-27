@@ -20,7 +20,7 @@ export default function CopilotPage() {
   }
 
   return (
-    <div className="rise grid gap-5 xl:grid-cols-[300px_1fr]">
+    <div className="rise grid gap-5 xl:grid-cols-[300px_1fr] xl:items-start">
       <aside className="space-y-4">
         <div>
           <div className="mb-2 flex items-center gap-2 text-[12px] font-semibold uppercase tracking-[0.14em] text-faint"><Sparkles className="size-4" /> Ops Copilot</div>
@@ -37,7 +37,7 @@ export default function CopilotPage() {
         </Card>
         <Card className="overflow-hidden">
           <div className="border-b border-line px-4 py-3 text-[12px] font-semibold uppercase tracking-wider text-faint">Context</div>
-          <div className="max-h-[420px] overflow-y-auto scroll-thin">
+          <div className="max-h-[max(160px,min(420px,calc(100vh-27rem)))] overflow-y-auto scroll-thin">
             <button onClick={() => pick(null)} className={cx("flex w-full items-center gap-2 px-4 py-2.5 text-left text-[14px]", !inv ? "bg-accent-50 font-semibold text-accent" : "hover:bg-wash")}>
               <Search className="size-3.5" /> All records
             </button>
@@ -53,7 +53,7 @@ export default function CopilotPage() {
           </div>
         </Card>
       </aside>
-      <Card className="flex h-[calc(100vh-9rem)] min-h-[560px] flex-col overflow-hidden">
+      <Card className="flex h-[calc(100vh-9rem)] min-h-[520px] flex-col overflow-hidden xl:sticky xl:top-20">
         <CopilotChat investigationId={inv} />
       </Card>
     </div>

@@ -88,7 +88,7 @@ function ShellInner() {
 
       <div className="min-w-0">
         {/* Top bar */}
-        <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-line bg-wash/85 px-4 backdrop-blur sm:px-6">
+        <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-line bg-wash/95 px-4 backdrop-blur sm:px-6">
           <button className="grid size-9 place-items-center rounded-xl hover:bg-lav lg:hidden" onClick={() => setNavOpen(true)} aria-label="Open navigation">
             <Menu className="size-5" />
           </button>

@@ -786,7 +786,7 @@ export default function InvestigationDetail() {
       ) : null}
 
       {/* Section nav */}
-      <nav className="sticky top-16 z-20 -mx-4 overflow-x-auto bg-wash/90 px-4 py-2 backdrop-blur scroll-thin sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
+      <nav className="sticky top-16 z-20 -mx-4 overflow-x-auto border-b border-line/70 bg-wash px-4 py-2 scroll-thin sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
         <div className="flex gap-1">
           {(live ? NAV : [NAV[1], NAV[0], ...NAV.slice(2)]).map(([k, l]) => (
             <a key={k} href={`#${k}`} className="whitespace-nowrap rounded-full px-3 py-1.5 text-[13.5px] font-semibold text-muted hover:bg-white hover:text-ink">{l}</a>
