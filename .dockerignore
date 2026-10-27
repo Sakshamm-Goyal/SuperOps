@@ -1,0 +1,12 @@
+.env
+.env.*
+.git
+.venv
+var
+.evaluator
+evidence
+web
+memory-sidecar
+Refer-Docs
+**/node_modules
+**/__pycache__

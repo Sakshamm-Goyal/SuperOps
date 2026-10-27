@@ -17,6 +17,7 @@ Decimal quantities are JSON strings. Timestamps are UTC RFC3339. Collections ret
 | Method and path | Permission | Request | Success and persistence |
 |---|---|---|---|
 | GET /health/live | Unauthenticated | None | 200 `{status:"live"}`; no dependency names |
+| GET /v1/demo-logins | Unauthenticated | None | 200 `{logins:[{actor_id, role, token}]}`. Empty unless `DEMO_LOGINS` lists actor ids; opt-in public demo access that surfaces sandbox tokens for one-click sign-in. Sandbox only; writes remain gated by `SANDBOX_WRITES_ENABLED` |
 | GET /health/ready | operator | None | 200 ready / 503 degraded: `{status, runtime_mode, dependencies{database, memory, memory_embedding_semantic, zetaris?, model?}}` |
 | GET /v1/me | viewer | None | 200 `Resource` with the authenticated actor's id, display name, role, tenant, server runtime mode and write flag (no token data) |
 | GET /v1/services | viewer | limit | 200 page of `{service_id, display_name, runtime_modes}` |

@@ -7,6 +7,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
+import os
 import uuid
 from datetime import datetime
 from typing import Any, Literal
@@ -18,7 +19,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field
 
-from greenops.config import Settings, get_settings, service_config
+from greenops.config import ROOT, Settings, get_settings, service_config
 from greenops.db import J, connect, dumps
 from greenops.domain.models import RECOVERY_SCOPE
 from greenops.domain.quantities import canonical_hash
@@ -247,6 +248,21 @@ def create_app(rt: Runtime | None = None) -> FastAPI:
     @app.get("/health/live", tags=["health"])
     def live():
         return {"status": "live"}
+
+    @app.get("/v1/demo-logins", tags=["services"])
+    def demo_logins():
+        # Opt-in demo access: DEMO_LOGINS=judge,lead,admin surfaces those sandbox tokens on the sign-in page so
+        # anyone with the URL can log in. Default empty => disabled. Sandbox tenant only; writes stay gated by
+        # SANDBOX_WRITES_ENABLED. ponytail: reads var/actors.local.json rather than re-minting tokens.
+        ids = [a.strip() for a in os.getenv("DEMO_LOGINS", "").split(",") if a.strip()]
+        if not ids:
+            return {"logins": []}
+        try:
+            actors = json.loads((ROOT / "var" / "actors.local.json").read_text())
+        except (FileNotFoundError, ValueError):
+            return {"logins": []}
+        return {"logins": [{"actor_id": i, "role": actors[i]["role"], "token": actors[i]["token"]}
+                           for i in ids if i in actors]}
 
     def readiness() -> tuple[bool, dict]:
         deps: dict = {}

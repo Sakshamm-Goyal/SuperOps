@@ -1,22 +1,35 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
 import { ArrowRight, KeyRound, Eye, EyeOff, Info } from "lucide-react";
 import { useAuth } from "../lib/auth";
+import { api } from "../lib/api";
 import { Logo } from "../components/illustrations";
 import { Button } from "../components/ui";
+
+interface DemoLogin { actor_id: string; role: string; token: string }
 
 export default function SignIn() {
   const { me, signIn, error, loading } = useAuth();
   const [tok, setTok] = useState("");
   const [show, setShow] = useState(false);
+  const [demos, setDemos] = useState<DemoLogin[]>([]);
   const nav = useNavigate();
   const loc = useLocation();
   const from = (loc.state as { from?: string } | null)?.from ?? "/app";
+
+  useEffect(() => {
+    api.get<{ logins: DemoLogin[] }>("/v1/demo-logins").then((r) => setDemos(r.logins)).catch(() => {});
+  }, []);
+
   if (me) return <Navigate to={from} replace />;
 
   async function submit(e: FormEvent) {
     e.preventDefault();
     if (await signIn(tok)) nav(from, { replace: true });
+  }
+
+  async function demoSignIn(token: string) {
+    if (await signIn(token)) nav(from, { replace: true });
   }
 
   return (
@@ -51,6 +64,23 @@ export default function SignIn() {
                 Sign in <ArrowRight className="size-4" />
               </Button>
             </form>
+            {demos.length > 0 && (
+              <div className="mt-6">
+                <div className="flex items-center gap-3 text-[12px] uppercase tracking-wide text-faint">
+                  <span className="h-px flex-1 bg-line" />demo access<span className="h-px flex-1 bg-line" />
+                </div>
+                <div className="mt-3 grid gap-2">
+                  {demos.map((d) => (
+                    <button key={d.actor_id} type="button" onClick={() => demoSignIn(d.token)} disabled={loading}
+                      className="flex items-center justify-between rounded-xl bg-wash px-3.5 py-2.5 text-[14px] text-ink ring-1 ring-line hover:ring-accent/50 disabled:opacity-60">
+                      <span className="font-semibold capitalize">{d.actor_id}</span>
+                      <span className="mono text-[12px] text-muted">{d.role} <ArrowRight className="inline size-3.5" /></span>
+                    </button>
+                  ))}
+                </div>
+                <p className="mt-2 text-[12px] text-faint">Shared sandbox logins for reviewers. Synthetic data; actions stay gated server-side.</p>
+              </div>
+            )}
             <div className="mt-6 flex gap-2.5 rounded-xl bg-lav p-3 text-[13.5px] text-ink-2">
               <Info className="mt-0.5 size-4 shrink-0 text-accent" />
               <div>

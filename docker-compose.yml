@@ -1,9 +1,9 @@
-# One controlled host, private network, durable volumes (docs/OPERATIONS.md). Only api/ui publish ports, on localhost;
-# put a TLS reverse proxy in front for any hosted use. Source databases for Zetaris must be hosted where your Zetaris
+# One controlled host, private network, durable volumes (docs/OPERATIONS.md). Only `web` (Caddy: React UI + API proxy,
+# automatic TLS when SITE_ADDRESS is a domain) is public, on 80/443; the API and the Streamlit UI listen on localhost only. Source databases for Zetaris must be hosted where your Zetaris
 # workspace can reach them (not this compose network). Required in .env: POSTGRES_PASSWORD, MEMORY_AUTH_TOKEN,
 # EMBEDDING_MODE (and its key). Sandbox actor tokens are written to the appvar volume (var/actors.local.json):
 #   docker compose run --rm api cat var/actors.local.json
-# Status: written and reviewed, NOT executed (no Docker daemon was available during the build).
+# Deploy steps: docs/OPERATIONS.md "Server deployment".
 name: greenops-verify
 services:
   db:
@@ -11,6 +11,7 @@ services:
     environment: {POSTGRES_USER: greenops, POSTGRES_DB: greenops_app, POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}"}
     volumes: [pgdata:/var/lib/postgresql/data, ./deploy/db-init.sql:/docker-entrypoint-initdb.d/10-sample-src.sql:ro]
     healthcheck: {test: ["CMD", "pg_isready", "-U", "greenops"], interval: 5s, retries: 20}
+    restart: unless-stopped
   sidecar:
     build: ./memory-sidecar
     environment:
@@ -21,6 +22,7 @@ services:
       EMBEDDING_API_KEY: "${EMBEDDING_API_KEY:-}"
       EMBEDDING_MODEL_ID: "${EMBEDDING_MODEL_ID:-nvidia/nemotron-3.5-embed-1b}"
     volumes: [hmem:/data]
+    restart: unless-stopped
   bootstrap:
     build: .
     command: ["sh", "deploy/bootstrap.sh"]
@@ -41,6 +43,7 @@ services:
     volumes: [sandbox:/sandbox, appvar:/app/var]
     depends_on: {bootstrap: {condition: service_completed_successfully}}
     ports: ["127.0.0.1:8000:8000"]
+    restart: unless-stopped
   worker:
     build: .
     command: ["sh", "-c", "python scripts/sandbox.py up && python -m greenops.worker.main"]
@@ -48,9 +51,18 @@ services:
     environment: *appenv
     volumes: [sandbox:/sandbox, appvar:/app/var]
     depends_on: {bootstrap: {condition: service_completed_successfully}}
+    restart: unless-stopped
   ui:
     build: .
     command: ["streamlit", "run", "greenops/ui/app.py", "--server.port", "8501", "--server.address", "0.0.0.0", "--server.headless", "true"]
     environment: {GREENOPS_API_URL: "http://api:8000"}
     ports: ["127.0.0.1:8501:8501"]
-volumes: {pgdata: {}, hmem: {}, sandbox: {}, appvar: {}}
+    restart: unless-stopped
+  web:
+    build: ./web
+    environment: {SITE_ADDRESS: "${SITE_ADDRESS:-:80}"}
+    ports: ["80:80", "443:443"]
+    volumes: [caddydata:/data, caddyconfig:/config]
+    depends_on: [api]
+    restart: unless-stopped
+volumes: {pgdata: {}, hmem: {}, sandbox: {}, appvar: {}, caddydata: {}, caddyconfig: {}}
