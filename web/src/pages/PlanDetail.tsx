@@ -6,8 +6,9 @@ import {
 import type { Json, Resource } from "../lib/api";
 import { useGet, useMutation, useNow } from "../lib/hooks";
 import { useAuth } from "../lib/auth";
-import { checkLabel, environmentOf, humanize, impactBasis, money, num, planTitle, shortTs, ts, STATUS_MEANING } from "../lib/format";
-import { Button, Card, CardHeader, CheckRow, ErrorBox, Hash, IdLink, KindBadge, KV, Notice, PageSkeleton, StatusChip, cx, Empty } from "../components/ui";
+import { checkLabel, environmentOf, humanize, impactBasis, money, num, planTitle, shortTs, ts, STATUS_MEANING, isLiveAws } from "../lib/format";
+import { Button, Card, CardHeader, CheckRow, ErrorBox, Hash, IdLink, KindBadge, KV, Notice, PageSkeleton, StatusChip, cx, Empty, LiveAwsBadge } from "../components/ui";
+import { RunbookPanel, asRunbook, DowntimeChip } from "../components/runbook";
 import { CriticBlock, ImpactSummary, PathIcon } from "../components/plan";
 import { useCopilotInvestigation } from "../components/Copilot";
 
@@ -81,6 +82,9 @@ function ApprovalPanel({ res, reload }: { res: Resource<Json>; reload: () => voi
   const passed = [...trials].reverse().find((t) => t.status === "PASSED");
   const ap = d.latest_approval;
   const requiresDowntime = !!d.core?.requires_downtime;
+  const book = asRunbook(d.runbook);
+  const dtSeconds: number | null = book?.downtime?.estimate_seconds ?? null;
+  const dtTarget: string = d.core?.action?.instance_id ?? d.target_key;
   const [ack, setAck] = useState(false);
   const [confirmExec, setConfirmExec] = useState(false);
   const [revokeReason, setRevokeReason] = useState("");
@@ -116,7 +120,7 @@ function ApprovalPanel({ res, reload }: { res: Resource<Json>; reload: () => voi
           </div>
           <div className="grid grid-cols-2 gap-3 text-[12.5px]">
             <div className="min-w-0"><div className="text-[11px] font-semibold uppercase tracking-wider text-faint">Target</div><span className="mono break-all text-[11.5px]">{d.target_key}</span></div>
-            <div><div className="text-[11px] font-semibold uppercase tracking-wider text-faint">Downtime</div>{requiresDowntime ? <span className="font-semibold text-warn">required</span> : "none"}</div>
+            <div><div className="text-[11px] font-semibold uppercase tracking-wider text-faint">Downtime</div>{requiresDowntime ? <span className="font-semibold text-warn">{dtSeconds != null ? `~${dtSeconds} s, ack required` : "required"}</span> : "none"}</div>
           </div>
           <div><div className="text-[11px] font-semibold uppercase tracking-wider text-faint">Recovery scope</div><span className="mono break-all text-[11.5px] text-ink-2">{d.recovery_scope}</span></div>
           <div className="flex items-center justify-between rounded-xl bg-wash px-3 py-2 text-[12.5px]">
@@ -183,9 +187,12 @@ function ApprovalPanel({ res, reload }: { res: Resource<Json>; reload: () => voi
             <div className="text-[13px] font-semibold text-ink">Approve this exact plan</div>
             <p className="mt-0.5 text-[12px] text-muted">Approval does not execute. It records you, these hashes and a 15-minute expiry in PostgreSQL.</p>
             {requiresDowntime && (
-              <label className="mt-3 flex items-start gap-2 text-[12.5px] text-ink-2">
-                <input type="checkbox" checked={ack} onChange={(e) => setAck(e.target.checked)} className="mt-0.5 size-4 accent-[#2438f5]" />
-                I acknowledge this change requires downtime.
+              <label className={cx("mt-3 flex cursor-pointer items-start gap-2.5 rounded-xl border p-3 text-[13px] transition", ack ? "border-warn/50 bg-warn-bg" : "border-warn/30 bg-warn-bg/50 hover:bg-warn-bg")}>
+                <input type="checkbox" checked={ack} onChange={(e) => setAck(e.target.checked)} className="mt-0.5 size-4 shrink-0 accent-[#b86e00]" aria-required="true" />
+                <span className="min-w-0">
+                  <span className="font-semibold text-ink">I accept {dtSeconds != null ? `~${dtSeconds} s` : "an unknown amount"} of downtime for <span className="mono break-all text-[12px]">{dtTarget}</span></span>
+                  <span className="mt-0.5 block text-[11.5px] text-muted">Required by the server for this change. {book?.downtime?.basis ?? ""}</span>
+                </span>
               </label>
             )}
             <Button className="mt-3 w-full" icon={ShieldCheck} loading={approve.pending} disabled={requiresDowntime && !ack} onClick={async () => {
@@ -243,6 +250,7 @@ export default function PlanDetail() {
   const imp = d.impacts ?? {};
   const checks = d.screening?.checks ?? [];
   const passCount = checks.filter((c: Json) => c.status === "PASS").length;
+  const waivedCount = checks.filter((c: Json) => c.status === "WAIVED").length;
 
   return (
     <div className="rise">
@@ -260,6 +268,8 @@ export default function PlanDetail() {
           <StatusChip status={res.status} size="md" />
           <KindBadge kind={res.result_kind} prefix="impact" />
           <KindBadge kind={res.runtime_mode} prefix="mode" />
+          {isLiveAws(d.core?.service_id) && <LiveAwsBadge />}
+          {asRunbook(d.runbook) && <DowntimeChip dt={asRunbook(d.runbook)?.downtime} />}
           <KindBadge kind={res.data_origin} prefix="data" />
           {d.latest_approval?.consumed_action_id ? (
             <Link to={`/app/actions/${d.latest_approval.consumed_action_id}`} className="inline-flex items-center gap-1 text-[12.5px] font-semibold text-pass hover:underline">
@@ -271,6 +281,12 @@ export default function PlanDetail() {
         </div>
       </header>
 
+      {asRunbook(d.runbook) && (
+        <div className="mb-5">
+          <RunbookPanel book={asRunbook(d.runbook)} target={d.target_key} executor={d.core?.executor} />
+        </div>
+      )}
+
       <div className="grid gap-5 xl:grid-cols-[1fr_380px]">
         <div className="min-w-0 space-y-5">
           <Card>
@@ -279,15 +295,18 @@ export default function PlanDetail() {
               <div className="rounded-2xl border border-line p-4">
                 <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                   <span className="text-[13px] font-bold text-ink">{humanize(core.action?.action_type)}</span>
-                  <span className="mono text-[11.5px] text-muted">{core.action?.worker_id ?? core.action?.workflow_id ?? d.target_key} · expects config v{core.action?.expected_config_version ?? "?"}</span>
+                  <span className="mono text-[11.5px] text-muted">{core.action?.worker_id ?? core.action?.workflow_id ?? core.action?.instance_id ?? d.target_key} · expects config v{core.action?.expected_config_version ?? "?"}</span>
                 </div>
-                <DiffTable before={core.action?.before} after={core.action?.after} />
+                <DiffTable
+                  before={core.action?.before ?? (core.action?.expected_instance_type ? { instance_type: core.action.expected_instance_type } : undefined)}
+                  after={core.action?.after ?? (core.action?.new_instance_type ? { instance_type: core.action.new_instance_type } : undefined)}
+                />
                 {core.projection && (
                   <div className="mt-3 rounded-xl bg-lav/60 px-3 py-2 text-[12.5px] text-ink-2">
                     Represents <b>{core.projection.resource_key}</b>: {core.projection.from_machine_type} → {core.projection.to_machine_type} <KindBadge kind={core.projection.result_kind} />
                   </div>
                 )}
-                <div className="mt-2 text-[11.5px] text-faint">Executor: {core.executor === "local_analogue" ? "local analogue — a real local config change, not a GCP resize" : core.executor} · environment {environmentOf(d.target_key)}</div>
+                <div className="mt-2 text-[11.5px] text-faint">Executor: {core.executor === "local_analogue" ? "local analogue — a real local config change, not a GCP resize" : core.executor === "aws" ? `aws — a real EC2 instance-type change in ${core.action?.region ?? "AWS"}` : core.executor} · environment {environmentOf(d.target_key)}</div>
               </div>
               <div className="grid gap-5 md:grid-cols-2">
                 <div>
@@ -310,7 +329,7 @@ export default function PlanDetail() {
 
           <div className="grid gap-5 lg:grid-cols-2">
             <Card>
-              <CardHeader title="Screening checks" icon={ShieldCheck} sub={`${passCount}/${checks.length} pass · ${d.screening?.version ?? ""} · ${humanize(d.screening?.outcome)}`} />
+              <CardHeader title="Screening checks" icon={ShieldCheck} sub={`${passCount}/${checks.length} pass${waivedCount ? ` · ${waivedCount} waived by policy` : ""} · ${d.screening?.version ?? ""} · ${humanize(d.screening?.outcome)}`} />
               <ul className="divide-y divide-line px-5 pb-4 sm:px-6">
                 {checks.map((c: Json) => <CheckRow key={c.check_id} id={c.check_id} label={checkLabel(c.check_id)} status={c.status} detail={c.detail} measured={c.measured} limit={c.limit} />)}
               </ul>

@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { createPortal } from "react-dom";
 import {
   AlertTriangle, Ban, Check, CheckCircle2, CircleDashed, CircleHelp, Copy, HardHat, Hourglass, Loader2, RotateCcw,
-  X, XCircle, Clock3, Bot, type LucideIcon,
+  X, XCircle, Clock3, Bot, Minus, Cloud, type LucideIcon,
 } from "lucide-react";
 import { tone, type Tone, humanize, STATUS_MEANING, KIND_LABEL } from "../lib/format";
 import type { ApiError } from "../lib/api";
@@ -28,6 +28,7 @@ const STATUS_ICON: Record<string, LucideIcon> = {
   PENDING_VERIFICATION: Clock3,
   EXECUTING: Hourglass,
   REVOKED: Ban,
+  WAIVED: Minus,
   EXPIRED: Clock3,
   AWAITING_APPROVAL: Clock3,
 };
@@ -36,7 +37,7 @@ export function StatusChip({ status, size = "sm", label, title }: { status: stri
   const t = tone(status);
   const s = TONE_STYLE[t];
   const Icon = (status && STATUS_ICON[status]) || s.icon;
-  const text = label ?? (status ? status.replace(/_/g, " ") : "UNKNOWN");
+  const text = label ?? (status === "WAIVED" ? "waived by policy" : status ? status.replace(/_/g, " ") : "UNKNOWN");
   return (
     <span
       title={title ?? (status ? STATUS_MEANING[status] : "No status recorded")}
@@ -59,6 +60,7 @@ export function KindBadge({ kind, prefix }: { kind: string | null | undefined; p
   const k = kind ?? "unknown";
   const styles: Record<string, string> = {
     measured: "border-pass/40 text-pass bg-pass-bg/60",
+    real_permitted: "border-pass/40 text-pass bg-pass-bg/60",
     observed: "border-pass/40 text-pass bg-pass-bg/60",
     projected: "border-dashed border-accent/50 text-accent bg-accent-50",
     estimated: "border-dashed border-warn/50 text-warn bg-warn-bg/60",
@@ -353,9 +355,9 @@ export function Drawer({ open, onClose, title, children, width = "max-w-xl" }: {
   );
 }
 
-export function Tabs<T extends string>({ tabs, value, onChange }: { tabs: { id: T; label: ReactNode; count?: number }[]; value: T; onChange: (t: T) => void }) {
+export function Tabs<T extends string>({ tabs, value, onChange, stretch }: { tabs: { id: T; label: ReactNode; count?: number }[]; value: T; onChange: (t: T) => void; stretch?: boolean }) {
   return (
-    <div className="flex gap-1 overflow-x-auto rounded-full bg-lav p-1 scroll-thin" role="tablist">
+    <div className={cx("flex gap-1 overflow-x-auto rounded-full bg-lav p-1 scroll-thin", stretch && "[&>button]:flex-1 [&>button]:justify-center")} role="tablist">
       {tabs.map((t) => (
         <button
           key={t.id}
@@ -363,7 +365,7 @@ export function Tabs<T extends string>({ tabs, value, onChange }: { tabs: { id: 
           aria-selected={value === t.id}
           onClick={() => onChange(t.id)}
           className={cx(
-            "flex items-center gap-1.5 whitespace-nowrap rounded-full px-3.5 py-1.5 text-[13px] font-semibold transition",
+            "flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1.5 text-[12.5px] font-semibold transition sm:px-3.5 sm:text-[13px]",
             value === t.id ? "bg-white text-ink shadow-sm" : "text-muted hover:text-ink",
           )}
         >
@@ -380,13 +382,13 @@ export function CheckRow({ id, status, detail, measured, limit, label }: { id: s
   return (
     <li className="flex items-start gap-3 py-2.5">
       <span className={cx("mt-0.5 grid size-5 shrink-0 place-items-center rounded-full", t === "ok" ? "bg-pass-bg text-pass" : t === "fail" ? "bg-fail-bg text-fail" : t === "unknown" ? "bg-unk-bg text-unk" : "bg-warn-bg text-warn")}>
-        {t === "ok" ? <Check className="size-3" strokeWidth={3} /> : t === "fail" ? <X className="size-3" strokeWidth={3} /> : t === "unknown" ? <CircleHelp className="size-3" /> : <AlertTriangle className="size-3" />}
+        {status === "WAIVED" ? <Minus className="size-3" strokeWidth={3} /> : t === "ok" ? <Check className="size-3" strokeWidth={3} /> : t === "fail" ? <X className="size-3" strokeWidth={3} /> : t === "unknown" ? <CircleHelp className="size-3" /> : <AlertTriangle className="size-3" />}
       </span>
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
           <span className="text-[13px] font-semibold text-ink">{label ?? id}</span>
           <span className="mono text-[10.5px] text-faint">{id}</span>
-          <span className={cx("ml-auto text-[11px] font-bold uppercase", t === "ok" ? "text-pass" : t === "fail" ? "text-fail" : t === "unknown" ? "text-unk" : "text-warn")}>{status}</span>
+          <span className={cx("ml-auto text-[11px] font-bold uppercase", t === "ok" ? "text-pass" : t === "fail" ? "text-fail" : t === "unknown" ? "text-unk" : "text-warn")}>{status === "WAIVED" ? "Waived by policy" : status}</span>
         </div>
         {detail && <div className="mt-0.5 break-words text-[12.5px] leading-snug text-muted">{detail}</div>}
         {(measured || limit) && (
@@ -406,6 +408,17 @@ export function AutopilotBadge({ size = "sm" }: { size?: "xs" | "sm" }) {
       className={cx("inline-flex items-center gap-1 rounded-full bg-ink font-semibold text-white whitespace-nowrap", size === "xs" ? "px-1.5 py-0.5 text-[10px]" : "px-2 py-0.5 text-[11px]")}
     >
       <Bot className="size-3" aria-hidden /> Autopilot
+    </span>
+  );
+}
+
+export function LiveAwsBadge({ size = "sm" }: { size?: "xs" | "sm" }) {
+  return (
+    <span
+      title="Live AWS sandbox (ap-south-1): real EC2 instances, CloudWatch metrics and the AWS Price List"
+      className={cx("inline-flex items-center gap-1 rounded-full bg-[#ff9900]/15 font-semibold text-[#9a5b00] ring-1 ring-inset ring-[#ff9900]/40 whitespace-nowrap", size === "xs" ? "px-1.5 py-0.5 text-[10px]" : "px-2 py-0.5 text-[11px]")}
+    >
+      <Cloud className="size-3" aria-hidden /> Live AWS
     </span>
   );
 }

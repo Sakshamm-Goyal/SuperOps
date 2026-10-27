@@ -551,7 +551,10 @@ def create_app(rt: Runtime | None = None) -> FastAPI:
         with connect(rt.db) as c:
             a = scoped(c, "actions", action_id, actor)
             j = c.execute("SELECT seq, at, stage, detail FROM action_journal WHERE action_id=%s ORDER BY seq", (a["id"],)).fetchall()
-        return res(request, a["id"], a["status"], {**a, "journal": j, "executor_label": "local_analogue: real local config change, not a GCP resize"},
+            ex = c.execute("SELECT core->>'executor' AS e FROM plans WHERE id=%s", (a["plan_id"],)).fetchone()["e"]
+        label = ("aws: real EC2 instance-type change in the SuperOps sandbox (stop, modify, start, verify)" if ex == "aws"
+                 else "local_analogue: real local config change, not a GCP resize")
+        return res(request, a["id"], a["status"], {**a, "journal": j, "executor": ex, "executor_label": label},
                    result_kind="measured" if a["status"] == "VERIFIED" else None)
 
     # ---- evidence / memory / reports ----------------------------------------------------------

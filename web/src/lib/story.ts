@@ -56,6 +56,6 @@ export function buildStory(d: InvestigationData): Story {
 export const STAGES: { id: string; label: string; sub: string }[] = [
   { id: "SCOPE", label: "Scope & evidence", sub: "Coordinator scopes; investigator reads federated evidence and recalls memory" },
   { id: "PROPOSE", label: "Propose · screen · critique", sub: "Optimizer proposes ≤3 per path; code screens; critic demands evidence or revisions" },
-  { id: "TRIALS", label: "Matched trials", sub: "Survivors run on sandbox fixtures under identical load or the locked dev suite" },
+  { id: "TRIALS", label: "Matched trials", sub: "Survivors run on sandbox fixtures, the locked dev suite, or a disposable canary on real AWS" },
   { id: "DONE", label: "Decision", sub: "Outcome committed; awaiting human review, or a justified no-change" },
 ];

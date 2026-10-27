@@ -4,8 +4,8 @@ import { Plus, Search, ArrowRight, Brain, BrainCircuit, Filter, Cloud, Bot, Play
 import type { Json, Page } from "../lib/api";
 import { useGet, useMutation } from "../lib/hooks";
 import { useAuth } from "../lib/auth";
-import { PageHeader, Button, Card, StatusChip, ErrorBox, Empty, Drawer, Skeleton, KindBadge, cx, Notice, AutopilotBadge } from "../components/ui";
-import { ago, humanize, shortTs, signatureParts, modeLabel, isAutopilot } from "../lib/format";
+import { PageHeader, Button, Card, StatusChip, ErrorBox, Empty, Drawer, Skeleton, KindBadge, cx, Notice, AutopilotBadge, LiveAwsBadge } from "../components/ui";
+import { ago, humanize, shortTs, signatureParts, modeLabel, isAutopilot, isLiveAws } from "../lib/format";
 
 const STATUSES = ["ALL", "RUNNING", "AWAITING_APPROVAL", "NEEDS_REVIEW", "NO_CHANGE", "COMPLETED", "FAILED", "CANCELLED"] as const;
 
@@ -28,12 +28,37 @@ function PlanDots({ plans }: { plans: Json[] }) {
   );
 }
 
+const SERVICE_DEFAULTS: Record<string, { question: string; start: string; end: () => string }> = {
+  "support-demo": { question: "Find a testable saving while preserving service and support policy", start: "2026-09-30T00:00:00Z", end: () => "2026-10-21T00:00:00Z" },
+  "superops-aws": {
+    question: "Find a safe, testable saving on the live AWS sandbox without breaking policy",
+    start: "2026-10-27T05:50:00Z",
+    // now, rounded down to the minute, UTC
+    end: () => new Date(Math.floor(Date.now() / 60000) * 60000).toISOString().replace(".000Z", "Z"),
+  },
+};
+
 function NewInvestigation({ open, onClose, mode }: { open: boolean; onClose: () => void; mode: string }) {
   const nav = useNavigate();
   const m = useMutation<{ investigation_id: string; status: string }>();
-  const [question, setQuestion] = useState("Find a testable saving while preserving service and support policy");
-  const [start, setStart] = useState("2026-09-30T00:00:00Z");
-  const [end, setEnd] = useState("2026-10-21T00:00:00Z");
+  const services = useGet<Page<Json>>(open ? "/v1/services" : null);
+  const [service, setService] = useState("support-demo");
+  const [question, setQuestion] = useState(SERVICE_DEFAULTS["support-demo"].question);
+  const [start, setStart] = useState(SERVICE_DEFAULTS["support-demo"].start);
+  const [end, setEnd] = useState(SERVICE_DEFAULTS["support-demo"].end());
+
+  function pickService(id: string) {
+    setService(id);
+    const d = SERVICE_DEFAULTS[id];
+    if (d) {
+      setQuestion(d.question);
+      setStart(d.start);
+      setEnd(d.end());
+    }
+  }
+  const svcList: Json[] = services.data?.items ?? [{ service_id: "support-demo", display_name: "Support demo service", runtime_modes: [mode] }];
+  const svc = svcList.find((x) => x.service_id === service);
+  const modeOk = !svc?.runtime_modes || svc.runtime_modes.includes(mode);
   const [memory, setMemory] = useState<"on" | "off">("on");
   const [trialProfile, setTrialProfile] = useState("sandbox-trials-v1");
   const [budget, setBudget] = useState("sandbox-approved-budget-v1");
@@ -41,7 +66,7 @@ function NewInvestigation({ open, onClose, mode }: { open: boolean; onClose: () 
   async function submit(e: FormEvent) {
     e.preventDefault();
     const r = await m.run("/v1/investigations", {
-      service_id: "support-demo",
+      service_id: service,
       question,
       interval: { start, end },
       runtime_mode: mode,
@@ -60,11 +85,24 @@ function NewInvestigation({ open, onClose, mode }: { open: boolean; onClose: () 
     <Drawer open={open} onClose={onClose} title="New investigation">
       <form onSubmit={submit} className="space-y-5 p-5">
         <Notice tone="info" icon={BrainCircuit}>
-          <span className="text-[13px]">Agents will propose at most three candidates per path. Nothing is changed by starting an investigation — trials run on sandbox fixtures and every write needs a separate approval.</span>
+          <span className="text-[13px]">Agents will propose at most three candidates per path. Starting an investigation changes nothing on a target: trials run on sandbox fixtures or a disposable canary, and every write needs a separate human approval.</span>
         </Notice>
         <div>
-          <label className="mb-1.5 block text-[13px] font-semibold text-ink">Service</label>
-          <div className={cx(input, "flex items-center font-semibold")}>support-demo</div>
+          <span className="mb-1.5 block text-[13px] font-semibold text-ink">Service</span>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {svcList.map((x) => (
+              <button type="button" key={x.service_id} onClick={() => pickService(x.service_id)} className={cx("rounded-xl p-3 text-left ring-1 transition", service === x.service_id ? "bg-accent-50 ring-accent" : "bg-white ring-line hover:ring-accent/40")}>
+                <span className="flex items-center justify-between gap-2">
+                  <span className="mono text-[12.5px] font-semibold text-ink">{x.service_id}</span>
+                  {isLiveAws(x.service_id) && <LiveAwsBadge size="xs" />}
+                </span>
+                <span className="mt-0.5 block text-[11.5px] text-muted">{x.display_name}</span>
+                <span className="mt-1 block text-[10.5px] text-faint">modes: {(x.runtime_modes ?? []).join(", ")}</span>
+              </button>
+            ))}
+          </div>
+          {!modeOk && <div className="mt-2"><Notice tone="warn" title="This service does not run in the server's mode">The server runs <b>{mode}</b>; {service} supports {(svc?.runtime_modes ?? []).join(", ")}. The request will be refused.</Notice></div>}
+          {isLiveAws(service) && <p className="mt-2 text-[11.5px] text-muted">Live AWS: real CloudWatch metrics and Price List through Zetaris, and a real canary EC2 instance for the trial (about 15 minutes end to end). Nothing on the live instances changes until a human approves.</p>}
         </div>
         <div>
           <label htmlFor="q" className="mb-1.5 block text-[13px] font-semibold text-ink">Question</label>
@@ -131,12 +169,14 @@ export default function Investigations() {
     shouldPoll: (d) => !!d?.items.some((i: Json) => i.status === "QUEUED" || i.status === "RUNNING"),
   });
 
+  // ?new=1 opens the drawer once; strip it straight away so a later navigation is never overridden.
   useEffect(() => {
-    if (params.get("new") === "1" && !open) {
-      params.delete("new");
-      setParams(params, { replace: true });
+    if (params.get("new") === "1") {
+      const next = new URLSearchParams(params);
+      next.delete("new");
+      setParams(next, { replace: true });
     }
-  }, [open, params, setParams]);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const items = useMemo(() => {
     const all = list.data?.items ?? [];
@@ -212,10 +252,13 @@ export default function Investigations() {
                       <Link to={`/app/investigations/${i.id}`} className="block">
                         <div className="flex min-w-0 items-center gap-2">
                           {isAutopilot(i) && <AutopilotBadge size="xs" />}
+                          {isLiveAws(i.service_id) && <LiveAwsBadge size="xs" />}
                           <span className="truncate text-[14px] font-semibold text-ink group-hover:text-accent">{i.question}</span>
                         </div>
                         <div className="mt-0.5 flex items-center gap-2 text-[11.5px] text-faint">
                           <span className="mono">{i.id.slice(0, 8)}</span>
+                          <span>·</span>
+                          <span className="mono">{i.service_id}</span>
                           <span>·</span>
                           <span>{modeLabel(i.runtime_mode)}</span>
                           {i.outcome?.error && <span className="truncate text-fail">· {i.outcome.error.code}</span>}
@@ -241,7 +284,7 @@ export default function Investigations() {
                 <li key={i.id}>
                   <Link to={`/app/investigations/${i.id}`} className="block p-4 active:bg-lav">
                     <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0 text-[14px] font-semibold text-ink">{isAutopilot(i) && <span className="mr-1.5 inline-block align-middle"><AutopilotBadge size="xs" /></span>}{i.question}</div>
+                      <div className="min-w-0 text-[14px] font-semibold text-ink">{isAutopilot(i) && <span className="mr-1.5 inline-block align-middle"><AutopilotBadge size="xs" /></span>}{isLiveAws(i.service_id) && <span className="mr-1.5 inline-block align-middle"><LiveAwsBadge size="xs" /></span>}{i.question}</div>
                       <StatusChip status={i.status} size="xs" />
                     </div>
                     <div className="mt-2 flex items-center justify-between gap-2">

@@ -7,6 +7,55 @@ import { checkLabel, num, pct, shortTs, usageBasisLabel, STATUS_MEANING } from "
 import { Card, CardHeader, CheckRow, ErrorBox, Hash, IdLink, KindBadge, KV, Notice, PageHeader, PageSkeleton, StatusChip, Stat, cx, Tabs } from "../components/ui";
 import { CategoryGrid, PairBars } from "../components/charts";
 
+function limitFrom(checks: Json[], id: string): number | null {
+  const m = /policy limit (\d+(?:\.\d+)?)%/.exec((checks ?? []).find((c) => c.check_id === id)?.detail ?? "");
+  return m ? Number(m[1]) : null;
+}
+
+function Meter({ label, value, limit }: { label: string; value: number | null | undefined; limit: number | null }) {
+  const v = value == null ? null : Number(value);
+  const over = v != null && limit != null && v > limit;
+  return (
+    <div>
+      <div className="mb-1.5 flex items-baseline justify-between gap-2">
+        <span className="text-[12.5px] font-semibold text-ink-2">{label}</span>
+        <span className="text-[12px] text-muted"><b className={cx("font-display text-[18px]", over ? "text-fail" : "text-ink")}>{v == null ? "—" : `${num(v, 1)}%`}</b>{limit != null && <> / limit {limit}%</>}</span>
+      </div>
+      <div className="relative h-3 overflow-hidden rounded-full bg-lav">
+        <div className={cx("h-full rounded-full", over ? "bg-fail/80" : "bg-accent")} style={{ width: `${Math.min(100, v ?? 0)}%` }} />
+        {limit != null && <div className="absolute inset-y-0 w-0.5 bg-fail" style={{ left: `${limit}%` }} title={`policy limit ${limit}%`} />}
+      </div>
+    </div>
+  );
+}
+
+/** Real AWS canary: a disposable instance of the candidate type ran the target's workload profile. */
+export function CanaryResult({ r, compact }: { r: Json; compact?: boolean }) {
+  const s = r.summary ?? {};
+  const cpuLim = limitFrom(r.checks, "TRIAL-CPU-HEADROOM");
+  const memLim = limitFrom(r.checks, "TRIAL-MEM-HEADROOM");
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-[#ff9900]/40 bg-[#ff9900]/8 px-4 py-3 text-[13.5px] text-ink-2">
+        <Server className="size-4 text-[#9a5b00]" />
+        <span><b className="text-ink">Canary on real AWS:</b> a disposable <span className="mono rounded bg-white px-1 text-[12.5px]">{r.candidate_instance_type}</span> ran the same workload for {r.measure_minutes} min</span>
+        <span className="mono ml-auto text-[11.5px] text-muted">{r.canary_instance_id} · from {shortTs(r.window_start)}</span>
+      </div>
+      <div className={cx("grid gap-4", compact ? "sm:grid-cols-2" : "lg:grid-cols-[1.4fr_1fr]")}>
+        <div className="space-y-4 rounded-2xl bg-wash p-4">
+          <Meter label="Peak 1-minute CPU on the candidate" value={s.cpu_max_pct} limit={cpuLim} />
+          <Meter label="Peak memory" value={s.mem_max_pct} limit={memLim} />
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <div className="rounded-xl bg-wash p-3"><div className="text-[11.5px] text-muted">Mean CPU</div><div className="font-display text-[22px] font-bold">{s.cpu_avg_pct == null ? "—" : `${num(s.cpu_avg_pct, 1)}%`}</div></div>
+          <div className="rounded-xl bg-wash p-3"><div className="text-[11.5px] text-muted">Datapoints</div><div className="font-display text-[22px] font-bold">{s.datapoints ?? "—"}</div><div className="text-[10.5px] text-faint">1-minute CloudWatch</div></div>
+          <div className="col-span-2 rounded-xl bg-wash p-3 text-[11.5px] text-muted">The canary is terminated after the window and stops itself regardless. Missing measurements make the trial INCOMPLETE, never PASS.</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function CloudTrial({ r }: { r: Json }) {
   const s = r.summary ?? {};
   const runs: Json[] = r.runs ?? [];
@@ -145,19 +194,21 @@ export default function TrialDetail() {
   const d = res.data;
   const r = d.result ?? {};
   const isAi = r.kind === "ai_dev_suite" || d.suite_id === "support-dev-v1";
+  const isCanary = r.kind === "aws_canary" || d.suite_id === "aws-canary-v1";
   return (
     <div className="rise">
       <div className="mb-3 flex flex-wrap items-center gap-2 text-[12px] text-faint">
         <Link to={`/app/plans/${d.plan_id}`} className="hover:text-accent">plan <span className="mono">{String(d.plan_id).slice(0, 8)}</span></Link><span>/</span><span>trial <span className="mono">{id.slice(0, 8)}</span></span>
       </div>
       <PageHeader
-        eyebrow={<><FlaskConical className="size-4" /> {isAi ? "AI development suite" : "Matched workload trial"} · {d.suite_id}</>}
+        eyebrow={<><FlaskConical className="size-4" /> {isAi ? "AI development suite" : isCanary ? "Canary on real AWS" : "Matched workload trial"} · {d.suite_id}</>}
         title={<>Trial <em>{res.status === "PASSED" ? "passed" : res.status === "FAILED" ? "rejected" : (res.status ?? "unknown").toLowerCase()}</em></>}
         sub={STATUS_MEANING[res.status ?? ""]}
         chips={<><StatusChip status={res.status} size="md" /><KindBadge kind={res.result_kind} prefix="result" /><KindBadge kind={res.data_origin} prefix="data" /><KindBadge kind={res.runtime_mode} prefix="mode" /></>}
         right={<div className="text-right text-[12px] text-muted"><div>trial hash</div><Hash value={d.trial_hash} /></div>}
       />
-      {["QUEUED", "RUNNING"].includes(res.status ?? "") && <div className="mb-5"><Notice tone="info" icon={Info} title="Trial in progress">This page re-reads the trial every 2 s.</Notice></div>}
+      {["QUEUED", "RUNNING"].includes(res.status ?? "") && <div className="mb-5"><Notice tone="info" icon={Info} title="Trial in progress">{isCanary ? "A disposable canary EC2 instance of the candidate type is being launched, loaded with the target's workload and measured in CloudWatch; it is terminated afterwards. " : ""}This page re-reads the trial every 2 s.</Notice></div>}
+      {isCanary && r.kind && <Card className="mb-5 p-5 sm:p-6"><CanaryResult r={r} /></Card>}
       <Card className="mb-5">
         <CardHeader title="Trial checks" icon={ShieldCheck} />
         <ul className="divide-y divide-line px-5 pb-4 sm:px-6">
@@ -166,7 +217,7 @@ export default function TrialDetail() {
         </ul>
         {(r.limitations ?? []).length > 0 && <div className="border-t border-line px-5 py-3 text-[12px] text-muted sm:px-6"><b className="text-ink-2">Limitations:</b> {r.limitations.join(" · ")}</div>}
       </Card>
-      {r.kind ? (isAi ? <AiTrial r={r} /> : <CloudTrial r={r} />) : null}
+      {r.kind && !isCanary ? (isAi ? <AiTrial r={r} /> : <CloudTrial r={r} />) : null}
       <Card className="mt-5">
         <CardHeader title="Provenance" icon={Info} />
         <div className="grid gap-6 px-5 pb-5 sm:px-6 md:grid-cols-2">

@@ -9,7 +9,7 @@ const STATUS_TONE: Record<string, Tone> = {
   RECOVERED: "restored",
   FAIL: "fail", FAILED: "fail", REJECTED: "fail", REJECT: "fail", unavailable: "fail", RECOVERY_REQUIRED: "fail",
   UNKNOWN: "unknown", unknown: "unknown",
-  INCOMPLETE: "attention", partial: "attention", AWAITING_APPROVAL: "attention", NEEDS_REVIEW: "attention",
+  INCOMPLETE: "attention", partial: "attention", WAIVED: "attention", AWAITING_APPROVAL: "attention", NEEDS_REVIEW: "attention",
   NEEDS_EVIDENCE: "attention", STALE: "attention", APPROVED: "attention", degraded: "attention",
   PENDING_VERIFICATION: "attention", PENDING: "attention", EXPIRED: "attention", REVISE: "attention",
   QUEUED: "progress", RUNNING: "progress", EXECUTING: "progress", RECOVERING: "progress",
@@ -45,6 +45,7 @@ export const STATUS_MEANING: Record<string, string> = {
   CANCELLED: "Cancelled at a safe boundary",
   CANCEL_REQUESTED: "Cancel requested; stops at the next safe stage boundary",
   INCOMPLETE: "The trial could not produce a comparable result; the candidate was not judged",
+  WAIVED: "Waived by policy — not a pass; the policy explains why this check does not apply",
   PASSED: "Every trial check passed",
 };
 
@@ -157,6 +158,7 @@ export function planTitle(p: PlanSummary): string {
 export function environmentOf(targetKey: string | null | undefined): string {
   const t = targetKey ?? "";
   if (t.startsWith("local/sandbox/")) return "local sandbox";
+  if (t.startsWith("aws/")) return "live AWS sandbox";
   if (t.includes("-prod") || t.includes("/prod")) return "production (not executable)";
   if (t.includes("staging") || t.includes("-stg")) return "staging";
   return "unknown";
@@ -166,8 +168,13 @@ export function checkOf(p: PlanSummary | Json, id: string): Check | undefined {
   return (p?.screening?.checks ?? []).find((c: Check) => c.check_id === id);
 }
 
+/** Checks that did not pass. WAIVED is neither a pass nor a failure: it is listed separately (waivedChecks). */
 export function failingChecks(p: PlanSummary): Check[] {
-  return (p.screening?.checks ?? []).filter((c) => c.status !== "PASS");
+  return (p.screening?.checks ?? []).filter((c) => c.status !== "PASS" && c.status !== "WAIVED");
+}
+
+export function waivedChecks(p: PlanSummary): Check[] {
+  return (p.screening?.checks ?? []).filter((c) => c.status === "WAIVED");
 }
 
 export function planReason(p: PlanSummary, feedback: Json[] = []): string {
@@ -209,6 +216,7 @@ export const KIND_LABEL: Record<string, string> = {
   connected_demo: "Connected demo",
   replay: "Recorded replay",
   human: "Human decision",
+  real_permitted: "Real (permitted sandbox)",
 };
 
 export function usageBasisLabel(b: string | null | undefined): string {
@@ -242,6 +250,10 @@ export const CHECK_LABEL: Record<string, string> = {
   "TRIAL-P95-REGRESSION": "p95 regression",
   "TRIAL-P95-SLO": "p95 within SLO",
   "MEM-PRIOR-FAILURE": "Prior failure (memory)",
+  "TRIAL-CANARY-MEASURED": "Canary measured",
+  "TRIAL-WORKLOAD-ACTIVE": "Workload active",
+  "TRIAL-CPU-HEADROOM": "CPU headroom",
+  "TRIAL-MEM-HEADROOM": "Memory headroom",
 };
 
 export function checkLabel(id: string): string {
@@ -292,4 +304,9 @@ export function eventLabel(kind: string): string {
 export function isAutopilot(inv: { question?: string; actor_id?: string } | null | undefined): boolean {
   if (!inv) return false;
   return inv.actor_id === "autopilot" || String(inv.question ?? "").startsWith("Autopilot (");
+}
+
+export const LIVE_AWS_SERVICE = "superops-aws";
+export function isLiveAws(serviceId: string | null | undefined): boolean {
+  return serviceId === LIVE_AWS_SERVICE;
 }

@@ -168,6 +168,32 @@ Prerequisites: macOS/Linux, Python 3.12 + `uv`, Node 22.12–22.x (`/usr/local/b
 
 To execute an approved change, set `SANDBOX_WRITES_ENABLED=true` after reviewing `ALLOWED_TARGET_IDS`. Only the local sandbox analogue targets are writable.
 
+## Live AWS sandbox (real cloud, real change)
+
+The `superops-aws` service runs the same agents and gates on a real AWS account, in a dedicated, self-expiring sandbox. Nothing outside it is touched.
+
+```bash
+make aws-up
+```
+
+```bash
+make aws-collect WATCH=120
+```
+
+- **`aws-up`** creates a new VPC in ap-south-1 (no inbound rules), an IAM role for the CloudWatch agent and SSM, and three Graviton instances, each running an absolute-vCPU workload. Every resource is tagged `Project=SuperOps` and every instance stops itself at a fixed deadline; a 30 USD budget is created for visibility. The instances:
+  - `superops-api-01` (c7g.xlarge, prod) is spiky: 0.4 vCPU with 3-minute spikes to 3.4 vCPU every 20 minutes. A downsize is refused on the real peak.
+  - `superops-worker-01` (c7g.xlarge, staging) is steady at about 1.0–1.25 vCPU. This is the safe, real resize to c7g.large.
+  - `superops-batch-01` (c7g.large, prod) is under a change freeze, so policy refuses it.
+- **`aws-collect`** loads EC2 inventory, 1-minute CloudWatch CPU and memory, AWS Price List rates and the policy into source C, which Zetaris federates as `aws_pg` and `aws_ref`.
+
+An investigation on `superops-aws` then runs as follows:
+1. The agents propose changes from live evidence; deterministic screening refuses unsafe ones.
+2. An `aws-canary-v1` trial launches a disposable instance of the candidate type running the same workload and measures it in CloudWatch.
+3. The plan shows a **runbook**: expected downtime (measured on the last real stop/start), the automated steps, the equivalent manual AWS CLI commands, and rollback.
+4. If a human approves the exact hash and acknowledges the downtime, the `aws` executor stops the instance, changes its type, starts it, reads it back, waits for EC2 status checks, and verifies the measured workload against the policy limit. It restores the old type if verification fails.
+
+`make autopilot SERVICE=superops-aws` re-investigates when the live evidence changes materially. `make aws-down` removes everything.
+
 ## Quick start: sample mode (no credentials)
 
 Set `RUNTIME_MODE=sample`, `EMBEDDING_MODE=hash_conformance`, `HMEM_DATA_DIR=var/hmem-sample`, `MAX_RUN_COST_USD=1` and a `MEMORY_AUTH_TOKEN`, then:
@@ -198,6 +224,7 @@ Then run `make sandbox-up`, `make sidecar`, `make api`, `make worker` and `make 
 | `make test-integration` | Real PostgreSQL, real sandbox worker processes, real H-MEM sidecar: authority (ACT/SEC) and memory learning |
 | `make test-sidecar` | node:test contract, integrity, fail-closed and retry tests for the memory wrapper (Node 22; `NODE=` to select) |
 | `make test-connected` | Live sponsor gates ZET-01..04, NIM-01/02, HMEM-07 (missing credentials report BLOCKED, never PASS) |
+| `make aws-up` / `make aws-collect` / `make aws-down` | Live AWS sandbox: create, collect into Zetaris source C, tear down |
 | `make sources-up` / `make zetaris-setup` | Source B container; Zetaris datasource registration and verification |
 | `make autopilot` (`ONCE=1`) | Drift-triggered investigations: fingerprints inventory, telemetry, billing, prices and policy through Zetaris and starts an investigation as the `automation` actor when they change; it can never approve or execute |
 | `make web` / `make web-build` | React workbench dev server (:5173) / type-checked production build |

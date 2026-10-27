@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { Bot, ChevronDown, Cloud, MessageSquareWarning, ArrowRight, FlaskConical, Gavel, Leaf } from "lucide-react";
 import type { Json, PlanSummary, Resource, InvestigationData } from "../lib/api";
 import { useGet } from "../lib/hooks";
-import { checkLabel, checkOf, environmentOf, impactBasis, money, num, planReason, planTitle, pct, tone } from "../lib/format";
+import { checkLabel, checkOf, environmentOf, impactBasis, money, num, planReason, planTitle, pct, tone, shortTs } from "../lib/format";
 import { CheckRow, KindBadge, StatusChip, cx, IdLink, Skeleton, Notice } from "./ui";
 import { SeriesChart, type RefLine } from "./charts";
 
@@ -39,7 +39,7 @@ export function ImpactSummary({ imp, compact }: { imp: Json; compact?: boolean }
             <span>Carbon unknown{imp.carbon.reason ? ` — ${imp.carbon.reason}` : ""}</span>
           ) : (
             <span>
-              {num(imp.carbon.baseline_kg_co2e)} → {num(imp.carbon.candidate_kg_co2e)} kgCO₂e · {imp.carbon.basis} ({imp.carbon.coverage}; factor {imp.carbon.factor_kg_per_kwh} kg/kWh, {imp.carbon.factor_source})
+              {num(imp.carbon.baseline_kg_co2e)} → {num(imp.carbon.candidate_kg_co2e)} kgCO₂e · {imp.carbon.basis} ({imp.carbon.coverage}; factor {num(imp.carbon.factor_kg_per_kwh, 3)} kg/kWh, {imp.carbon.factor_source})
             </span>
           )}
         </div>
@@ -80,8 +80,8 @@ export function CriticBlock({ critic }: { critic: Json }) {
 export function PlanCard({ plan, feedback }: { plan: PlanSummary; feedback?: Json[] }) {
   const [open, setOpen] = useState(false);
   const checks = plan.screening?.checks ?? [];
-  const failing = checks.filter((c) => c.status !== "PASS");
-  const passCount = checks.length - failing.length;
+  const passCount = checks.filter((c) => c.status === "PASS").length;
+  const waivedCount = checks.filter((c) => c.status === "WAIVED").length;
   const t = tone(plan.status);
   return (
     <article className={cx("card flex flex-col overflow-hidden", t === "attention" && "ring-2 ring-warn/30")}>
@@ -102,8 +102,8 @@ export function PlanCard({ plan, feedback }: { plan: PlanSummary; feedback?: Jso
 
         <div className="flex flex-wrap gap-1">
           {checks.map((c) => (
-            <span key={c.check_id} title={`${c.check_id}: ${c.detail ?? ""}`} className={cx("rounded-md px-1.5 py-0.5 text-[10.5px] font-semibold", c.status === "PASS" ? "bg-pass-bg text-pass" : c.status === "FAIL" ? "bg-fail-bg text-fail" : "bg-unk-bg text-unk")}>
-              {checkLabel(c.check_id)}
+            <span key={c.check_id} title={`${c.check_id} ${c.status === "WAIVED" ? "waived by policy" : c.status}: ${c.detail ?? ""}`} className={cx("rounded-md px-1.5 py-0.5 text-[10.5px] font-semibold", c.status === "PASS" ? "bg-pass-bg text-pass" : c.status === "FAIL" ? "bg-fail-bg text-fail" : c.status === "WAIVED" ? "bg-warn-bg text-warn ring-1 ring-inset ring-warn/30" : "bg-unk-bg text-unk")}>
+              {checkLabel(c.check_id)}{c.status === "WAIVED" ? " · waived" : ""}
             </span>
           ))}
         </div>
@@ -112,7 +112,7 @@ export function PlanCard({ plan, feedback }: { plan: PlanSummary; feedback?: Jso
         <CriticBlock critic={plan.critic} />
 
         <button onClick={() => setOpen((o) => !o)} className="flex items-center justify-between rounded-lg px-1 text-[12.5px] font-semibold text-ink-2 hover:text-accent" aria-expanded={open}>
-          <span>Screening checks · {passCount}/{checks.length} pass</span>
+          <span>Screening checks · {passCount}/{checks.length} pass{waivedCount ? ` · ${waivedCount} waived` : ""}</span>
           <ChevronDown className={cx("size-4 transition", open && "rotate-180")} />
         </button>
         {open && (
@@ -162,7 +162,9 @@ export function CpuEvidenceChart({ d, targetKey, plan, height = 260 }: { d: Inve
   if (!vcpu) return <Notice tone="unknown" title="vCPU count unknown">The inventory evidence has no vCPU for this resource; plotting CPU in vCPU would be a guess.</Notice>;
 
   // Prefer the server's peak-preserving hourly view (covers the whole interval); fall back to the capped raw rows.
-  const hourly: Json[] | null = Array.isArray(series.res?.data?.series_hourly_peak) ? series.res!.data.series_hourly_peak : null;
+  // Raw rows when they are all present (e.g. 1-minute AWS data over a few hours), so short spikes stay visible.
+  const allRaw = series.res?.data?.rows_truncated === false && (series.res?.data?.row_count ?? Infinity) <= 500;
+  const hourly: Json[] | null = !allRaw && Array.isArray(series.res?.data?.series_hourly_peak) ? series.res!.data.series_hourly_peak : null;
   const points = (hourly
     ? hourly.filter((h) => h.cpu_percent_max !== null && h.cpu_percent_max !== undefined).map((h) => ({ t: new Date(h.hour).getTime(), v: (Number(h.cpu_percent_max) * vcpu) / 100 }))
     : series.rows
@@ -185,7 +187,11 @@ export function CpuEvidenceChart({ d, targetKey, plan, height = 260 }: { d: Inve
         <span>
           {hourly
             ? <>Hourly peak of every observation: {points.length} hours from {num(rawCount, 0)} raw samples, so no spike is averaged away. The checks used every raw observation.</>
-            : <>{points.length} of {rawCount ?? "?"} observations shown (the evidence API returns at most 500 rows); the checks used every observation.</>}{" "}
+            : allRaw
+              ? <>All {points.length} raw observations shown{sumRow?.row_count && Number(sumRow.row_count) !== points.length
+                  ? <>; the screening summary covers {num(sumRow.row_count, 0)} of them ({shortTs(sumRow.first_observed_at)} → {shortTs(sumRow.last_observed_at)}), so points outside that window were not used by the checks.</>
+                  : <>; the checks used the same rows.</>}</>
+              : <>{points.length} of {rawCount ?? "?"} observations shown (the evidence API returns at most 500 rows); the checks used every observation.</>}{" "}
           Current machine {invRow?.machine_type} · {vcpu} vCPU.
         </span>
         <span className="flex items-center gap-2">

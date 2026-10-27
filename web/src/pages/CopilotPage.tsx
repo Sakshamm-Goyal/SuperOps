@@ -39,7 +39,7 @@ export default function CopilotPage() {
           <div className="border-b border-line px-4 py-3 text-[12px] font-semibold uppercase tracking-wider text-faint">Context</div>
           <div className="max-h-[420px] overflow-y-auto scroll-thin">
             <button onClick={() => pick(null)} className={cx("flex w-full items-center gap-2 px-4 py-2.5 text-left text-[13px]", !inv ? "bg-accent-50 font-semibold text-accent" : "hover:bg-wash")}>
-              <Search className="size-3.5" /> All records for support-demo
+              <Search className="size-3.5" /> All records
             </button>
             {(list.data?.items ?? []).map((i: Json) => (
               <button key={i.id} onClick={() => pick(i.id)} className={cx("flex w-full flex-col gap-0.5 border-t border-line px-4 py-2.5 text-left", inv === i.id ? "bg-accent-50" : "hover:bg-wash")}>

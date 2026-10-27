@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Bot, Brain, Cpu, Database, Network, Sparkles, ShieldCheck, type LucideIcon } from "lucide-react";
+import { Bot, Brain, Cloud, Cpu, Database, Network, Sparkles, ShieldCheck, type LucideIcon } from "lucide-react";
 import { cx } from "./ui";
 
 /** Thin-line cloud over an isometric rack, drawn inline (no external art). */
@@ -68,6 +68,7 @@ export const SPONSOR_NODES: HubNode[] = [
   { name: "Claude Haiku 4.5", role: "Ops Copilot chat over committed records", icon: Sparkles },
   { name: "PostgreSQL", role: "Sole holder of action authority", icon: Database },
   { name: "Google ADK", role: "Bounded agent roles and tools", icon: Bot },
+  { name: "AWS", role: "Live EC2, CloudWatch and Price List sandbox", icon: Cloud },
 ];
 
 /** Integration hub: a centre seal with six satellite nodes on an orbit, connected by animated dashed lines. */
@@ -87,7 +88,7 @@ export function IntegrationHub({ nodes = SPONSOR_NODES, center }: { nodes?: HubN
         {center ?? (
           <div className="flex flex-col items-center">
             <ShieldCheck className="size-8 sm:size-10" strokeWidth={1.6} />
-            <span className="mt-1 font-display text-[10px] font-bold uppercase tracking-widest sm:text-xs">Verify</span>
+            <span className="mt-1 font-display text-[10px] font-bold uppercase tracking-widest sm:text-xs">SuperOps</span>
           </div>
         )}
       </div>

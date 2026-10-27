@@ -5,14 +5,14 @@ import {
 import type { Json, Resource } from "../lib/api";
 import { useGet } from "../lib/hooks";
 import { shortTs, STATUS_MEANING, humanize, num } from "../lib/format";
-import { Card, CardHeader, ErrorBox, Hash, IdLink, KindBadge, KV, Notice, PageHeader, PageSkeleton, StatusChip, cx, Pill } from "../components/ui";
+import { Card, CardHeader, ErrorBox, Hash, IdLink, KindBadge, KV, Notice, PageHeader, PageSkeleton, StatusChip, cx, Pill, LiveAwsBadge } from "../components/ui";
 import { useCopilotInvestigation } from "../components/Copilot";
 
 const ACTIVE = ["QUEUED", "EXECUTING", "PENDING_VERIFICATION", "RECOVERING"];
-const STAGES: { id: string; label: string; icon: typeof PenLine; sub: string }[] = [
-  { id: "INTENT", label: "Intent persisted", icon: PenLine, sub: "Plan hash, expected version and idempotent operation id written before any provider call" },
-  { id: "WRITE_APPLIED", label: "Write applied", icon: FileCheck2, sub: "Compare-and-set write to the target; new config version recorded" },
-  { id: "VERIFIED", label: "Verified", icon: BadgeCheck, sub: "Config read back from the running worker and a fresh workload passed" },
+const STAGES: { id: string; label: string; icon: typeof PenLine; sub: string; awsSub: string }[] = [
+  { id: "INTENT", label: "Intent persisted", icon: PenLine, sub: "Plan hash, expected version and idempotent operation id written before any provider call", awsSub: "Plan hash, expected version and idempotent operation id written before any AWS call" },
+  { id: "WRITE_APPLIED", label: "Write applied", icon: FileCheck2, sub: "Compare-and-set write to the target; new config version recorded", awsSub: "EC2 stop → modify instance type → tag version → start; downtime measured stop to running" },
+  { id: "VERIFIED", label: "Verified", icon: BadgeCheck, sub: "Config read back from the running worker and a fresh workload passed", awsSub: "Type read back, EC2 status checks OK and CloudWatch CPU measured against the policy limit" },
 ];
 
 function JsonBlock({ value }: { value: unknown }) {
@@ -52,7 +52,7 @@ function BeforeAfter({ before, after, beforeHash, afterHash }: { before: Json; a
   );
 }
 
-function JournalStepper({ journal, status }: { journal: Json[]; status: string }) {
+function JournalStepper({ journal, status, aws }: { journal: Json[]; status: string; aws?: boolean }) {
   const byStage = new Map(journal.map((j) => [j.stage, j]));
   const extra = journal.filter((j) => !STAGES.some((s) => s.id === j.stage));
   return (
@@ -73,7 +73,7 @@ function JournalStepper({ journal, status }: { journal: Json[]; status: string }
                   <div className="mono text-[10.5px] text-faint">{s.id}{j ? ` · #${j.seq} · ${shortTs(j.at)}` : ""}</div>
                 </div>
               </div>
-              <p className="mt-2 text-[12px] leading-snug text-muted">{s.sub}</p>
+              <p className="mt-2 text-[12px] leading-snug text-muted">{aws ? s.awsSub : s.sub}</p>
               {j && s.id === "INTENT" && (
                 <div className="mt-2 space-y-1 text-[11.5px]">
                   <div className="flex items-center gap-1"><span className="w-20 shrink-0 text-faint">plan hash</span><Hash value={j.detail?.plan_hash} n={10} /></div>
@@ -83,6 +83,9 @@ function JournalStepper({ journal, status }: { journal: Json[]; status: string }
               )}
               {j && s.id === "WRITE_APPLIED" && (
                 <div className="mt-2 space-y-1 text-[11.5px]">
+                  {j.detail?.downtime_seconds !== undefined && (
+                    <div className="mb-1.5 inline-flex items-center gap-1.5 rounded-lg bg-warn-bg px-2 py-1 text-[12px] font-semibold text-warn"><Hourglass className="size-3.5" /> {j.detail.downtime_seconds} s measured downtime</div>
+                  )}
                   <div className="flex items-center gap-1"><span className="w-20 shrink-0 text-faint">new version</span><span className="mono">v{j.detail?.new_version}</span></div>
                   <div className="flex items-center gap-1"><span className="w-20 shrink-0 text-faint">config hash</span><Hash value={j.detail?.config_hash} n={10} /></div>
                 </div>
@@ -124,6 +127,10 @@ export default function ActionDetail() {
   const beforeHash = intent?.detail?.before_config_hash;
   const afterHash = rb?.loaded_config_hash ?? journal.find((j) => j.stage === "WRITE_APPLIED")?.detail?.config_hash;
   const invId = plan.data?.data?.investigation_id;
+  const aws = d.executor === "aws";
+  const meas = v.measurement;
+  const downtime = journal.find((j) => j.stage === "WRITE_APPLIED")?.detail?.downtime_seconds;
+  const execLabel = aws ? `Real AWS EC2 change${rb?.region ? ` · ${rb.region}` : ""}` : d.executor_label ?? d.executor;
 
   return (
     <div className="rise">
@@ -140,12 +147,17 @@ export default function ActionDetail() {
           <>
             <StatusChip status={status} size="md" />
             <KindBadge kind={res.result_kind} prefix="result" />
-            <Pill icon={Server} className="!py-0.5">{d.executor_label ?? d.executor}</Pill>
+            <Pill icon={Server} className="!py-0.5">{execLabel}</Pill>
+            {aws && <LiveAwsBadge />}
+            {downtime !== undefined && <span className="inline-flex items-center gap-1 rounded-full bg-warn-bg px-2.5 py-0.5 text-[11.5px] font-semibold text-warn ring-1 ring-inset ring-warn/30"><Hourglass className="size-3" /> {downtime} s downtime (measured)</span>}
           </>
         }
       />
       {ACTIVE.includes(status) && <div className="mb-5"><Notice tone="info" icon={Info} title="In progress — do not retry">This page re-reads the action every 2 s. An ambiguous write is reconciled by the worker, never blindly retried.</Notice></div>}
       {status === "RECOVERY_REQUIRED" && <div className="mb-5"><Notice tone="fail" icon={AlertOctagon} title="Human intervention required">Run the documented operator procedure (<span className="mono">make resolve-action</span>). Foreign changes are never claimed or overwritten.</Notice></div>}
+      {aws && (
+        <div className="mb-5"><Notice tone="warn" icon={Server} title="Real AWS EC2 change">This action changed a real EC2 instance in the permitted SuperOps sandbox ({d.target_key}). The executor stopped it, changed the type, started it and measured the result; the downtime above was measured, not estimated.</Notice></div>
+      )}
       {d.executor === "local_analogue" && (
         <div className="mb-5"><Notice tone="unknown" icon={Server} title="Local analogue executor">A real configuration change on a local sandbox worker ({d.target_key}) that stands in for the GCP resize. It proves the approval → write → read-back → verify loop; it is not a cloud change and not an invoice saving.</Notice></div>
       )}
@@ -153,7 +165,7 @@ export default function ActionDetail() {
       <div className="space-y-5">
         <Card>
           <CardHeader title="Execution journal" icon={Activity} sub="Persisted stages, in order. Intent is written before the provider call so an unknown outcome can be reconciled." />
-          <div className="px-5 pb-5 sm:px-6"><JournalStepper journal={journal} status={status} /></div>
+          <div className="px-5 pb-5 sm:px-6"><JournalStepper journal={journal} status={status} aws={aws} /></div>
         </Card>
 
         <div className="grid gap-5 lg:grid-cols-[1.25fr_1fr]">
@@ -168,7 +180,7 @@ export default function ActionDetail() {
                 <ul className="divide-y divide-line">
                   {checks.map(([k, ok]) => (
                     <li key={k} className="flex items-center justify-between gap-3 py-2 text-[13px]">
-                      <span className="flex items-center gap-2 text-ink">{ok ? <CheckCircle2 className="size-4 text-pass" /> : <XCircle className="size-4 text-fail" />}{humanize(k)}</span>
+                      <span className="flex items-center gap-2 text-ink">{ok ? <CheckCircle2 className="size-4 text-pass" /> : <XCircle className="size-4 text-fail" />}{humanize(k).replace(/\bec2\b/i, "EC2").replace(/\bcpu\b/i, "CPU").replace(/\bslo\b/i, "SLO")}</span>
                       <span className={cx("text-[11px] font-bold", ok ? "text-pass" : "text-fail")}>{ok ? "PASS" : "FAIL"}</span>
                     </li>
                   ))}
@@ -182,15 +194,39 @@ export default function ActionDetail() {
                 </div>
               )}
               {w && <div className="mt-2 text-[11px] text-faint">Fresh workload after the change · server p95 {num(w.server_p95_ms, 1)} ms · schedule lag p95 {num(w.schedule_lag_p95_ms, 2)} ms</div>}
+              {meas && (
+                <div className="mt-3">
+                  <div className="grid grid-cols-3 gap-2">
+                    {[["Peak CPU", meas.cpu_max_pct == null ? "—" : `${num(meas.cpu_max_pct, 1)}%`], ["Mean CPU", meas.cpu_avg_pct == null ? "—" : `${num(meas.cpu_avg_pct, 1)}%`], ["Limit", meas.limit_pct == null ? "—" : `${num(meas.limit_pct, 0)}%`]].map(([l, val]) => (
+                      <div key={l as string} className="rounded-xl bg-wash p-2.5"><div className="text-[11px] text-muted">{l}</div><div className="font-display text-[18px] font-bold text-ink">{val}</div></div>
+                    ))}
+                  </div>
+                  {meas.cpu_max_pct != null && meas.limit_pct != null && (
+                    <div className="relative mt-2 h-2.5 overflow-hidden rounded-full bg-lav">
+                      <div className={cx("h-full rounded-full", Number(meas.cpu_max_pct) > Number(meas.limit_pct) ? "bg-fail" : "bg-pass")} style={{ width: `${Math.min(100, Number(meas.cpu_max_pct))}%` }} />
+                      <div className="absolute inset-y-0 w-0.5 bg-fail" style={{ left: `${Math.min(100, Number(meas.limit_pct))}%` }} />
+                    </div>
+                  )}
+                  <div className="mt-2 text-[11px] text-faint">{meas.datapoints} datapoints from {shortTs(meas.window_start)} · {meas.source}</div>
+                </div>
+              )}
             </div>
           </Card>
         </div>
 
         <div className="grid gap-5 lg:grid-cols-2">
           <Card>
-            <CardHeader title="Read-back from the running worker" icon={Server} />
+            <CardHeader title={aws ? "Read-back from EC2" : "Read-back from the running worker"} icon={Server} />
             <div className="px-5 pb-5 sm:px-6">
-              {rb ? (
+              {rb && aws ? (
+                <KV rows={[
+                  ["Instance", <span className="mono text-[12px]">{rb.instance_id} · {rb.region}</span>],
+                  ["Instance type", <span className="mono font-semibold">{rb.instance_type}</span>],
+                  ["State", <StatusChip status={rb.state === "running" ? "PASS" : "UNKNOWN"} label={rb.state} size="xs" />],
+                  ["Config version tag", <span className="mono">v{rb.version}</span>],
+                  ["Writer tag", <span className="mono break-all text-[11.5px]">{rb.writer}</span>],
+                ]} />
+              ) : rb ? (
                 <KV rows={[
                   ["Worker", <span className="mono text-[12px]">{rb.worker_id}</span>],
                   ["Loaded version", <span className="mono">v{rb.loaded_version}</span>],

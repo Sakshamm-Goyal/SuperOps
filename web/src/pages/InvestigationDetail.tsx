@@ -9,13 +9,14 @@ import { useGet, useMutation } from "../lib/hooks";
 import { useAuth } from "../lib/auth";
 import { buildStory, STAGES, type Story } from "../lib/story";
 import {
-  ago, checkLabel, checkOf, eventLabel, planTitle, isAutopilot, humanize, money, num, pct, shortTs, STATUS_MEANING, ts, signatureParts, impactBasis,
+  ago, checkLabel, checkOf, eventLabel, planTitle, isAutopilot, isLiveAws, humanize, money, num, pct, shortTs, STATUS_MEANING, ts, signatureParts, impactBasis,
 } from "../lib/format";
 import {
-  Button, Card, CardHeader, Empty, ErrorBox, Hash, IdLink, KindBadge, Notice, PageSkeleton, StatusChip, cx, KV, Pill, AutopilotBadge,
+  Button, Card, CardHeader, Empty, ErrorBox, Hash, IdLink, KindBadge, Notice, PageSkeleton, StatusChip, cx, KV, Pill, AutopilotBadge, LiveAwsBadge,
 } from "../components/ui";
 import { CategoryGrid, PairBars } from "../components/charts";
 import { CpuEvidenceChart, PlanCard, useTelemetrySummary } from "../components/plan";
+import { CanaryResult } from "./TrialDetail";
 import { useCopilotInvestigation } from "../components/Copilot";
 
 const LIVE = ["QUEUED", "RUNNING", "CANCEL_REQUESTED"];
@@ -201,6 +202,7 @@ function MomentRevision({ d, s }: { d: InvestigationData; s: Story }) {
   const summ = res.summary ?? {};
   const imp = p.impacts ?? {};
   const first = s.rejectedFirst;
+  const seriesKey: string | null = p.projection?.resource_key ?? p.target_key ?? null;
   const sp = signatureParts(p.screening?.signature);
   return (
     <Moment n={2} title="The evidence-driven revision that passed a matched trial" icon={FlaskConical} verdict={<StatusChip status={trial?.status} size="md" />}>
@@ -208,20 +210,26 @@ function MomentRevision({ d, s }: { d: InvestigationData; s: Story }) {
         {first ? (
           <>First try on the same target, <code className="mono rounded bg-lav px-1 text-[12.5px]">{signatureParts(first.screening?.signature).change}</code>, was rejected ({checkOf(first, "CHK-CPU-PEAK")?.detail ?? "failed screening"}). </>
         ) : null}
-        <b>{sp.target}</b> → <code className="mono rounded bg-lav px-1 text-[12.5px]">{sp.change}</code>{p.revision && p.revision > 1 ? ` (revision ${p.revision}, after the critic requested more evidence)` : ""} keeps headroom over the recorded peak, then ran
-        against identical offered load on two sandbox fixtures.
+        <b>{sp.target}</b> → <code className="mono rounded bg-lav px-1 text-[12.5px]">{sp.change}</code>{p.revision && p.revision > 1 ? ` (revision ${p.revision}, after the critic requested more evidence)` : ""} keeps headroom over the recorded peak, then {res.kind === "aws_canary" ? "ran on a disposable canary of the candidate type on real AWS." : "ran against identical offered load on two sandbox fixtures."}
       </p>
-      {p.target_key && (d.evidence ?? []).some((e) => e.kind === "telemetry_series" && e.subject === p.projection?.resource_key) && (
+      {seriesKey && (d.evidence ?? []).some((e) => e.kind === "telemetry_series" && e.subject === seriesKey) && (
         <div className="mb-5">
-          <div className="mb-2 text-[12px] font-semibold uppercase tracking-wider text-faint">Recorded demand vs what the candidate allows · {String(p.projection?.resource_key).split("/").slice(-1)[0]}</div>
-          <CpuEvidenceChart d={d} targetKey={p.projection.resource_key} plan={p} height={220} />
+          <div className="mb-2 text-[12px] font-semibold uppercase tracking-wider text-faint">Recorded demand vs what the candidate allows · {seriesKey.split("/").slice(-1)[0]}</div>
+          <CpuEvidenceChart d={d} targetKey={seriesKey} plan={p} height={220} />
         </div>
       )}
+      {res.kind === "aws_canary" && <div className="mb-5"><CanaryResult r={res} compact /></div>}
       <div className="grid gap-5 lg:grid-cols-[1fr_1.1fr]">
         <div className="grid grid-cols-2 gap-3 self-start">
-          <MiniStat label="Baseline p95" value={`${num(summ.baseline_p95_ms, 1)} ms`} />
-          <MiniStat label="Candidate p95" value={`${num(summ.candidate_p95_ms, 1)} ms`} tone="pass" />
-          <MiniStat label="New failures" value={summ.candidate_failures ?? "—"} sub={`baseline ${summ.baseline_failures ?? "—"}`} />
+          {res.kind === "aws_canary" ? (
+            <MiniStat label="Canary mean CPU" value={summ.cpu_avg_pct == null ? "—" : `${num(summ.cpu_avg_pct, 1)}%`} sub="workload was active on the candidate" />
+          ) : (
+            <>
+              <MiniStat label="Baseline p95" value={`${num(summ.baseline_p95_ms, 1)} ms`} />
+              <MiniStat label="Candidate p95" value={`${num(summ.candidate_p95_ms, 1)} ms`} tone="pass" />
+              <MiniStat label="New failures" value={summ.candidate_failures ?? "—"} sub={`baseline ${summ.baseline_failures ?? "—"}`} />
+            </>
+          )}
           <MiniStat label="Projected saving" value={money(imp.gross_saving, imp.currency ?? "USD")} sub={`over ${num(imp.horizon_hours, 0)} h; not achieved`} />
         </div>
         <div>
@@ -478,7 +486,7 @@ function MomentHuman({ d, s }: { d: InvestigationData; s: Story }) {
                   <span className={cx("grid size-10 shrink-0 place-items-center rounded-xl", a.status === "VERIFIED" ? "bg-pass text-white" : "bg-lav text-accent")}><CheckCircle2 className="size-5" /></span>
                   <div className="min-w-0 flex-1">
                     <div className="text-[14px] font-bold text-ink">{a.status === "VERIFIED" ? "A human approved the exact hashes; the change was executed once and verified" : `Action ${humanize(a.status).toLowerCase()}`}</div>
-                    <div className="mt-0.5 text-[12.5px] text-muted">{p ? planTitle(p) : `plan ${String(a.plan_id).slice(0, 8)}`} · memory sync {a.memory_sync_status ?? "unknown"} · local analogue, not a cloud resize</div>
+                    <div className="mt-0.5 text-[12.5px] text-muted">{p ? planTitle(p) : `plan ${String(a.plan_id).slice(0, 8)}`} · memory sync {a.memory_sync_status ?? "unknown"} · {p?.executor === "aws" ? "real AWS EC2 change" : "local analogue, not a cloud resize"}</div>
                   </div>
                   <span className="flex items-center gap-2"><StatusChip status={a.status} /><ArrowRight className="size-4 text-faint" /></span>
                 </Link>
@@ -740,6 +748,7 @@ export default function InvestigationDetail() {
             <div className="mt-3 flex flex-wrap items-center gap-2">
               <StatusChip status={status} size="md" />
               {isAutopilot(i) && <AutopilotBadge />}
+              {isLiveAws(i.service_id) && <LiveAwsBadge />}
               <KindBadge kind={res.runtime_mode} prefix="mode" />
               <KindBadge kind={res.data_origin} prefix="data" />
               <Pill icon={Brain} className="!py-0.5">memory {i.memory_mode}</Pill>

@@ -147,8 +147,12 @@ export function SeriesChart({ points, refs = [], unit = "", height = 260, yMax, 
   const path = useMemo(() => points.map((p, i) => `${i ? "L" : "M"}${x(p.t).toFixed(1)},${y(p.v).toFixed(1)}`).join(""), [points, w, ymax]); // eslint-disable-line react-hooks/exhaustive-deps
   const area = points.length ? `${path}L${x(points[points.length - 1].t).toFixed(1)},${pad.t + ih}L${x(points[0].t).toFixed(1)},${pad.t + ih}Z` : "";
   const yt = [0, 0.25, 0.5, 0.75, 1].map((f) => f * ymax);
+  const short = t1 - t0 < 2 * 86400000;
   const days = Math.max(1, Math.round((t1 - t0) / 86400000));
-  const xt = Array.from({ length: Math.min(6, days + 1) }, (_, i) => t0 + ((t1 - t0) * i) / Math.min(5, days));
+  const nTicks = short ? Math.min(6, Math.max(2, points.length)) : Math.min(6, days + 1);
+  const xt = Array.from({ length: nTicks }, (_, i) => t0 + ((t1 - t0) * i) / Math.max(1, nTicks - 1));
+  const tickLabel = (t: number) =>
+    short ? new Date(t).toISOString().slice(11, 16) : new Date(t).toLocaleDateString("en-GB", { day: "2-digit", month: "short", timeZone: "UTC" });
   const hp = hover !== null ? points[hover] : null;
 
   function onMove(e: React.MouseEvent<SVGSVGElement>) {
@@ -181,7 +185,7 @@ export function SeriesChart({ points, refs = [], unit = "", height = 260, yMax, 
           ))}
           {xt.map((t, i) => (
             <text key={i} x={x(t)} y={height - 6} textAnchor={i === 0 ? "start" : i === xt.length - 1 ? "end" : "middle"} className="fill-faint" style={{ fontSize: 10.5 }}>
-              {new Date(t).toLocaleDateString("en-GB", { day: "2-digit", month: "short", timeZone: "UTC" })}
+              {tickLabel(t)}
             </text>
           ))}
           {unit && <text x={pad.l - 8} y={pad.t - 3} textAnchor="end" className="fill-faint" style={{ fontSize: 10, fontWeight: 600 }}>{unit.trim()}</text>}

@@ -94,7 +94,7 @@ function ShellInner() {
           </button>
           <Link to="/" className="lg:hidden"><Logo className="[&_span:last-child]:hidden sm:[&_span:last-child]:inline" /></Link>
           <div className="hidden items-center gap-2 text-[13px] text-muted md:flex">
-            <span className="rounded-lg bg-white px-2 py-1 font-semibold text-ink ring-1 ring-line">support-demo</span>
+            <span className="rounded-lg bg-white px-2 py-1 font-semibold text-ink ring-1 ring-line">support-demo · superops-aws</span>
             <span>tenant {me?.tenant_id}</span>
           </div>
           <div className="ml-auto flex items-center gap-2 sm:gap-3">

@@ -272,7 +272,7 @@ export function CopilotChat({ investigationId, compact, onNavigate }: { investig
           {investigationId ? (
             <span className="truncate">Context: investigation <Link className="mono text-accent" to={recordHref("investigation", investigationId)} onClick={onNavigate}>{investigationId.slice(0, 8)}</Link></span>
           ) : (
-            <span className="truncate">Context: all records for support-demo</span>
+            <span className="truncate">Context: all your records</span>
           )}
         </div>
         {messages.length > 0 && (
