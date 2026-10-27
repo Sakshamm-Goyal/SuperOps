@@ -70,6 +70,18 @@ Everything below exists in the local database from live runs (Zetaris 2.4.3 loca
 
 Before recording: `uptime` load below ~5, so trials are not INCOMPLETE from host contention. Make sure `make preflight` passes, and hide `.env`.
 
+### 3b. Live AWS segment (27 October 2026)
+
+The demo video is recorded automatically from the running web app by a Playwright recorder, which signs in with the local sandbox `lead` token on localhost only. The AWS part follows the live service `superops-aws` in this order:
+1. A new investigation starts from the drawer.
+2. The completed hero run's story: real CloudWatch spikes, the API downsize refused on the peak, the frozen batch instance refused by policy, and the worker's canary PASSED.
+3. The plan's change runbook: downtime, the automated steps, the manual AWS CLI tab, rollback, and the downtime-acknowledged approval.
+4. The real EC2 action: measured downtime, read-back, status checks and CloudWatch verification.
+5. A follow-up run: memory recalls the verified change, and the runbook quotes the measured downtime.
+6. A Copilot question about the live sandbox.
+
+Every number on screen comes from those records. The sandbox stops itself at 2026-10-28 11:51 UTC; `make aws-down` removes it.
+
 ### If the result differs from the planned narrative
 
 - A genuinely rejected candidate is valuable evidence. If no safe improvement exists, present a sourced `NO_CHANGE` result and show an approved action from a separate clearly named successful case.

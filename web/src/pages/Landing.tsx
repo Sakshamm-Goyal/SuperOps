@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import { CloudIllustration, IntegrationHub, Logo, SPONSOR_NODES } from "../components/illustrations";
 import { Pill, cx } from "../components/ui";
+import { AgentsSection, LiveAwsSection } from "../components/landingSections";
 import { useAuth } from "../lib/auth";
 
 function FloatCard({ className, children, delay = 0 }: { className?: string; children: ReactNode; delay?: number }) {
@@ -93,11 +94,12 @@ export default function Landing() {
       <header className="absolute inset-x-0 top-0 z-30">
         <div className="mx-auto flex h-20 max-w-[1240px] items-center justify-between px-4 sm:px-6">
           <Logo />
-          <nav className="hidden items-center gap-8 text-[14px] font-medium text-ink-2 md:flex">
+          <nav className="hidden items-center gap-7 text-[14px] font-medium text-ink-2 md:flex">
             <a href="#how" className="hover:text-accent">How it works</a>
-            <a href="#rejections" className="hover:text-accent">Why rejections win</a>
-            <a href="#integrations" className="hover:text-accent">Integrations</a>
-            <a href="#guarantees" className="hover:text-accent">Guarantees</a>
+            <a href="#agents" className="hover:text-accent">Agents</a>
+            <a href="#aws" className="hover:text-accent">Live on AWS</a>
+            <a href="#rejections" className="hidden hover:text-accent lg:inline">Why rejections win</a>
+            <a href="#integrations" className="hidden hover:text-accent lg:inline">Integrations</a>
           </nav>
           <Link to={ctaTo} className="inline-flex h-10 items-center gap-2 rounded-full bg-ink px-4 text-[13.5px] font-semibold text-white hover:bg-ink-2">
             {me ? "Open workbench" : "Sign in"} <ArrowRight className="size-4" />
@@ -211,6 +213,8 @@ export default function Landing() {
         </ol>
       </section>
 
+      <AgentsSection />
+
       {/* Signature: the average lied */}
       <section className="bg-wash py-20 lg:py-28">
         <div className="mx-auto grid max-w-[1240px] items-center gap-12 px-4 sm:px-6 lg:grid-cols-[0.9fr_1.1fr]">
@@ -296,6 +300,8 @@ export default function Landing() {
           ))}
         </div>
       </section>
+
+      <LiveAwsSection />
 
       {/* Integrations hub */}
       <section id="integrations" className="relative scroll-mt-20 overflow-hidden bg-wash py-20 lg:py-28">

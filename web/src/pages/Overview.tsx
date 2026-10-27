@@ -5,10 +5,10 @@ import {
 } from "lucide-react";
 import { api, ApiError, type Overview as OverviewT, type Page, type Json, type Resource, type InvestigationData } from "../lib/api";
 import { useAuth } from "../lib/auth";
-import { Card, CardHeader, Stat, PageHeader, StatusChip, ErrorBox, PageSkeleton, Empty, KindBadge, Notice, cx, Button } from "../components/ui";
+import { Card, CardHeader, Stat, PageHeader, StatusChip, ErrorBox, PageSkeleton, Empty, KindBadge, Notice, cx, Button, LiveAwsBadge } from "../components/ui";
 import { Gauge, BarList, StackBar, MiniBars } from "../components/charts";
 import { SavingsFunnel } from "../components/SavingsFunnel";
-import { ago, money, num, checkLabel, modeLabel, humanize, eventLabel, isAutopilot } from "../lib/format";
+import { ago, money, num, checkLabel, modeLabel, humanize, eventLabel, isAutopilot, isLiveAws } from "../lib/format";
 
 const STATUS_COLORS: Record<string, string> = {
   AWAITING_APPROVAL: "#e0a100",
@@ -33,6 +33,7 @@ interface Derived {
   derived: boolean;
   perDay: { label: string; value: number }[];
   autopilotRuns?: number;
+  invs?: { id: string; service_id: string; status: string; created_at: string }[];
 }
 
 async function deriveOverview(): Promise<Derived> {
@@ -105,14 +106,16 @@ async function loadOverview(): Promise<Derived> {
     const ov = await api.get<OverviewT>("/v1/overview");
     let perDay: { label: string; value: number }[] = [];
     let autopilotRuns = 0;
+    let invs: Derived["invs"] = undefined;
     try {
       const page = await api.get<Page<Json>>("/v1/investigations?limit=100");
       const days: Record<string, number> = {};
       for (const i of page.items) days[String(i.created_at).slice(0, 10)] = (days[String(i.created_at).slice(0, 10)] ?? 0) + 1;
       perDay = Object.keys(days).sort().slice(-10).map((k) => ({ label: k.slice(8), value: days[k] }));
       autopilotRuns = page.items.filter((i: Json) => isAutopilot(i)).length;
+      invs = page.items.map((i: Json) => ({ id: i.id, service_id: i.service_id, status: i.status, created_at: i.created_at }));
     } catch { /* per-day chart is optional */ }
-    return { ov, derived: false, perDay, autopilotRuns };
+    return { ov, derived: false, perDay, autopilotRuns, invs };
   } catch (e) {
     if (e instanceof ApiError && (e.status === 404 || e.status === 405)) return deriveOverview();
     throw e;
@@ -149,6 +152,24 @@ export default function Overview() {
 
   const d = state.d;
   const ov = d?.ov;
+  const [svc, setSvc] = useState<string>("all");
+  const scoped = useMemo(() => {
+    if (!d?.invs || svc === "all") return null;
+    const list = d.invs.filter((i) => i.service_id === svc);
+    const by: Record<string, number> = {};
+    const days: Record<string, number> = {};
+    for (const i of list) {
+      by[i.status] = (by[i.status] ?? 0) + 1;
+      const k = String(i.created_at).slice(0, 10);
+      days[k] = (days[k] ?? 0) + 1;
+    }
+    return {
+      ids: new Set(list.map((i) => i.id)),
+      total: list.length,
+      by,
+      perDay: Object.keys(days).sort().slice(-10).map((k) => ({ label: k.slice(8), value: days[k] })),
+    };
+  }, [d, svc]);
   const rejectedShare = useMemo(() => {
     if (!ov || !ov.plans.total) return null;
     return (ov.plans.by_status.REJECTED ?? 0) / ov.plans.total;
@@ -159,12 +180,14 @@ export default function Overview() {
   if (!ov) return null;
 
   const awaiting = ov.plans.by_status.AWAITING_APPROVAL ?? 0;
+  const recent = scoped ? ov.recent.filter((r) => scoped.ids.has(r.investigation_id)) : ov.recent;
+  const services = Array.from(new Set((d?.invs ?? []).map((i) => i.service_id))).sort();
   const firstName = me?.display_name?.split(" ").slice(-1)[0];
 
   return (
     <div className="rise">
       <PageHeader
-        eyebrow={<><span>Overview</span><span className="text-line-2">/</span><span className="normal-case tracking-normal">{ov.service_id}</span></>}
+        eyebrow={<><span>Overview</span><span className="text-line-2">/</span><span className="normal-case tracking-normal">{svc === "all" ? "all services" : svc}</span></>}
         title={<>Every service, <em>at a glance</em></>}
         sub={`Welcome back${firstName ? `, ${firstName}` : ""}. Every figure below links back to a committed record.`}
         chips={
@@ -181,6 +204,21 @@ export default function Overview() {
         }
       />
 
+      {services.length > 1 && (
+        <div className="mb-5 flex flex-wrap items-center gap-3">
+          <div className="flex max-w-full gap-1 overflow-x-auto rounded-full bg-lav p-1 scroll-thin" role="tablist" aria-label="Filter by service">
+            {["all", ...services].map((x) => (
+              <button key={x} role="tab" aria-selected={svc === x} onClick={() => setSvc(x)}
+                className={cx("inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-3 py-1.5 text-[12.5px] font-semibold transition", svc === x ? "bg-white text-ink shadow-sm" : "text-muted hover:text-ink")}>
+                {x === "all" ? "All services" : <span className="mono">{x}</span>}
+                {isLiveAws(x) && <LiveAwsBadge size="xs" />}
+              </button>
+            ))}
+          </div>
+          {scoped && <span className="text-[12px] text-faint">Filters investigation counts, runs per day and recent activity; plan, savings and sponsor figures stay tenant-wide.</span>}
+        </div>
+      )}
+
       {d.derived && (
         <div className="mb-5">
           <Notice tone="info" icon={Info} title="Derived view">
@@ -190,8 +228,8 @@ export default function Overview() {
       )}
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-5">
-        <Stat label="Investigations" icon={Search} value={ov.investigations.total}
-          sub={<span className="flex flex-wrap gap-x-3">{Object.entries(ov.investigations.by_status).map(([k, v]) => <span key={k}>{humanize(k)} <b className="text-ink tnum">{v}</b></span>)}</span>} />
+        <Stat label={scoped ? `Investigations · ${svc}` : "Investigations"} icon={Search} value={scoped ? scoped.total : ov.investigations.total}
+          sub={<span className="flex flex-wrap gap-x-3">{Object.entries(scoped ? scoped.by : ov.investigations.by_status).map(([k, v]) => <span key={k}>{humanize(k)} <b className="text-ink tnum">{v}</b></span>)}</span>} />
         <Stat label="Awaiting approval" icon={Clock3} value={awaiting} sub="Plans that passed screening and a matched trial" footnote="Approval binds the exact plan + trial hash for 15 min" />
         <Stat accent label={d.derived ? "Proposed saving" : "Proposed monthly saving"} icon={DollarSign}
           value={ov.savings.proposed_monthly_usd === null ? "—" : money(ov.savings.proposed_monthly_usd)}
@@ -236,7 +274,7 @@ export default function Overview() {
             </div>
             <div>
               <div className="mb-2 text-[12px] font-semibold uppercase tracking-wider text-faint">Investigations per day</div>
-              {d.perDay.length ? <MiniBars data={d.perDay.map((p, i) => ({ ...p, highlight: i === d.perDay.length - 1 }))} height={110} /> : <div className="text-sm text-muted">No data</div>}
+              {(scoped ? scoped.perDay : d.perDay).length ? <MiniBars data={(scoped ? scoped.perDay : d.perDay).map((p, i, a) => ({ ...p, highlight: i === a.length - 1 }))} height={110} /> : <div className="text-sm text-muted">No runs</div>}
             </div>
           </div>
         </Card>
@@ -272,10 +310,10 @@ export default function Overview() {
         <Card>
           <CardHeader title="Recent activity" icon={Clock3} right={<Link to="/app/investigations" className="text-[13px] font-semibold text-accent hover:underline">All investigations</Link>} />
           <ol className="relative px-5 pb-5 sm:px-6">
-            {ov.recent.length === 0 && <Empty title="Nothing yet" icon={Clock3}>Start an investigation to see activity here.</Empty>}
-            {ov.recent.slice(0, 8).map((r, i) => (
+            {recent.length === 0 && <Empty title="Nothing yet" icon={Clock3}>{scoped ? `No recent activity for ${svc} in the latest events.` : "Start an investigation to see activity here."}</Empty>}
+            {recent.slice(0, 8).map((r, i) => (
               <li key={i} className="relative flex gap-3 pb-4 last:pb-0">
-                {i < Math.min(ov.recent.length, 8) - 1 && <span className="absolute left-[7px] top-5 h-full w-px bg-line" />}
+                {i < Math.min(recent.length, 8) - 1 && <span className="absolute left-[7px] top-5 h-full w-px bg-line" />}
                 <span className={cx("relative mt-1.5 size-[15px] shrink-0 rounded-full border-[3px] border-white ring-1", i === 0 ? "bg-accent ring-accent/40" : "bg-line-2 ring-line")} />
                 <Link to={`/app/investigations/${r.investigation_id}`} className="group min-w-0 flex-1 rounded-xl px-2 py-1 -mx-2 hover:bg-lav">
                   <div className="flex items-center justify-between gap-3">
