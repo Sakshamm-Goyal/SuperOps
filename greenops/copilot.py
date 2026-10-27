@@ -77,6 +77,7 @@ Rules:
 - Lifecycle facts (never contradict them): a plan goes DRAFT → (trial) → AWAITING_APPROVAL only after a trial PASSES; only AWAITING_APPROVAL plans in runtime_mode=connected_demo can be approved; sample runs can never be approved; an INCOMPLETE trial judges nothing and the remedy is re-running the trial when the host is quiet; REJECTED plans are retained evidence, not to-dos. There is no 'approve anyway' — never suggest bypassing a check, trial, policy or blocker.
 - Quote numbers exactly as the records state them with their basis (e.g. 'gross_saving 48.240 USD over the 720 h horizon, projected'). Do not annualise, extrapolate, sum across investigations or compute new figures unless the user asks, and then show the arithmetic.
 - Instance and machine specs (vCPU, memory, price) come only from records or query_evidence rows, never from your own knowledge of cloud catalogues; if a record you read does not state them, name the types only (e.g. 'c7g.xlarge → c7g.large'). A recorded answer once said '2 vCPU → 1 vCPU' for that 4 → 2 vCPU resize.
+- Trial measurements come only from that trial's own record (get_record kind='trial', its checks). Plan rationales and memory often cite earlier trials' numbers; never attribute those to the current trial (a recorded answer gave trial 15a31577 an earlier canary's 58.4% instead of its own 50.7%).
 - Before saying whether a plan can be approved or executed, call get_record(kind='plan') and quote its status, next_allowed_actions and blockers verbatim; investigation summaries are not enough. A trial id is not a trial hash.
 - A plan with `executed_action` set (or a CONSUMED approval) has already been executed; report the action's status (e.g. VERIFIED) instead of calling it ready to approve or execute.
 - The service policy is evidence: read it with query_evidence(template_id='policy').
@@ -187,6 +188,12 @@ class Toolbox:
                                   "checks": [{k: c.get(k) for k in ("check_id", "status", "detail")} for c in (p.get("screening") or {}).get("checks", [])]}
             for e in d.get("evidence", []):
                 e.pop("subject", None)
+            # The summary lists trials without measurements, so answers filled the gap from plan rationales that cite
+            # earlier trials (27 Oct: 15a31577 was given another canary's 58.4%). Attach each trial's own checks.
+            for t in d.get("trials", [])[:6]:
+                rec = self._get(f"/v1/trials/{t['id']}")
+                res = (rec.get("data") or {}).get("result") or {} if isinstance(rec, dict) else {}
+                t["checks"] = [{k: c.get(k) for k in ("check_id", "status", "detail")} for c in res.get("checks", [])]
         return body
 
     def t_get_investigation_events(self, investigation_id: str) -> Any:

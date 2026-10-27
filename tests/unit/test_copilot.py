@@ -52,3 +52,18 @@ def test_copilot_timestamp_requires_timezone():
         assert e.code == "VALIDATION_ERROR"
     else:
         raise AssertionError("naive timestamp accepted")
+
+
+def test_investigation_tool_carries_each_trials_own_measurements():
+    """27 Oct: without them the copilot gave trial 15a31577 an earlier canary's 58.4% (cited in the plan rationale)."""
+    T = "15a31577-1808-44ac-a0cf-1fa19a602e50"
+    I = "9959c31a-5909-47f3-8fb5-7df728fac88e"
+
+    def get(path):
+        if path.startswith("/v1/trials/"):
+            return 200, {"id": T, "data": {"result": {"checks": [{"check_id": "TRIAL-CPU-HEADROOM", "status": "PASS",
+                                                                  "detail": "peak 1-minute CPU 50.7% on c7g.large vs policy limit 80%"}]}}}
+        return 200, {"id": I, "status": "COMPLETED", "data": {"plans": [{"id": "p", "rationale": "earlier canary shows peak CPU 58.4%"}],
+                                                               "trials": [{"id": T, "status": "PASSED"}]}}
+    body = copilot.Toolbox(FakeRt(), {"tenant_id": "t", "actor_id": "a"}, get).t_get_investigation(I)
+    assert "50.7%" in body["data"]["trials"][0]["checks"][0]["detail"]
